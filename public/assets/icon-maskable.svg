@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable icon: art stays inside the 80% safe zone so Android can
+       crop to any shape (circle, squircle, rounded square) without
+       clipping the garland or the wordmark. -->
+  <rect width="512" height="512" fill="#0E4F52"/>
+  <g transform="translate(256,256)">
+    <circle cx="-60" cy="0" r="26" fill="#00907F"/>
+    <circle cx="0"   cy="0" r="26" fill="#C4830E"/>
+    <circle cx="60"  cy="0" r="26" fill="#B93E56"/>
+  </g>
+  <text x="256" y="175"
+        font-family="Georgia, 'Marcellus', serif"
+        font-size="72" font-weight="400"
+        fill="#F4F6F2" text-anchor="middle" letter-spacing="5">NJY</text>
+</svg>

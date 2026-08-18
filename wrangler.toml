@@ -1,0 +1,22 @@
+name = "njy-app"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "public"
+
+# D1 database. IDs get filled in by `wrangler d1 create DB` and by
+# scripts/db-init.js the first time. Do not commit real IDs; use env-scoped
+# overrides in CI.
+[[d1_databases]]
+binding = "DB"
+database_name = "njy"
+# For local dev this id is a placeholder; wrangler ignores it in --local
+# mode. For production, replace it with the id printed by
+# `wrangler d1 create njy` (see DEPLOY.md step 2).
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "schema"
+
+# Session secret and VAPID keys are set via `wrangler pages secret put`.
+# Do not put secrets in this file.
+
+[vars]
+APP_TZ = "Asia/Kolkata"
+OVERDUE_DAYS = "7"

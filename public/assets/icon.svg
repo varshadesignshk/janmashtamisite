@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Solid peacock background so the icon reads well in every dock. -->
+  <rect width="512" height="512" fill="#0E4F52"/>
+  <!-- A single strand of the garland: three beads in the validated
+       teal / gold / rose, echoing the design system's mark palette. -->
+  <g transform="translate(256,256)">
+    <circle cx="-70" cy="0" r="34" fill="#00907F"/>
+    <circle cx="0"   cy="0" r="34" fill="#C4830E"/>
+    <circle cx="70"  cy="0" r="34" fill="#B93E56"/>
+  </g>
+  <!-- "NJY" set in a Marcellus-ish serif via a system fallback. -->
+  <text x="256" y="150"
+        font-family="Georgia, 'Marcellus', serif"
+        font-size="90" font-weight="400"
+        fill="#F4F6F2" text-anchor="middle" letter-spacing="6">NJY</text>
+</svg>

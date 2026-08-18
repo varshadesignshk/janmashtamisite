@@ -1,0 +1,21 @@
+{
+  "name": "njy-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NJY coordinator app — Phase 1 rebuild on Cloudflare Pages + D1",
+  "scripts": {
+    "dev": "wrangler pages dev public --d1=DB --compatibility-date=2026-08-01",
+    "preview": "node scripts/preview.js",
+    "deploy": "wrangler pages deploy public",
+    "db:init": "node scripts/db-init.js",
+    "db:migrate": "wrangler d1 migrations apply DB",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "seed": "node scripts/seed.js",
+    "template": "node scripts/template.js",
+    "test": "node --test tests/*.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

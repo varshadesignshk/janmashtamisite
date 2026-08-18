@@ -1,0 +1,263 @@
+/* Seva Register — NJY app phase 1.
+   Design tokens carried over from primitive/public/assets/app.css.
+   The three data-mark colours were validated by the dataviz palette
+   checker (see PAST.md §4) — do NOT nudge them by eye. Fonts fall back
+   to system defaults so the PWA works offline; the display face is a
+   nice-to-have. */
+
+:root {
+  --paper:        #F4F6F2;
+  --surface:      #FFFFFF;
+  --surface-sunk: #EDF1EC;
+  --ink:          #16261E;
+  --ink-2:        #3B4E45;
+  --muted:        #64756C;
+  --line:         #DCE4DE;
+  --line-strong:  #C2CFC7;
+
+  --peacock-deep: #0E4F52;
+  --peacock-ink:  #0A3B3D;
+
+  --mark-followed:  #00907F;
+  --mark-responded: #C4830E;
+  --mark-attention: #B93E56;
+  --mark-none:      #FFFFFF;
+  --mark-none-edge: #AFC0B7;
+
+  --tint-followed:  #E0F1EE;
+  --tint-responded: #F8EDD5;
+  --tint-attention: #F9E3E8;
+
+  --focus: #00907F;
+  --radius: 10px;
+  --radius-s: 6px;
+  --shadow: 0 1px 2px rgba(22,38,30,.06), 0 4px 16px rgba(22,38,30,.05);
+
+  --font-display: Georgia, 'Marcellus', serif;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'IBM Plex Mono', monospace;
+
+  --bead: 14px;
+}
+
+* { box-sizing: border-box; }
+/* The HTML `hidden` attribute must win over any author display value.
+   Without this !important, `.center { display: grid }` on the login
+   section keeps it visible even when the JS toggles `hidden=true`. */
+[hidden] { display: none !important; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font-ui); font-size: 16px; line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+a { color: var(--peacock-deep); }
+button { font: inherit; cursor: pointer; }
+
+.app { max-width: 44rem; margin: 0 auto; padding: 1rem 1rem 5rem; }
+
+/* -------------------------------------------------- nav */
+.nav {
+  display: flex; gap: .3rem; overflow-x: auto;
+  padding: .5rem 0; margin: .2rem 0 .5rem;
+  border-bottom: 1px solid var(--line);
+}
+.nav a {
+  padding: .4rem .7rem; border-radius: 999px;
+  font-size: .85rem; color: var(--ink-2); text-decoration: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.nav a:hover { background: var(--surface); border-color: var(--line); }
+.nav a.active {
+  background: var(--peacock-deep); color: white;
+}
+
+/* --------- manage panel (per-row popover) --------- */
+.manage {
+  grid-column: 1 / -1;
+  background: var(--surface-sunk); border: 1px solid var(--line);
+  border-radius: var(--radius-s); padding: .6rem .8rem;
+  margin-top: .5rem;
+  display: grid; grid-template-columns: 1fr 1fr; gap: .5rem;
+}
+.manage label { margin: 0 0 .2rem; }
+.manage .full { grid-column: 1 / -1; }
+.danger {
+  background: transparent; color: var(--mark-attention);
+  border: 1px solid var(--mark-attention);
+  padding: .4rem .8rem; border-radius: var(--radius-s);
+  font-size: .85rem; cursor: pointer;
+}
+.danger:hover { background: var(--mark-attention); color: white; }
+.mini-btn {
+  background: var(--surface-sunk); border: 1px solid var(--line);
+  padding: .3rem .6rem; border-radius: var(--radius-s);
+  font-size: .8rem; color: var(--ink-2); cursor: pointer;
+}
+
+/* small utility */
+.row { display: flex; gap: .5rem; align-items: center; }
+.spread { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+.grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; }
+.pill {
+  display: inline-block; padding: .15rem .5rem; border-radius: 999px;
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+  background: var(--surface-sunk); color: var(--muted);
+  border: 1px solid var(--line);
+}
+.pill.on { background: var(--tint-followed); color: var(--mark-followed); border-color: var(--mark-followed); }
+
+/* table-like list */
+.list { list-style: none; padding: 0; margin: 0; }
+.list li {
+  display: grid; grid-template-columns: 1fr auto auto;
+  align-items: center; gap: .75rem;
+  padding: .6rem .3rem; border-bottom: 1px solid var(--line);
+}
+.list li a.btn {
+  background: var(--surface-sunk); color: var(--ink-2);
+  padding: .3rem .6rem; border-radius: var(--radius-s);
+  font-size: .8rem; text-decoration: none;
+  border: 1px solid var(--line);
+}
+
+/* --------- section titles --------- */
+h2.section {
+  font-family: var(--font-display); color: var(--peacock-deep);
+  font-weight: 400; margin: 1.6rem 0 .5rem;
+}
+h3.section {
+  font-family: var(--font-display); color: var(--peacock-deep);
+  font-weight: 400; margin: 1.2rem 0 .3rem; font-size: 1.1rem;
+}
+
+/* --------- textarea --------- */
+textarea { min-height: 4rem; resize: vertical; }
+
+/* --------- score chip --------- */
+.score {
+  font-family: var(--font-mono); font-weight: 500;
+  color: var(--mark-responded); background: var(--tint-responded);
+  padding: .1rem .55rem; border-radius: 999px; font-size: .85rem;
+}
+
+/* -------------------------------------------------- topbar */
+.topbar {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding: .5rem 0 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.topbar h1 {
+  margin: 0; font-family: var(--font-display); color: var(--peacock-deep);
+  font-size: 1.6rem; font-weight: 400; letter-spacing: .01em;
+}
+.topbar .who { color: var(--muted); font-size: .9rem; }
+.topbar .who strong { color: var(--ink-2); font-weight: 500; }
+.topbar .who a { margin-left: .8rem; }
+
+/* -------------------------------------------------- tally strip */
+.tally {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem;
+  margin: 1rem 0;
+}
+.tally .cell {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: .6rem .7rem;
+}
+.tally .cell .n {
+  font-family: var(--font-mono); font-size: 1.4rem; font-weight: 500;
+  color: var(--ink);
+}
+.tally .cell .k {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted);
+}
+
+/* -------------------------------------------------- roll list */
+.roll { list-style: none; padding: 0; margin: 0; }
+.roll li {
+  display: grid; grid-template-columns: auto 1fr auto auto;
+  align-items: center; gap: .75rem;
+  padding: .6rem .3rem; border-bottom: 1px solid var(--line);
+}
+.roll .name { color: var(--ink); font-weight: 500; }
+.roll .name .phone {
+  display: block; font-family: var(--font-mono); font-size: .78rem;
+  color: var(--muted); font-weight: 400;
+}
+.roll .bead-wrap { position: relative; }
+.chant-tag {
+  font-family: var(--font-mono); font-size: .72rem; color: var(--muted);
+  padding: 0 .3rem;
+}
+.chant-tag.on { color: var(--mark-responded); font-weight: 500; }
+
+.roll .wa {
+  background: var(--tint-followed); border: 1px solid var(--mark-followed);
+  color: var(--mark-followed); padding: .35rem .6rem;
+  border-radius: var(--radius-s); font-size: .8rem; text-decoration: none;
+}
+.roll .wa:hover { background: var(--mark-followed); color: white; }
+
+/* -------------------------------------------------- garland bead */
+.bead {
+  --sz: 26px;
+  width: var(--sz); height: var(--sz);
+  border-radius: 50%; background: var(--mark-none);
+  border: 2px solid var(--mark-none-edge); cursor: pointer;
+  padding: 0; display: inline-block;
+  transition: transform .08s ease;
+}
+.bead:active { transform: scale(.92); }
+.bead[data-state="1"] { background: var(--mark-followed); border-color: var(--mark-followed); }
+.bead[data-state="2"] { background: var(--mark-responded); border-color: var(--mark-responded); }
+.bead[data-state="3"] {
+  background: var(--mark-none); border: 3px solid var(--mark-attention);
+}
+
+/* -------------------------------------------------- garland strip */
+.garland {
+  display: flex; flex-wrap: wrap; gap: .35rem; padding: 1rem 0;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.garland .bead { --sz: 22px; }
+
+/* -------------------------------------------------- forms */
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow);
+  margin: 2rem 0;
+}
+.card h2 {
+  margin: 0 0 1rem; font-family: var(--font-display); color: var(--peacock-deep);
+  font-weight: 400;
+}
+label { display: block; margin: .8rem 0 .3rem; font-size: .85rem; color: var(--ink-2); }
+input, textarea, select {
+  width: 100%; font: inherit; padding: .55rem .7rem;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-s);
+  background: var(--surface); color: var(--ink);
+}
+input:focus, textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+button.primary {
+  background: var(--peacock-deep); color: white; border: none;
+  padding: .6rem 1rem; border-radius: var(--radius-s);
+  font-weight: 500; font-size: .95rem;
+}
+button.primary:hover { background: var(--peacock-ink); }
+button.ghost {
+  background: transparent; color: var(--ink-2);
+  border: 1px solid var(--line-strong); padding: .5rem .8rem;
+  border-radius: var(--radius-s);
+}
+.error { color: var(--mark-attention); font-size: .85rem; margin: .5rem 0; }
+.hint { color: var(--muted); font-size: .8rem; }
+
+/* -------------------------------------------------- login screen */
+.center {
+  min-height: 100dvh; display: grid; place-items: center; padding: 1rem;
+}
+.center .card { max-width: 22rem; width: 100%; margin: 0; }
+.center h2 { text-align: center; }

@@ -1,0 +1,17 @@
+{
+  "name": "NJY — ISKCON Thiruppalai",
+  "short_name": "NJY",
+  "description": "Nama-Japa-Yajna coordinator and leader app.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F6F2",
+  "theme_color": "#0E4F52",
+  "lang": "en",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/assets/icon.svg",          "sizes": "any",     "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/assets/icon-maskable.svg", "sizes": "any",     "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

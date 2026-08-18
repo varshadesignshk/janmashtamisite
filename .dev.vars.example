@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local development. Values are injected as env
+# by `wrangler pages dev`. Do not commit .dev.vars.
+SESSION_SECRET=change-me-locally
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:temple@example.org
