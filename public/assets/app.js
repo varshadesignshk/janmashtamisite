@@ -45,7 +45,9 @@ let deferredInstall = null;
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   deferredInstall = e;
-  renderNav();
+  // Only re-render the nav if we're actually signed in — otherwise
+  // ME is still null and renderNav() reads ME.role and crashes.
+  if (ME) renderNav();
 });
 (async function boot() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -245,24 +247,51 @@ function rollList(roll, editable) {
 // ------------------------------------------------- leader dashboard ---
 async function renderLeaderDashboard(view) {
   view.append(el("h2", { class: "section" }, "Your coordinators"));
+  view.append(el("p", { class: "hint" }, "Each NJY group targets 40 daily chanters (Plan 2). Progress bar shows chanted-today count against that target."));
   try {
     const { coordinators } = await api("/api/leader/coordinators");
     if (!coordinators.length) return view.append(el("p", { class: "hint" }, "No coordinators visible yet."));
     const ul = el("ul", { class: "list" });
     for (const c of coordinators) {
-      const pill = el("span", { class: "pill" + (c.chanted_today > 0 ? " on" : "") },
-        `${c.chanted_today}/${c.assigned} today`);
-      ul.append(el("li", {},
-        el("div", {}, el("strong", {}, c.name),
-          el("div", { class: "hint" }, `${c.assigned} chanters`)),
-        pill,
-        el("a", { class: "btn", href: `#/user/${c.user_id}` }, "Open"),
-      ));
+      ul.append(el("li", {}, coordCard(c)));
     }
     view.append(ul);
   } catch (err) {
     view.append(el("p", { class: "error" }, err.message));
   }
+}
+
+// Reusable per-coordinator progress card. Used on both Team and HK
+// dashboards. Shows two progress bars — chanted-today and one-month
+// daily — plus the drill-in link.
+function coordCard(c) {
+  const target = c.target || 40;
+  const pctToday = Math.min(100, Math.round(100 * (c.chanted_today || 0) / target));
+  const monthlyTotal = c.daily_chanter_total || 0;
+  const pctMonthly = monthlyTotal
+    ? Math.min(100, Math.round(100 * (c.one_month_daily || 0) / monthlyTotal))
+    : 0;
+  const midToday = pctToday >= 60 ? 0 : (pctToday >= 30 ? 1 : 2);
+  const midMonthly = pctMonthly >= 60 ? 0 : (pctMonthly >= 30 ? 1 : 2);
+  return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
+    el("div", {},
+      el("div", { class: "spread" },
+        el("strong", {}, c.name),
+        el("a", { class: "btn", href: `#/user/${c.user_id}` }, "Open"),
+      ),
+      el("div", { class: "hint", style: "margin-top:.2rem" }, `${c.assigned} chanters in roll`),
+      el("div", { class: "progress-line", style: "margin-top:.55rem" },
+        el("span", {}, "Chanted today"),
+        el("span", { class: "fraction" }, `${c.chanted_today}/${target}`),
+      ),
+      el("div", { class: "pbar", "data-mid": String(midToday), style: `--pct:${pctToday}%` }),
+      el("div", { class: "progress-line", style: "margin-top:.4rem" },
+        el("span", {}, "One-month daily"),
+        el("span", { class: "fraction" }, `${c.one_month_daily || 0}/${monthlyTotal || 0}`),
+      ),
+      el("div", { class: "pbar", "data-mid": String(midMonthly), style: `--pct:${pctMonthly}%` }),
+    ),
+  );
 }
 
 // -------------------------------------------------------- HK dashboard ---
@@ -282,11 +311,7 @@ async function renderHkDashboard(view) {
     if (!coordinators.length) return view.append(el("p", { class: "hint" }, "No coordinators yet. Create some in Admin → Users."));
     const ul = el("ul", { class: "list" });
     for (const c of coordinators) {
-      ul.append(el("li", {},
-        el("div", {}, el("strong", {}, c.name), el("div", { class: "hint" }, `${c.assigned} chanters · ${c.chanted_today} chanted today`)),
-        el("span", { class: "pill" + (c.chanted_today > 0 ? " on" : "") }, c.assigned ? `${Math.round(100*c.chanted_today/c.assigned)}%` : "0%"),
-        el("a", { class: "btn", href: `#/user/${c.user_id}` }, "Drill in"),
-      ));
+      ul.append(el("li", {}, coordCard(c)));
     }
     view.append(ul);
   } catch (err) {
@@ -504,6 +529,34 @@ async function renderEventAttendance(eventId) {
       el("div", { class: "k" }, "Attended"));
     tally.append(nCell, capCell);
     view.append(tally);
+
+    // Per-coordinator attendance breakdown (the "20/40 per group" view
+    // from Plan 2). Uses the same event detail response, which now
+    // includes a `breakdown` array from the server.
+    const breakdown = (arguments && (await api(`/api/events/${encodeURIComponent(eventId)}`)).breakdown) || [];
+    if (breakdown.length) {
+      const card = el("div", { class: "card" });
+      card.append(el("h3", { class: "section" }, "Attendance by coordinator"));
+      card.append(el("p", { class: "hint" }, "How many of each coordinator's chanters attended this event, vs the Plan-2 target of 40."));
+      const bul = el("ul", { class: "list" });
+      for (const b of breakdown) {
+        const pct = Math.min(100, Math.round(100 * b.attended / (b.target || 40)));
+        const mid = pct >= 60 ? 0 : (pct >= 30 ? 1 : 2);
+        bul.append(el("li", {}, el("div", { style: "width:100%" },
+          el("div", { class: "spread" },
+            el("strong", {}, b.name),
+            el("span", { class: "hint" }, `${b.attended}/${b.assigned} in roll`),
+          ),
+          el("div", { class: "progress-line", style: "margin-top:.4rem" },
+            el("span", {}, "Attended vs target"),
+            el("span", { class: "fraction" }, `${b.attended}/${b.target || 40}`),
+          ),
+          el("div", { class: "pbar", "data-mid": String(mid), style: `--pct:${pct}%` }),
+        )));
+      }
+      card.append(bul);
+      view.append(card);
+    }
 
     const searchCard = el("div", { class: "card" });
     searchCard.append(
@@ -827,8 +880,9 @@ async function renderMemberDetails(personId) {
       F("m-addr", "Address", person.address),
       el("div", { class: "grid2" },
         F("m-phone", "Phone", person.phone),
-        F("m-email", "Email", person.email, { type: "email" }),
+        F("m-pincode", "Pincode", person.pincode, { placeholder: "e.g. 625001" }),
       ),
+      F("m-email", "Email", person.email, { type: "email" }),
       el("h3", { class: "section" }, "Work"),
       el("div", { class: "grid2" },
         F("m-edu", "Education", person.education),
@@ -852,6 +906,7 @@ async function renderMemberDetails(personId) {
         spouse_dob: $("m-spouse-dob").value || null,
         wedding_anniversary: $("m-anniv").value || null,
         address: $("m-addr").value, phone: $("m-phone").value,
+        pincode: $("m-pincode").value || null,
         email: $("m-email").value,
         education: $("m-edu").value, occupation: $("m-occ").value,
         organization: $("m-org").value, designation: $("m-des").value,

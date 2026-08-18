@@ -143,6 +143,30 @@ textarea { min-height: 4rem; resize: vertical; }
   padding: .1rem .55rem; border-radius: 999px; font-size: .85rem;
 }
 
+/* --------- progress bar --------- */
+.pbar {
+  --pct: 0%;
+  position: relative; overflow: hidden;
+  background: var(--surface-sunk); border-radius: 999px;
+  height: 8px; width: 100%; margin-top: .35rem;
+  border: 1px solid var(--line);
+}
+.pbar::after {
+  content: "";
+  position: absolute; inset: 0;
+  width: var(--pct); max-width: 100%;
+  background: var(--mark-followed);
+  border-radius: 999px;
+}
+.pbar[data-mid="1"]::after { background: var(--mark-responded); }
+.pbar[data-mid="2"]::after { background: var(--mark-attention); }
+.progress-line {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .5rem; font-family: var(--font-mono);
+  font-size: .72rem; color: var(--muted);
+}
+.progress-line .fraction { color: var(--ink-2); font-weight: 500; }
+
 /* -------------------------------------------------- topbar */
 .topbar {
   display: flex; align-items: baseline; justify-content: space-between;
