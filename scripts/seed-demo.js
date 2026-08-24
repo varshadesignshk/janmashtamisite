@@ -29,11 +29,18 @@ out(`-- To remove everything: wrangler d1 execute DB --remote --file=scripts/rem
 out(`-- ============================================================\n`);
 
 const users = [];
+let slCursor = 10000;
 function makeUser(username, display, role) {
   const id = randomUUID();
   users.push({ id, username, display, role });
-  out(`INSERT INTO users (id, username, password_hash, display_name, role, active, created_at)
-VALUES ('${id}', '${username}', '${pw}', '${display.replace(/'/g, "''")}', '${role}', 1, '${now}');`);
+  // Coordinators get 100 sl_nos each (10000-10099, 10100-10199, ...).
+  // Leaders and HK don't need ranges.
+  const isCoord = role === "njy_coordinator";
+  const slStart = isCoord ? slCursor : null;
+  const slEnd = isCoord ? slCursor + 99 : null;
+  if (isCoord) slCursor += 100;
+  out(`INSERT INTO users (id, username, password_hash, display_name, role, active, created_at, sl_range_start, sl_range_end)
+VALUES ('${id}', '${username}', '${pw}', '${display.replace(/'/g, "''")}', '${role}', 1, '${now}', ${slStart == null ? "NULL" : slStart}, ${slEnd == null ? "NULL" : slEnd});`);
   return id;
 }
 

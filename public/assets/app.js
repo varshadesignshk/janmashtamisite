@@ -482,27 +482,46 @@ function rollListManageable(roll, currentOwnerUserId) {
 
 async function buildManagePanel(person, currentOwnerUserId, onDone) {
   const users = await loadAllUsers();
-  const eligible = users.filter(u => ["njy_coordinator","servant_leader","hk_leader"].includes(u.role));
+  const REASSIGN_ROLES = ["njy_coordinator", "njy_leader", "manjari_servant_leader", "servant_leader", "hk_leader"];
   const panel = el("div", { class: "manage" });
 
-  // Reassign
-  const assignSel = el("select", {},
-    ...eligible.map(u =>
-      el("option", { value: u.id, selected: u.id === currentOwnerUserId ? true : undefined },
-        `${u.display_name} (${humanRole(u.role)})`)),
+  // Reassign — two-step picker: pick role, then a filtered name list.
+  const currentUser = users.find(u => u.id === currentOwnerUserId);
+  const roleSel = el("select", {},
+    ...REASSIGN_ROLES.map(r =>
+      el("option", { value: r, selected: currentUser && currentUser.role === r ? true : undefined },
+        humanRole(r))),
   );
+  const userSel = el("select", {});
+  function fillUserSel() {
+    userSel.innerHTML = "";
+    const filtered = users.filter(u => u.role === roleSel.value && u.active);
+    if (!filtered.length) {
+      userSel.append(el("option", { value: "" }, "— no active users in this role —"));
+      return;
+    }
+    filtered.forEach(u => {
+      userSel.append(el("option", { value: u.id, selected: u.id === currentOwnerUserId ? true : undefined },
+        u.display_name || u.username));
+    });
+  }
+  roleSel.addEventListener("change", fillUserSel);
+  fillUserSel();
+
   const assignBtn = el("button", { class: "mini-btn" }, "Move");
   assignBtn.addEventListener("click", async () => {
+    if (!userSel.value) return alert("Pick a user to move this person to.");
     try {
       await api(`/api/person/${person.id}/assign`, {
-        method: "POST", body: JSON.stringify({ assigned_to_user_id: assignSel.value }),
+        method: "POST", body: JSON.stringify({ assigned_to_user_id: userSel.value }),
       });
       alert("Moved. Refreshing.");
       renderRoute();
     } catch (err) { alert(err.message); }
   });
   panel.append(el("div", {},
-    el("label", {}, "Reassign to"), assignSel,
+    el("label", {}, "Reassign — role"), roleSel,
+    el("label", { style: "margin-top:.4rem" }, "then pick who"), userSel,
     el("div", { style: "margin-top:.4rem" }, assignBtn),
   ));
 
@@ -650,10 +669,63 @@ async function renderEventAttendance(eventId) {
       view.append(card);
     }
 
+    // --- Mark by coordinator (faster than search for events with a
+    // known roster). Pick a coord → see their 40-ish chanters as a
+    // checklist. Present/absent per row without typing.
+    const byCoordCard = el("div", { class: "card" });
+    byCoordCard.append(el("h3", { class: "section" }, "Mark by coordinator"));
+    byCoordCard.append(el("p", { class: "hint" }, "Faster than search when everyone attending is one coordinator's roll. Pick a coordinator, then tick present/absent for each person."));
+    const coordPick = el("select", { id: "att-coord" });
+    coordPick.append(el("option", { value: "" }, "— pick a coordinator —"));
+    try {
+      const { users } = await api("/api/admin/users");
+      users.filter(u => u.role === "njy_coordinator" && u.active).forEach(u =>
+        coordPick.append(el("option", { value: u.id }, u.display_name || u.username)));
+    } catch (_) {
+      // fallback for coords who can't call admin/users — use leader endpoint
+      try {
+        const { coordinators } = await api("/api/leader/coordinators");
+        coordinators.forEach(c => coordPick.append(el("option", { value: c.user_id }, c.name)));
+      } catch (_) {}
+    }
+    byCoordCard.append(formField("Coordinator", coordPick));
+    const coordRoster = el("ul", { class: "roll", id: "att-coord-roster" });
+    byCoordCard.append(coordRoster);
+    coordPick.addEventListener("change", async () => {
+      coordRoster.innerHTML = "";
+      if (!coordPick.value) return;
+      try {
+        const { roll } = await api(`/api/user/${encodeURIComponent(coordPick.value)}/roll`);
+        for (const p of roll) {
+          const isOn = attendedSet.has(p.id);
+          const b = bead(isOn ? "green" : "white", null);
+          b.title = isOn ? "attended" : "not attended";
+          const nameEl = el("div", { class: "name" });
+          nameEl.innerHTML = esc(p.name) + `<span class="phone">${esc(p.phone || "")}</span>`;
+          const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") }, isOn ? "✓ present" : "absent");
+          toggle.addEventListener("click", async () => {
+            const next = !attendedSet.has(p.id);
+            try {
+              await api(`/api/events/${encodeURIComponent(event.id)}/attendance`, {
+                method: "POST", body: JSON.stringify({ person_id: p.id, attended: next }),
+              });
+              if (next) attendedSet.add(p.id); else attendedSet.delete(p.id);
+              toggle.className = "chant-tag" + (next ? " on" : "");
+              toggle.textContent = next ? "✓ present" : "absent";
+              b.dataset.color = next ? "green" : "white";
+              $("att-n").textContent = String(attendedSet.size);
+            } catch (err) { alert(err.message); }
+          });
+          coordRoster.append(el("li", {}, el("div", { class: "bead-wrap" }, b), nameEl, el("span", {}), toggle, el("span", {})));
+        }
+      } catch (err) { alert(err.message); }
+    });
+    view.append(byCoordCard);
+
     const searchCard = el("div", { class: "card" });
     searchCard.append(
-      el("h3", { class: "section" }, "Search & mark"),
-      el("p", { class: "hint" }, "Type at least 2 characters — matches name or phone digits. Tap to toggle attendance."),
+      el("h3", { class: "section" }, "Search & mark (alternative)"),
+      el("p", { class: "hint" }, "For walk-in attendees whose coordinator you don't know. Type at least 2 characters — matches name or phone digits."),
       formField("Search", el("input", { id: "att-q", placeholder: "Ravi   or   9999000001", autocapitalize: "none", autocorrect: "off" })),
     );
     const results = el("ul", { class: "roll", id: "att-results" });

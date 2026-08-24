@@ -220,9 +220,29 @@ textarea { min-height: 4rem; resize: vertical; }
 /* -------------------------------------------------- roll list */
 .roll { list-style: none; padding: 0; margin: 0; }
 .roll li {
-  display: grid; grid-template-columns: auto 1fr auto auto auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center; gap: .5rem;
   padding: .6rem .3rem; border-bottom: 1px solid var(--line);
+}
+/* On narrow screens (phone portrait), stack the controls under the
+ * name so nothing is cramped. Bead + name stay on the first line. */
+@media (max-width: 640px) {
+  .roll li {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "bead name"
+      "ctrl ctrl";
+    row-gap: .35rem;
+  }
+  .roll li > .bead-wrap { grid-area: bead; }
+  .roll li > .name      { grid-area: name; }
+  .roll li > *:nth-child(n+3) {
+    grid-area: ctrl;
+    justify-self: start;
+    display: inline-flex;
+    margin-right: .4rem;
+  }
 }
 .roll .lifecycle {
   font-family: var(--font-mono);
