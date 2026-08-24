@@ -131,6 +131,7 @@ function renderNav() {
     { href: "#/sadhana",   label: "Sadhana",  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
     { href: "#/bv",        label: "BV",       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
     { href: "#/janmashtami", label: "Janmashtami", when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
+    { href: "#/leaderboard", label: "Leaderboard", when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/settings",  label: "Settings", when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
     { href: "#/admin",     label: "Admin",    when: () => can("feature_admin") },
   ];
@@ -178,6 +179,7 @@ function renderRoute() {
     "admin":    () => renderAdmin(arg || "gates"),
     "settings": renderSettings,
     "janmashtami": renderJanmashtami,
+    "leaderboard": () => renderLeaderboard(arg || "daily"),
     "member":   () => renderMemberDetails(arg),
     "group-report": () => renderGroupReport(arg),
   };
@@ -1089,6 +1091,47 @@ async function renderGroupReport(groupId) {
     } catch (err) { $("gr-msg").textContent = err.message; }
   };
   view.append(card);
+}
+
+// ---------------------------------------------------- Leaderboard ---
+async function renderLeaderboard(kind) {
+  const view = $("view");
+  view.append(el("h2", { class: "section" }, "Leaderboard"));
+
+  const tabs = el("div", { class: "nav", style: "border:none" });
+  const t = (k, label) => el("a", { class: kind === k ? "active" : "", href: `#/leaderboard/${k}` }, label);
+  tabs.append(t("daily", "Today"), t("overall", "Overall (P1+P2)"));
+  view.append(tabs);
+
+  view.append(el("p", { class: "hint" },
+    kind === "daily"
+      ? "Points reset every midnight IST. +10 per chanted-today, +5 per follow-up, +50 per NJY attendance, +50 perfect-day."
+      : "Cumulative Phase 1 + Phase 2. Includes Janmashtami entry/commit tier bonuses and milestone bonuses (35/50 one-month-daily → +200; 16/50 NJY-2 → +200; 12/50 NJY-3 → +400)."
+  ));
+
+  try {
+    const { rows } = await api(`/api/leaderboard/${kind}`);
+    if (!rows.length) return view.append(el("p", { class: "hint" }, "No coordinators yet."));
+    const ul = el("ul", { class: "list" });
+    const medals = ["🥇", "🥈", "🥉"];
+    rows.forEach((r, i) => {
+      const rank = i + 1;
+      const label = medals[i] || `#${rank}`;
+      const breakdownText = (r.breakdown || []).map(b => `${b.k}: ${b.pts}`).join(" · ");
+      const li = el("li", {},
+        el("div", {}, el("strong", {}, `${label}  ${r.name}`),
+          el("div", { class: "hint", style: "margin-top:.15rem" }, breakdownText || "—")),
+        el("span", { class: "score" }, `${r.pts} pts`),
+        r.user_id === ME.id
+          ? el("span", { class: "pill on" }, "you")
+          : el("a", { class: "btn", href: `#/user/${r.user_id}` }, "Open"),
+      );
+      ul.append(li);
+    });
+    view.append(ul);
+  } catch (err) {
+    view.append(el("p", { class: "error" }, err.message));
+  }
 }
 
 // ---------------------------------------------------- Janmashtami ---

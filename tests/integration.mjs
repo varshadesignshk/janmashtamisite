@@ -618,6 +618,51 @@ test("SL ranges: auto-suggest starts at 10000, then increments by 100 per coord"
   assert.deepEqual(b2, { start: 10100, end: 10199 });
 });
 
+test("Leaderboard daily: chants earn 10 pts each, follow-ups 5 pts each", async () => {
+  const { s, ppl } = await seed();
+  const coord = await s.userByUsername("coord1");
+  // Mark 3 people chanted today
+  const today = new Date().toISOString().slice(0, 10);
+  for (const p of ppl.slice(0, 3)) {
+    await s.upsertChant({ person_id: p.id, entry_date: today, chanted: 1, marked_by: coord.id });
+  }
+  // Mark 2 people as followed-up today (set last_marked_at explicitly)
+  const nowIso = new Date().toISOString();
+  for (const p of ppl.slice(3, 5)) {
+    await s.updatePerson(p.id, { contact_state: 1, last_marked_at: nowIso }, coord.id);
+  }
+  const { cookie } = await login(s, "hk", "test-pass-123");
+  const r = await route(withCookie("http://x/api/leaderboard/daily", cookie),
+    { store: s, env: { SESSION_SECRET: SECRET } });
+  const body = await r.json();
+  const coordRow = body.rows.find(x => x.user_id === coord.id);
+  // 3 chants * 10 + 2 follow-ups * 5 = 30 + 10 = 40
+  assert.ok(coordRow.pts >= 40, `expected at least 40, got ${coordRow.pts}`);
+});
+
+test("Leaderboard overall: Janmashtami entries earn +5 each and tier bonus", async () => {
+  const { s } = await seed();
+  const coord = await s.userByUsername("coord1");
+  await s.updateUser(coord.id, { sl_range_start: 10000, sl_range_end: 10099 });
+  // Backdate created_at to Janmashtami. Insert 26 entries → 26 * 5 = 130 + 25 tier bonus = 155
+  for (let i = 0; i < 26; i++) {
+    await s.createPerson({
+      legal_name: `JmEntry ${i}`, phone: `+91jm-${i}`,
+      assigned_to_user_id: coord.id, status: "chanter",
+      sl_no: 10000 + i, created_at: "2026-08-25T10:00:00.000Z",
+    });
+  }
+  const { cookie } = await login(s, "hk", "test-pass-123");
+  const r = await route(withCookie("http://x/api/leaderboard/overall", cookie),
+    { store: s, env: { SESSION_SECRET: SECRET } });
+  const body = await r.json();
+  const coordRow = body.rows.find(x => x.user_id === coord.id);
+  // 26 * 5 = 130 base + 25 tier bonus = 155
+  const jmPts = coordRow.breakdown.filter(b => b.k.startsWith("jm_"))
+    .reduce((s, b) => s + b.pts, 0);
+  assert.equal(jmPts, 155);
+});
+
 test("Janmashtami entry: single-row assigns sl_no and puts person on coord's roll", async () => {
   const { s } = await seed();
   const coord = await s.userByUsername("coord1");
