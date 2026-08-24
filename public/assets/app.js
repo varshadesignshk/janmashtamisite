@@ -130,6 +130,7 @@ function renderNav() {
     { href: "#/events",    label: "Events",   when: () => can("event_attendance") },
     { href: "#/sadhana",   label: "Sadhana",  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
     { href: "#/bv",        label: "BV",       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
+    { href: "#/settings",  label: "Settings", when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
     { href: "#/admin",     label: "Admin",    when: () => can("feature_admin") },
   ];
   const here = location.hash || "#/";
@@ -174,6 +175,7 @@ function renderRoute() {
     "sadhana":  () => renderSadhana(arg),
     "bv":       renderBvStructure,
     "admin":    () => renderAdmin(arg || "gates"),
+    "settings": renderSettings,
     "member":   () => renderMemberDetails(arg),
     "group-report": () => renderGroupReport(arg),
   };
@@ -1083,6 +1085,49 @@ async function renderGroupReport(groupId) {
       await api("/api/group-reports", { method: "POST", body: JSON.stringify(body) });
       $("gr-msg").textContent = "Saved.";
     } catch (err) { $("gr-msg").textContent = err.message; }
+  };
+  view.append(card);
+}
+
+// ------------------------------------------------------ settings ---
+// A coordinator's own preferences. Right now: the two WhatsApp
+// templates that fill the pre-populated message text on the roll's
+// WhatsApp buttons. Anyone with a roll gets this screen.
+async function renderSettings(view) {
+  view.append(el("h2", { class: "section" }, "Settings"));
+  view.append(el("p", { class: "hint" }, "Customise the WhatsApp message your button pre-fills. Use " +
+    "{name} anywhere in your text — it gets replaced with each chanter's name at send time. " +
+    "You can write in English, Tamil, Hindi, or any script — no special setup needed."));
+
+  const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
+  const daily = el("textarea", { id: "wa-daily", rows: "5",
+    placeholder: "Hare Krsna {name}, did you complete your daily japa today? 🌸" });
+  const nondaily = el("textarea", { id: "wa-nondaily", rows: "5",
+    placeholder: "Hare Krsna {name}! Are you interested in daily chanting? Reply YES and we'll share the mantra card." });
+  daily.value = ME.wa_template_daily || "";
+  nondaily.value = ME.wa_template_nondaily || "";
+  card.append(
+    el("h3", { class: "section" }, "Message to daily chanters"),
+    daily,
+    el("h3", { class: "section" }, "Message to non-daily chanters"),
+    nondaily,
+    el("p", { style: "margin-top:1rem" },
+      el("button", { type: "submit", class: "primary" }, "Save"),
+      " ", el("span", { class: "hint", id: "wa-msg" }),
+    ),
+  );
+  card.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api("/api/me/wa-templates", { method: "POST", body: JSON.stringify({
+        wa_template_daily: daily.value, wa_template_nondaily: nondaily.value,
+      }) });
+      ME.wa_template_daily = daily.value;
+      ME.wa_template_nondaily = nondaily.value;
+      $("wa-msg").textContent = "Saved.";
+    } catch (err) {
+      $("wa-msg").textContent = err.message || "Save failed";
+    }
   };
   view.append(card);
 }

@@ -600,6 +600,28 @@ test("sadhana entry delete removes row", async () => {
   assert.equal(s._tables.sadhana_entries.length, 0);
 });
 
+test("WhatsApp templates: coord saves custom daily/nondaily and roll uses them", async () => {
+  const { s, ppl } = await seed();
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  // set two templates
+  const save = await route(withCookie("http://x/api/me/wa-templates", cookie, {
+    method: "POST", body: JSON.stringify({
+      wa_template_daily: "Daily hi {name} — how's your japa going?",
+      wa_template_nondaily: "Hi {name}, would you like to try chanting?",
+    }),
+  }), ctx);
+  assert.equal(save.status, 200);
+  // one person daily, another chanter
+  await s.updatePerson(ppl[0].id, { status: "daily" }, null);
+  const res = await route(withCookie("http://x/api/roll", cookie), ctx);
+  const roll = (await res.json()).roll;
+  const dailyRow = roll.find(r => r.id === ppl[0].id);
+  const otherRow = roll.find(r => r.id === ppl[1].id);
+  assert.ok(decodeURIComponent(dailyRow.wa_url).includes("Daily hi Chanter 1"));
+  assert.ok(decodeURIComponent(otherRow.wa_url).includes("Hi Chanter 2, would you like to try chanting?"));
+});
+
 test("whatsapp url endpoint returns wa.me link and records audit", async () => {
   const { s, ppl } = await seed();
   const { cookie } = await login(s, "coord1", "test-pass-123");
