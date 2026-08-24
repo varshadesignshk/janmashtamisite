@@ -677,16 +677,24 @@ async function renderEventAttendance(eventId) {
     byCoordCard.append(el("p", { class: "hint" }, "Faster than search when everyone attending is one coordinator's roll. Pick a coordinator, then tick present/absent for each person."));
     const coordPick = el("select", { id: "att-coord" });
     coordPick.append(el("option", { value: "" }, "— pick a coordinator —"));
-    try {
-      const { users } = await api("/api/admin/users");
-      users.filter(u => u.role === "njy_coordinator" && u.active).forEach(u =>
-        coordPick.append(el("option", { value: u.id }, u.display_name || u.username)));
-    } catch (_) {
-      // fallback for coords who can't call admin/users — use leader endpoint
+    if (ME.role === "njy_coordinator") {
+      // A coordinator can only mark their own roll for attendance. Only
+      // themselves in the dropdown, auto-selected.
+      const opt = el("option", { value: ME.id, selected: true }, `${ME.display_name} (you)`);
+      coordPick.append(opt);
+      // fire the change once so their roster renders immediately
+      queueMicrotask(() => coordPick.dispatchEvent(new Event("change")));
+    } else {
       try {
-        const { coordinators } = await api("/api/leader/coordinators");
-        coordinators.forEach(c => coordPick.append(el("option", { value: c.user_id }, c.name)));
-      } catch (_) {}
+        const { users } = await api("/api/admin/users");
+        users.filter(u => u.role === "njy_coordinator" && u.active).forEach(u =>
+          coordPick.append(el("option", { value: u.id }, u.display_name || u.username)));
+      } catch (_) {
+        try {
+          const { coordinators } = await api("/api/leader/coordinators");
+          coordinators.forEach(c => coordPick.append(el("option", { value: c.user_id }, c.name)));
+        } catch (_) {}
+      }
     }
     byCoordCard.append(formField("Coordinator", coordPick));
     const coordRoster = el("ul", { class: "roll", id: "att-coord-roster" });
@@ -702,7 +710,8 @@ async function renderEventAttendance(eventId) {
           b.title = isOn ? "attended" : "not attended";
           const nameEl = el("div", { class: "name" });
           nameEl.innerHTML = esc(p.name) + `<span class="phone">${esc(p.phone || "")}</span>`;
-          const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") }, isOn ? "✓ present" : "absent");
+          const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") },
+            isOn ? "✓ Present · tap to undo" : "Mark present");
           toggle.addEventListener("click", async () => {
             const next = !attendedSet.has(p.id);
             try {
@@ -711,7 +720,7 @@ async function renderEventAttendance(eventId) {
               });
               if (next) attendedSet.add(p.id); else attendedSet.delete(p.id);
               toggle.className = "chant-tag" + (next ? " on" : "");
-              toggle.textContent = next ? "✓ present" : "absent";
+              toggle.textContent = next ? "✓ Present · tap to undo" : "Mark present";
               b.dataset.color = next ? "green" : "white";
               $("att-n").textContent = String(attendedSet.size);
             } catch (err) { alert(err.message); }
@@ -743,7 +752,8 @@ async function renderEventAttendance(eventId) {
         const b = bead(isOn ? 2 : 0, null);
         b.title = isOn ? "attended" : "not attended";
         const name = el("div", { class: "name", html: esc(p.name) + `<span class="phone">${esc(p.phone || "")}</span>` });
-        const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") }, isOn ? "✓ attended" : "mark");
+        const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") },
+          isOn ? "✓ Present · tap to undo" : "Mark present");
         toggle.addEventListener("click", async () => {
           const next = !attendedSet.has(p.id);
           try {
@@ -752,8 +762,8 @@ async function renderEventAttendance(eventId) {
             });
             if (next) attendedSet.add(p.id); else attendedSet.delete(p.id);
             toggle.className = "chant-tag" + (next ? " on" : "");
-            toggle.textContent = next ? "✓ attended" : "mark";
-            b.dataset.state = next ? "2" : "0";
+            toggle.textContent = next ? "✓ Present · tap to undo" : "Mark present";
+            b.dataset.color = next ? "green" : "white";
             $("att-n").textContent = String(attendedSet.size);
           } catch (err) { alert(err.message); }
         });
