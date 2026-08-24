@@ -129,7 +129,7 @@ test("coordinator cannot mark someone else's person", async () => {
   assert.equal(res.status, 403);
 });
 
-test("mark cycles 0→1→2→3→0", async () => {
+test("mark cycles 0→1→2→0 (3-state, no more needs-visit)", async () => {
   const { s, ppl } = await seed();
   const { cookie } = await login(s, "coord1", "test-pass-123");
   const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
@@ -144,7 +144,55 @@ test("mark cycles 0→1→2→3→0", async () => {
     );
     cycle.push((await r.json()).contact_state);
   }
-  assert.deepEqual(cycle, [1, 2, 3, 0, 1]);
+  // 3-state cycle: uncontacted (0) → contacted (1) → responded (2) → back to 0
+  assert.deepEqual(cycle, [1, 2, 0, 1, 2]);
+});
+
+test("bead_color: white when nothing marked today", async () => {
+  const { s } = await seed();
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const res = await route(withCookie("http://x/api/roll", cookie), ctx);
+  const body = await res.json();
+  for (const r of body.roll) assert.equal(r.bead_color, "white");
+});
+
+test("bead_color: yellow after contact-state=1 today", async () => {
+  const { s, ppl } = await seed();
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  await route(withCookie("http://x/api/roll/mark", cookie, {
+    method: "POST", body: JSON.stringify({ person_id: ppl[0].id }),
+  }), ctx);
+  const res = await route(withCookie("http://x/api/roll", cookie), ctx);
+  const row = (await res.json()).roll.find(r => r.id === ppl[0].id);
+  assert.equal(row.bead_color, "yellow");
+});
+
+test("bead_color: green when chanted today", async () => {
+  const { s, ppl } = await seed();
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  await route(withCookie("http://x/api/roll/chant", cookie, {
+    method: "POST", body: JSON.stringify({ person_id: ppl[0].id, chanted: true }),
+  }), ctx);
+  const res = await route(withCookie("http://x/api/roll", cookie), ctx);
+  const row = (await res.json()).roll.find(r => r.id === ppl[0].id);
+  assert.equal(row.bead_color, "green");
+});
+
+test("bead_color: red for daily-status person with no chant in 3 days", async () => {
+  const { s, coord } = await seed();
+  // Manually create a daily-status person with no chants at all
+  const p = await s.createPerson({
+    legal_name: "Silent Sadhaka", phone: "+91-slow", status: "daily",
+    assigned_to_user_id: coord.id,
+  });
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const res = await route(withCookie("http://x/api/roll", cookie), ctx);
+  const row = (await res.json()).roll.find(r => r.id === p.id);
+  assert.equal(row.bead_color, "red");
 });
 
 test("chant marking updates tally", async () => {

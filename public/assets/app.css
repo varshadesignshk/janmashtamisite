@@ -243,6 +243,13 @@ textarea { min-height: 4rem; resize: vertical; }
 .roll .wa:hover { background: var(--mark-followed); color: white; }
 
 /* -------------------------------------------------- garland bead */
+/* 5-color model (server-derived on each render):
+ *   white  = fresh, nothing marked today
+ *   yellow = coord marked "contacted" today
+ *   orange = coord marked "responded" today
+ *   green  = chanted today
+ *   red    = 3+ days no chant (needs attention). Ring, not fill —
+ *            visually distinct from all others so it screams at scan. */
 .bead {
   --sz: 26px;
   width: var(--sz); height: var(--sz);
@@ -252,11 +259,20 @@ textarea { min-height: 4rem; resize: vertical; }
   transition: transform .08s ease;
 }
 .bead:active { transform: scale(.92); }
-.bead[data-state="1"] { background: var(--mark-followed); border-color: var(--mark-followed); }
-.bead[data-state="2"] { background: var(--mark-responded); border-color: var(--mark-responded); }
-.bead[data-state="3"] {
-  background: var(--mark-none); border: 3px solid var(--mark-attention);
+
+.bead[data-color="white"]  { background: var(--mark-none);    border-color: var(--mark-none-edge); }
+.bead[data-color="yellow"] { background: #E8B023;             border-color: #C99510; }
+.bead[data-color="orange"] { background: #DE7A2A;             border-color: #B85F1C; }
+.bead[data-color="green"]  { background: #2FA65D;             border-color: #22854A; }
+.bead[data-color="red"]    {
+  background: var(--mark-none);
+  border: 3px solid var(--mark-attention);
 }
+
+/* Back-compat: any old numeric data-state still renders as white so
+ * partial deploys don't blank the beads. */
+.bead[data-state="1"]:not([data-color]) { background: var(--mark-followed); border-color: var(--mark-followed); }
+.bead[data-state="2"]:not([data-color]) { background: var(--mark-responded); border-color: var(--mark-responded); }
 
 /* -------------------------------------------------- garland strip */
 .garland {

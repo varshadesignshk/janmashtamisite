@@ -31,8 +31,23 @@ const api = async (path, opts = {}) => {
   return body;
 };
 
-const STATE_LABEL = ["uncontacted", "followed up", "responded", "needs visit"];
+const STATE_LABEL = ["uncontacted", "contacted", "responded"];
 const LIFECYCLE = ["chanter","daily","njy1","njy2","njy3","manjari","bv_member","dropped"];
+
+// Compute the 5-color bead on the client after a mark/chant tap. The
+// server does the authoritative first render (including the 3-day-miss
+// red state); after that, tap-driven updates use this cheap local
+// recompute so we don't refetch on every click.
+function recomputeBead(r) {
+  // Red survives a mark tap only if the server flagged it originally
+  // and the person hasn't chanted since. Simplest: assume red persists
+  // until the next render refresh unless the user just chanted.
+  if (r.bead_color === "red" && !r.chanted_today) return "red";
+  if (r.chanted_today) return "green";
+  if (r.contact_state === 2) return "orange";
+  if (r.contact_state === 1) return "yellow";
+  return "white";
+}
 const humanRole = (r) => ({
   hk_leader: "HK Leader", njy_leader: "NJY Leader",
   njy_coordinator: "NJY Coordinator", circle_servant: "Circle Servant",
@@ -196,8 +211,14 @@ function tallyStrip(t, keys) {
   return row;
 }
 
-function bead(state, onclick) {
-  const b = el("button", { class: "bead", "data-state": String(state) });
+// Bead now takes a color name — one of white/yellow/orange/green/red.
+// The old numeric state param still works (falls back to yellow/orange
+// mapping) for callers that haven't been updated yet.
+function bead(colorOrState, onclick) {
+  const attrs = { class: "bead" };
+  if (typeof colorOrState === "string") attrs["data-color"] = colorOrState;
+  else attrs["data-color"] = ["white", "yellow", "orange", "white"][Number(colorOrState) || 0] || "white";
+  const b = el("button", attrs);
   if (onclick) b.addEventListener("click", onclick);
   return b;
 }
@@ -205,13 +226,15 @@ function bead(state, onclick) {
 function garlandStrip(roll, editable) {
   const g = el("div", { class: "garland", "aria-label": "Roll at a glance" });
   roll.forEach((r) => {
-    const b = bead(r.contact_state, editable ? async () => {
+    const b = bead(r.bead_color || "white", editable ? async () => {
       const upd = await api("/api/roll/mark", { method: "POST", body: JSON.stringify({ person_id: r.id }) });
-      r.contact_state = upd.contact_state; b.dataset.state = String(upd.contact_state);
+      r.contact_state = upd.contact_state;
+      r.bead_color = recomputeBead(r);
+      b.dataset.color = r.bead_color;
       // resync any row-level bead with same id
-      document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.state = String(upd.contact_state));
+      document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.color = r.bead_color);
     } : null);
-    b.title = `${r.name} — ${STATE_LABEL[r.contact_state]}`;
+    b.title = `${r.name} — ${r.bead_color || "white"}`;
     g.append(b);
   });
   return g;
@@ -222,11 +245,12 @@ function rollList(roll, editable) {
   roll.forEach((r) => {
     const li = el("li", {});
 
-    const rowBead = bead(r.contact_state, editable ? async () => {
+    const rowBead = bead(r.bead_color || "white", editable ? async () => {
       const upd = await api("/api/roll/mark", { method: "POST", body: JSON.stringify({ person_id: r.id }) });
       r.contact_state = upd.contact_state;
-      rowBead.dataset.state = String(upd.contact_state);
-      document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.state = String(upd.contact_state));
+      r.bead_color = recomputeBead(r);
+      rowBead.dataset.color = r.bead_color;
+      document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.color = r.bead_color);
     } : null);
     rowBead.dataset.person = r.id;
 
@@ -250,6 +274,9 @@ function rollList(roll, editable) {
       r.chanted_today = next;
       chant.className = "chant-tag" + (next ? " on" : "");
       chant.textContent = next ? "✓ chanted" : "chant?";
+      r.bead_color = recomputeBead(r);
+      rowBead.dataset.color = r.bead_color;
+      document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.color = r.bead_color);
     });
 
     if (editable) lifecycle.addEventListener("change", async () => {
@@ -384,10 +411,11 @@ function rollListManageable(roll, currentOwnerUserId) {
   const canManage = (ME.role === "hk_leader" || ME.role === "njy_leader");
   const ul = el("ul", { class: "roll" });
   roll.forEach((r) => {
-    const rowBead = bead(r.contact_state, async () => {
+    const rowBead = bead(r.bead_color || "white", async () => {
       const upd = await api("/api/roll/mark", { method: "POST", body: JSON.stringify({ person_id: r.id }) });
       r.contact_state = upd.contact_state;
-      rowBead.dataset.state = String(upd.contact_state);
+      r.bead_color = recomputeBead(r);
+      rowBead.dataset.color = r.bead_color;
     });
     rowBead.dataset.person = r.id;
 
@@ -408,6 +436,8 @@ function rollListManageable(roll, currentOwnerUserId) {
       r.chanted_today = next;
       chant.className = "chant-tag" + (next ? " on" : "");
       chant.textContent = next ? "✓ chanted" : "chant?";
+      r.bead_color = recomputeBead(r);
+      rowBead.dataset.color = r.bead_color;
     });
 
     lifecycle.addEventListener("change", async () => {
