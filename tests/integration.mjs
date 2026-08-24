@@ -618,6 +618,56 @@ test("SL ranges: auto-suggest starts at 10000, then increments by 100 per coord"
   assert.deepEqual(b2, { start: 10100, end: 10199 });
 });
 
+test("Janmashtami entry: single-row assigns sl_no and puts person on coord's roll", async () => {
+  const { s } = await seed();
+  const coord = await s.userByUsername("coord1");
+  await s.updateUser(coord.id, { sl_range_start: 10000, sl_range_end: 10099 });
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const r = await route(withCookie("http://x/api/janmashtami/entry", cookie, {
+    method: "POST", body: JSON.stringify({ name: "Test Chanter", mobile: "+91-99001", pincode: "625001" }),
+  }), ctx);
+  assert.equal(r.status, 200);
+  const p = (await r.json()).person;
+  assert.equal(p.sl_no, 10000);
+  assert.equal(p.assigned_to_user_id, coord.id);
+  assert.equal(p.pincode, "625001");
+});
+
+test("Janmashtami bulk: tab-separated paste imports multiple rows", async () => {
+  const { s } = await seed();
+  const coord = await s.userByUsername("coord1");
+  await s.updateUser(coord.id, { sl_range_start: 10000, sl_range_end: 10099 });
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const rows = [
+    { name: "Alpha", mobile: "+91-a", pincode: "625001" },
+    { name: "Beta",  mobile: "+91-b", pincode: "625002" },
+    { name: "Gamma", mobile: "+91-c", pincode: "625003" },
+  ];
+  const r = await route(withCookie("http://x/api/janmashtami/bulk", cookie, {
+    method: "POST", body: JSON.stringify({ rows }),
+  }), ctx);
+  const body = await r.json();
+  assert.equal(body.created, 3);
+  assert.equal(body.errors.length, 0);
+  // sl_nos should be contiguous starting from 10000
+  const alpha = await s.personByPhone("+91-a");
+  const gamma = await s.personByPhone("+91-c");
+  assert.equal(alpha.sl_no, 10000);
+  assert.equal(gamma.sl_no, 10002);
+});
+
+test("Janmashtami entry: no range assigned → 409", async () => {
+  const { s } = await seed();
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const r = await route(withCookie("http://x/api/janmashtami/entry", cookie, {
+    method: "POST", body: JSON.stringify({ name: "Test", mobile: "+91-x" }),
+  }), ctx);
+  assert.equal(r.status, 409);
+});
+
 test("SL ranges: coord asks for next sl_no, gets first unused in own range", async () => {
   const { s } = await seed();
   const coord = await s.userByUsername("coord1");

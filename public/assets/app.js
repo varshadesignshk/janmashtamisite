@@ -130,6 +130,7 @@ function renderNav() {
     { href: "#/events",    label: "Events",   when: () => can("event_attendance") },
     { href: "#/sadhana",   label: "Sadhana",  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
     { href: "#/bv",        label: "BV",       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
+    { href: "#/janmashtami", label: "Janmashtami", when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/settings",  label: "Settings", when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
     { href: "#/admin",     label: "Admin",    when: () => can("feature_admin") },
   ];
@@ -176,6 +177,7 @@ function renderRoute() {
     "bv":       renderBvStructure,
     "admin":    () => renderAdmin(arg || "gates"),
     "settings": renderSettings,
+    "janmashtami": renderJanmashtami,
     "member":   () => renderMemberDetails(arg),
     "group-report": () => renderGroupReport(arg),
   };
@@ -1087,6 +1089,113 @@ async function renderGroupReport(groupId) {
     } catch (err) { $("gr-msg").textContent = err.message; }
   };
   view.append(card);
+}
+
+// ---------------------------------------------------- Janmashtami ---
+// Two rapid-entry paths on Janmashtami day:
+//   A. Single-row quick-add form (name / mobile / pincode) — one save
+//      picks the next sl_no from the caller's assigned range.
+//   B. Paste-many textarea — one row per line, tab OR comma separated.
+//      Excel copies as tab-separated by default, so paste-from-Excel
+//      just works. Google Sheets / CSV also work.
+async function renderJanmashtami(view) {
+  view.append(el("h2", { class: "section" }, "Janmashtami rapid entry"));
+
+  const progressWrap = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem" });
+  view.append(progressWrap);
+
+  async function refreshProgress() {
+    try {
+      const p = await api("/api/me/janmashtami-progress");
+      progressWrap.innerHTML = "";
+      const b1 = el("span", { class: "tier-badge" },
+        el("span", { class: "num" }, String(p.entries_today)),
+        p.next_entry_tier ? ` entries — next tier at ${p.next_entry_tier}` : " entries",
+      );
+      const b2 = el("span", { class: "tier-badge warm" },
+        el("span", { class: "num" }, String(p.committed_today)),
+        p.next_commit_tier ? ` daily-commits — next tier at ${p.next_commit_tier}` : " daily-commits",
+      );
+      progressWrap.append(b1, b2);
+    } catch (err) { /* silent */ }
+  }
+  await refreshProgress();
+
+  // --- Path A: single-row rapid form
+  const cardA = el("div", { class: "card" });
+  cardA.append(el("h3", { class: "section" }, "Quick add"));
+  cardA.append(el("p", { class: "hint" }, "Enter one person at a time. Their sl.no is auto-assigned from your assigned range."));
+  const form = el("form", { class: "rapid-form", method: "post", action: "javascript:void(0)" });
+  const nameI = el("input", { placeholder: "Name", required: true, autocapitalize: "words" });
+  const mobI  = el("input", { placeholder: "Mobile", required: true, inputmode: "tel" });
+  const pinI  = el("input", { placeholder: "Pincode", inputmode: "numeric" });
+  const submitBtn = el("button", { class: "primary", type: "submit" }, "Add ↵");
+  form.append(
+    el("div", {}, el("label", {}, "Name"), nameI),
+    el("div", {}, el("label", {}, "Mobile"), mobI),
+    el("div", {}, el("label", {}, "Pincode"), pinI),
+    el("div", {}, el("label", { style: "visibility:hidden" }, "."), submitBtn),
+  );
+  const feedback = el("p", { class: "hint", style: "margin-top:.6rem" }, "");
+  const recentUl = el("ul", { class: "list", id: "jm-recent" });
+  cardA.append(form, feedback, el("h3", { class: "section" }, "Recent entries"), recentUl);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    feedback.textContent = "Saving…";
+    try {
+      const r = await api("/api/janmashtami/entry", { method: "POST", body: JSON.stringify({
+        name: nameI.value, mobile: mobI.value, pincode: pinI.value,
+      }) });
+      const p = r.person;
+      feedback.textContent = `Saved · sl ${p.sl_no} · ${p.legal_name}`;
+      recentUl.prepend(el("li", {},
+        el("div", {}, el("strong", {}, p.legal_name),
+          el("div", { class: "hint" }, `sl ${p.sl_no} · ${p.phone}${p.pincode ? " · " + p.pincode : ""}`)),
+        el("span", {}), el("span", {}),
+      ));
+      nameI.value = ""; mobI.value = ""; pinI.value = "";
+      nameI.focus();
+      refreshProgress();
+    } catch (err) {
+      feedback.textContent = "Error: " + (err.body?.hint || err.message);
+    } finally {
+      submitBtn.disabled = false;
+    }
+  };
+  view.append(cardA);
+
+  // --- Path B: paste-many
+  const cardB = el("div", { class: "card" });
+  cardB.append(
+    el("h3", { class: "section" }, "Paste from Excel / CSV"),
+    el("p", { class: "hint" }, "Paste rows from Excel (Ctrl-C in Excel copies as tab-separated) " +
+      "or paste comma-separated values. One person per line: name, mobile, pincode. " +
+      "sl.nos are auto-assigned in order from your range."),
+    formField("Paste here", el("textarea", { id: "jm-paste", rows: "8",
+      placeholder: "Ravi\t9876543210\t625001\nPriya\t9876543211\t625002" })),
+    el("p", {},
+      el("button", { class: "primary", type: "button", id: "jm-paste-go" }, "Import"),
+      " ", el("span", { class: "hint", id: "jm-paste-msg" }),
+    ),
+  );
+  view.append(cardB);
+  $("jm-paste-go").addEventListener("click", async () => {
+    const raw = $("jm-paste").value.trim();
+    if (!raw) return;
+    const rows = raw.split(/\r?\n/).map(line => {
+      const parts = line.split(/\t|,/);
+      return { name: (parts[0] || "").trim(), mobile: (parts[1] || "").trim(), pincode: (parts[2] || "").trim() };
+    }).filter(r => r.name && r.mobile);
+    try {
+      const r = await api("/api/janmashtami/bulk", { method: "POST", body: JSON.stringify({ rows }) });
+      $("jm-paste-msg").textContent = `Imported ${r.created} · ${r.errors.length} error(s)`;
+      $("jm-paste").value = "";
+      refreshProgress();
+    } catch (err) {
+      $("jm-paste-msg").textContent = err.message;
+    }
+  });
 }
 
 // ------------------------------------------------------ settings ---
