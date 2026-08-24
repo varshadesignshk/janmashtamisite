@@ -1430,8 +1430,8 @@ async function renderAdminImport(view) {
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   card.append(
     el("h3", { class: "section" }, "Bulk import chanters"),
-    el("p", { class: "hint" }, "Paste rows as CSV — one per line, header first. Minimum columns: legal_name, phone. Extra columns (dob, email, address, ...) are kept."),
-    formField("CSV", el("textarea", { id: "imp-csv", rows: "12", placeholder: "legal_name,phone,email\nRavi,+919999000001,ravi@example.org" })),
+    el("p", { class: "hint" }, "Paste rows from Excel (Ctrl-C copies as tab-separated) OR as CSV. Header row first. Minimum columns: legal_name, phone. Extra columns (dob, email, address, pincode, ...) are kept."),
+    formField("Paste here", el("textarea", { id: "imp-csv", rows: "12", placeholder: "legal_name\tphone\tpincode\nRavi\t+919999000001\t625001" })),
     formField("Assign to coordinator user id (optional)", el("input", { id: "imp-user" })),
     el("p", {},
       el("button", { class: "ghost", type: "button", id: "imp-preview" }, "Preview"),
@@ -1441,13 +1441,17 @@ async function renderAdminImport(view) {
     ),
     el("pre", { id: "imp-out", style: "font-family:var(--font-mono);font-size:.8rem;white-space:pre-wrap;color:var(--muted);margin-top:1rem" }),
   );
+  // Split on TAB first (Excel copy format) then fall back to COMMA.
+  // A row can use either separator, and the header row's separator
+  // choice sets the mode for the whole paste.
   const parse = () => {
     const raw = $("imp-csv").value.trim();
     if (!raw) return [];
     const [head, ...lines] = raw.split(/\r?\n/);
-    const cols = head.split(",").map(s => s.trim());
+    const sep = head.includes("\t") ? /\t/ : /,/;
+    const cols = head.split(sep).map(s => s.trim());
     return lines.filter(Boolean).map(line => {
-      const parts = line.split(",").map(s => s.trim());
+      const parts = line.split(sep).map(s => s.trim());
       const obj = {};
       cols.forEach((c, i) => obj[c] = parts[i] || "");
       return obj;

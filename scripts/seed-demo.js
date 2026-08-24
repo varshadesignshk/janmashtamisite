@@ -111,8 +111,12 @@ const events = [
   { kind: "njy1", name: "[DEMO] NJY 1 · Sunday",   date: "2026-10-04", venue: "Temple hall",     cap: 1000, batch: 2 },
   { kind: "njy2", name: "[DEMO] NJY 2 · Saturday", date: "2026-10-31", venue: "Prasadam hall",   cap: 800,  batch: 1 },
   { kind: "njy2", name: "[DEMO] NJY 2 · Sunday",   date: "2026-11-01", venue: "Prasadam hall",   cap: 800,  batch: 2 },
-  { kind: "njy3", name: "[DEMO] NJY 3 · Saturday", date: "2026-12-12", venue: "Kirtan mandap",   cap: 600,  batch: 1 },
-  { kind: "njy3", name: "[DEMO] NJY 3 · Sunday",   date: "2026-12-13", venue: "Kirtan mandap",   cap: 600,  batch: 2 },
+  { kind: "njy3", name: "[DEMO] NJY 3 · Saturday W1", date: "2026-12-12", venue: "Kirtan mandap", cap: 600, batch: 1 },
+  { kind: "njy3", name: "[DEMO] NJY 3 · Sunday W1",   date: "2026-12-13", venue: "Kirtan mandap", cap: 600, batch: 2 },
+  { kind: "njy3", name: "[DEMO] NJY 3 · Saturday W2", date: "2026-12-19", venue: "Kirtan mandap", cap: 600, batch: 3 },
+  { kind: "njy3", name: "[DEMO] NJY 3 · Sunday W2",   date: "2026-12-20", venue: "Kirtan mandap", cap: 600, batch: 4 },
+  { kind: "njy3", name: "[DEMO] NJY 3 · Saturday W3", date: "2026-12-26", venue: "Kirtan mandap", cap: 600, batch: 5 },
+  { kind: "njy3", name: "[DEMO] NJY 3 · Sunday W3",   date: "2026-12-27", venue: "Kirtan mandap", cap: 600, batch: 6 },
   { kind: "children_program", name: "[DEMO] Sunday School (past)", date: "2026-08-10", venue: "Temple hall", cap: 100, batch: null },
 ];
 const eventIds = [];
