@@ -641,95 +641,89 @@ async function renderEventAttendance(eventId) {
     tally.append(nCell, capCell);
     view.append(tally);
 
-    // Per-coordinator attendance breakdown (the "20/40 per group" view
-    // from Plan 2). Uses the same event detail response, which now
-    // includes a `breakdown` array from the server.
+    // Per-coordinator attendance card — now interactive. Each coord
+    // row expands in place to show that coord's roll as a mark-present
+    // checklist. Coordinators can only expand their own row (server
+    // enforces via /api/user/:userId/roll access rules).
     const breakdown = (arguments && (await api(`/api/events/${encodeURIComponent(eventId)}`)).breakdown) || [];
     if (breakdown.length) {
       const card = el("div", { class: "card" });
       card.append(el("h3", { class: "section" }, "Attendance by coordinator"));
-      card.append(el("p", { class: "hint" }, "How many of each coordinator's chanters attended this event, vs the Plan-2 target of 40."));
+      card.append(el("p", { class: "hint" }, ME.role === "njy_coordinator"
+        ? "Tap your row to expand and mark your chanters present."
+        : "Tap any coordinator's row to expand and mark their chanters. You can also use the search fallback below."));
       const bul = el("ul", { class: "list" });
       for (const b of breakdown) {
         const pct = Math.min(100, Math.round(100 * b.attended / (b.target || 40)));
         const mid = pct >= 60 ? 0 : (pct >= 30 ? 1 : 2);
-        bul.append(el("li", {}, el("div", { style: "width:100%" },
+        const bodyId = `att-body-${b.user_id}`;
+        const isSelf = b.user_id === ME.id;
+        const header = el("div", {
+          style: "cursor:pointer;width:100%",
+          role: "button",
+          "aria-expanded": "false",
+        },
           el("div", { class: "spread" },
-            el("strong", {}, b.name),
-            el("span", { class: "hint" }, `${b.attended}/${b.assigned} in roll`),
+            el("strong", {}, b.name + (isSelf ? " (you)" : "")),
+            el("span", { class: "hint" }, `${b.attended}/${b.assigned} in roll · tap to expand`),
           ),
           el("div", { class: "progress-line", style: "margin-top:.4rem" },
             el("span", {}, "Attended vs target"),
             el("span", { class: "fraction" }, `${b.attended}/${b.target || 40}`),
           ),
           el("div", { class: "pbar", "data-mid": String(mid), style: `--pct:${pct}%` }),
-        )));
+        );
+        const body = el("div", { id: bodyId, style: "display:none;margin-top:.75rem" });
+        header.addEventListener("click", async () => {
+          const shown = body.style.display === "block";
+          if (shown) { body.style.display = "none"; header.setAttribute("aria-expanded", "false"); return; }
+          if (!body.dataset.loaded) {
+            try {
+              const { roll } = await api(`/api/user/${encodeURIComponent(b.user_id)}/roll`);
+              const ul = el("ul", { class: "roll" });
+              for (const p of roll) {
+                const isOn = attendedSet.has(p.id);
+                const bd = bead(isOn ? "green" : "white", null);
+                bd.title = isOn ? "attended" : "not attended";
+                const nameEl = el("div", { class: "name" });
+                nameEl.innerHTML = esc(p.name) + `<span class="phone">${esc(p.phone || "")}</span>`;
+                const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") },
+                  isOn ? "✓ Present · tap to undo" : "Mark present");
+                toggle.addEventListener("click", async (ev) => {
+                  ev.stopPropagation();
+                  const next = !attendedSet.has(p.id);
+                  try {
+                    await api(`/api/events/${encodeURIComponent(event.id)}/attendance`, {
+                      method: "POST", body: JSON.stringify({ person_id: p.id, attended: next }),
+                    });
+                    if (next) attendedSet.add(p.id); else attendedSet.delete(p.id);
+                    toggle.className = "chant-tag" + (next ? " on" : "");
+                    toggle.textContent = next ? "✓ Present · tap to undo" : "Mark present";
+                    bd.dataset.color = next ? "green" : "white";
+                    $("att-n").textContent = String(attendedSet.size);
+                  } catch (err) { alert(err.message); }
+                });
+                ul.append(el("li", {}, el("div", { class: "bead-wrap" }, bd), nameEl, el("span", {}), toggle, el("span", {})));
+              }
+              body.append(ul);
+              body.dataset.loaded = "1";
+            } catch (err) {
+              body.append(el("p", { class: "hint" }, err.status === 403
+                ? "You can't mark attendance on someone else's roll. This coordinator will mark their own people."
+                : "Could not load roll: " + err.message));
+              body.dataset.loaded = "1";
+            }
+          }
+          body.style.display = "block";
+          header.setAttribute("aria-expanded", "true");
+        });
+        bul.append(el("li", {}, el("div", { style: "width:100%" }, header, body)));
+        // Auto-expand the coord's own row so they land straight into it
+        if (isSelf) queueMicrotask(() => header.click());
       }
       card.append(bul);
       view.append(card);
     }
-
-    // --- Mark by coordinator (faster than search for events with a
-    // known roster). Pick a coord → see their 40-ish chanters as a
-    // checklist. Present/absent per row without typing.
-    const byCoordCard = el("div", { class: "card" });
-    byCoordCard.append(el("h3", { class: "section" }, "Mark by coordinator"));
-    byCoordCard.append(el("p", { class: "hint" }, "Faster than search when everyone attending is one coordinator's roll. Pick a coordinator, then tick present/absent for each person."));
-    const coordPick = el("select", { id: "att-coord" });
-    coordPick.append(el("option", { value: "" }, "— pick a coordinator —"));
-    if (ME.role === "njy_coordinator") {
-      // A coordinator can only mark their own roll for attendance. Only
-      // themselves in the dropdown, auto-selected.
-      const opt = el("option", { value: ME.id, selected: true }, `${ME.display_name} (you)`);
-      coordPick.append(opt);
-      // fire the change once so their roster renders immediately
-      queueMicrotask(() => coordPick.dispatchEvent(new Event("change")));
-    } else {
-      try {
-        const { users } = await api("/api/admin/users");
-        users.filter(u => u.role === "njy_coordinator" && u.active).forEach(u =>
-          coordPick.append(el("option", { value: u.id }, u.display_name || u.username)));
-      } catch (_) {
-        try {
-          const { coordinators } = await api("/api/leader/coordinators");
-          coordinators.forEach(c => coordPick.append(el("option", { value: c.user_id }, c.name)));
-        } catch (_) {}
-      }
-    }
-    byCoordCard.append(formField("Coordinator", coordPick));
-    const coordRoster = el("ul", { class: "roll", id: "att-coord-roster" });
-    byCoordCard.append(coordRoster);
-    coordPick.addEventListener("change", async () => {
-      coordRoster.innerHTML = "";
-      if (!coordPick.value) return;
-      try {
-        const { roll } = await api(`/api/user/${encodeURIComponent(coordPick.value)}/roll`);
-        for (const p of roll) {
-          const isOn = attendedSet.has(p.id);
-          const b = bead(isOn ? "green" : "white", null);
-          b.title = isOn ? "attended" : "not attended";
-          const nameEl = el("div", { class: "name" });
-          nameEl.innerHTML = esc(p.name) + `<span class="phone">${esc(p.phone || "")}</span>`;
-          const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") },
-            isOn ? "✓ Present · tap to undo" : "Mark present");
-          toggle.addEventListener("click", async () => {
-            const next = !attendedSet.has(p.id);
-            try {
-              await api(`/api/events/${encodeURIComponent(event.id)}/attendance`, {
-                method: "POST", body: JSON.stringify({ person_id: p.id, attended: next }),
-              });
-              if (next) attendedSet.add(p.id); else attendedSet.delete(p.id);
-              toggle.className = "chant-tag" + (next ? " on" : "");
-              toggle.textContent = next ? "✓ Present · tap to undo" : "Mark present";
-              b.dataset.color = next ? "green" : "white";
-              $("att-n").textContent = String(attendedSet.size);
-            } catch (err) { alert(err.message); }
-          });
-          coordRoster.append(el("li", {}, el("div", { class: "bead-wrap" }, b), nameEl, el("span", {}), toggle, el("span", {})));
-        }
-      } catch (err) { alert(err.message); }
-    });
-    view.append(byCoordCard);
 
     const searchCard = el("div", { class: "card" });
     searchCard.append(
