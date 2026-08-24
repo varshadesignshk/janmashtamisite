@@ -1182,9 +1182,11 @@ async function renderAdminUsers(view) {
     const ROLES = ["hk_leader","njy_leader","njy_coordinator","circle_servant","sector_servant","servant_leader","member"];
     const ul = el("ul", { class: "list" });
     for (const u of users) {
+      const rangeText = (u.sl_range_start != null && u.sl_range_end != null)
+        ? ` · sl ${u.sl_range_start}-${u.sl_range_end}` : "";
       const li = el("li", {},
         el("div", {}, el("strong", {}, u.display_name || u.username),
-          el("div", { class: "hint" }, `${u.username}${u.active ? "" : " · (inactive)"}`)),
+          el("div", { class: "hint" }, `${u.username}${rangeText}${u.active ? "" : " · (inactive)"}`)),
         el("span", { class: "pill" }, humanRole(u.role)),
         el("button", { class: "mini-btn" }, "Edit"),
       );
@@ -1201,10 +1203,22 @@ async function renderAdminUsers(view) {
           el("option", { value: "1", selected: u.active ? true : undefined }, "Active"),
           el("option", { value: "0", selected: !u.active ? true : undefined }, "Inactive"),
         );
+        const rs = el("input", { type: "number", value: u.sl_range_start ?? "", placeholder: "e.g. 10000" });
+        const re = el("input", { type: "number", value: u.sl_range_end ?? "", placeholder: "e.g. 10099" });
+        const autoBtn = el("button", { class: "mini-btn", type: "button" }, "Auto-fill next range");
+        autoBtn.addEventListener("click", async () => {
+          try {
+            const r = await api("/api/admin/next-sl-range");
+            rs.value = r.start; re.value = r.end;
+          } catch (err) { alert(err.message); }
+        });
         const save = el("button", { class: "primary" }, "Save");
         save.addEventListener("click", async () => {
           try {
-            const body = { display_name: nm.value, role: rl.value, active: act.value === "1" };
+            const body = {
+              display_name: nm.value, role: rl.value, active: act.value === "1",
+              sl_range_start: rs.value, sl_range_end: re.value,
+            };
             if (pw.value) body.password = pw.value;
             await api(`/api/admin/users/${u.id}`, { method: "POST", body: JSON.stringify(body) });
             renderRoute();
@@ -1215,7 +1229,9 @@ async function renderAdminUsers(view) {
           el("div", {}, el("label", {}, "Role"), rl),
           el("div", {}, el("label", {}, "Reset password"), pw),
           el("div", {}, el("label", {}, "Status"), act),
-          el("div", { class: "full" }, save),
+          el("div", {}, el("label", {}, "SL range start"), rs),
+          el("div", {}, el("label", {}, "SL range end"), re),
+          el("div", { class: "full" }, autoBtn, " ", save),
         );
         li.append(p);
       });

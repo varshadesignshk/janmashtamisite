@@ -600,6 +600,48 @@ test("sadhana entry delete removes row", async () => {
   assert.equal(s._tables.sadhana_entries.length, 0);
 });
 
+test("SL ranges: auto-suggest starts at 10000, then increments by 100 per coord", async () => {
+  const { s } = await seed();
+  const { cookie } = await login(s, "hk", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const r1 = await route(withCookie("http://x/api/admin/next-sl-range", cookie), ctx);
+  const b1 = await r1.json();
+  assert.deepEqual(b1, { start: 10000, end: 10099 });
+  // assign coord1 the first range
+  const coordUser = await s.userByUsername("coord1");
+  await route(withCookie(`http://x/api/admin/users/${coordUser.id}`, cookie, {
+    method: "POST", body: JSON.stringify({ sl_range_start: 10000, sl_range_end: 10099 }),
+  }), ctx);
+  // next auto-suggest bumps to 10100
+  const r2 = await route(withCookie("http://x/api/admin/next-sl-range", cookie), ctx);
+  const b2 = await r2.json();
+  assert.deepEqual(b2, { start: 10100, end: 10199 });
+});
+
+test("SL ranges: coord asks for next sl_no, gets first unused in own range", async () => {
+  const { s } = await seed();
+  const coord = await s.userByUsername("coord1");
+  await s.updateUser(coord.id, { sl_range_start: 10000, sl_range_end: 10099 });
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const r = await route(withCookie("http://x/api/me/next-sl", cookie), ctx);
+  const b = await r.json();
+  assert.equal(b.sl_no, 10000);
+  // occupy it, ask again, get 10001
+  await s.createPerson({ legal_name: "x", phone: "+9111", sl_no: 10000 });
+  const r2 = await route(withCookie("http://x/api/me/next-sl", cookie), ctx);
+  const b2 = await r2.json();
+  assert.equal(b2.sl_no, 10001);
+});
+
+test("SL ranges: coord without a range assigned gets 409", async () => {
+  const { s } = await seed();
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const r = await route(withCookie("http://x/api/me/next-sl", cookie), ctx);
+  assert.equal(r.status, 409);
+});
+
 test("WhatsApp templates: coord saves custom daily/nondaily and roll uses them", async () => {
   const { s, ppl } = await seed();
   const { cookie } = await login(s, "coord1", "test-pass-123");
