@@ -32,6 +32,7 @@ const api = async (path, opts = {}) => {
 };
 
 const STATE_LABEL = ["uncontacted", "followed up", "responded", "needs visit"];
+const LIFECYCLE = ["chanter","daily","njy1","njy2","njy3","manjari","bv_member","dropped"];
 const humanRole = (r) => ({
   hk_leader: "HK Leader", njy_leader: "NJY Leader",
   njy_coordinator: "NJY Coordinator", circle_servant: "Circle Servant",
@@ -219,6 +220,8 @@ function garlandStrip(roll, editable) {
 function rollList(roll, editable) {
   const ul = el("ul", { class: "roll" });
   roll.forEach((r) => {
+    const li = el("li", {});
+
     const rowBead = bead(r.contact_state, editable ? async () => {
       const upd = await api("/api/roll/mark", { method: "POST", body: JSON.stringify({ person_id: r.id }) });
       r.contact_state = upd.contact_state;
@@ -226,20 +229,48 @@ function rollList(roll, editable) {
       document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.state = String(upd.contact_state));
     } : null);
     rowBead.dataset.person = r.id;
+
+    const name = el("div", { class: "name" });
+    name.innerHTML = esc(r.name) + `<span class="phone">${esc(r.phone || "")}</span>`;
+
+    // Lifecycle status dropdown — the source of truth for the "daily
+    // chanter commitment" (was previously a Manage-panel dropdown, now
+    // inline). When status is not "daily", the chant toggle is disabled.
+    const lifecycle = el("select", { class: "lifecycle", "data-status": r.status || "chanter" },
+      ...LIFECYCLE.map(s => el("option", { value: s, selected: r.status === s ? true : undefined }, s)),
+    );
+
     const chant = el("button", { class: "chant-tag" + (r.chanted_today ? " on" : "") },
       r.chanted_today ? "✓ chanted" : "chant?");
+    if (r.status !== "daily") chant.setAttribute("disabled", "");
     if (editable) chant.addEventListener("click", async () => {
+      if (r.status !== "daily") return;
       const next = !r.chanted_today;
       await api("/api/roll/chant", { method: "POST", body: JSON.stringify({ person_id: r.id, chanted: next }) });
       r.chanted_today = next;
       chant.className = "chant-tag" + (next ? " on" : "");
       chant.textContent = next ? "✓ chanted" : "chant?";
     });
+
+    if (editable) lifecycle.addEventListener("change", async () => {
+      try {
+        await api(`/api/person/${r.id}/status`, {
+          method: "POST", body: JSON.stringify({ status: lifecycle.value }),
+        });
+        r.status = lifecycle.value;
+        lifecycle.dataset.status = r.status;
+        if (r.status === "daily") chant.removeAttribute("disabled");
+        else { chant.setAttribute("disabled", ""); }
+      } catch (err) {
+        alert(err.message || "Could not update status");
+        lifecycle.value = r.status || "chanter";
+      }
+    });
+
     const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, "WhatsApp");
-    const name = el("div", { class: "name", html: esc(r.name) + `<span class="phone">${esc(r.phone || "")}</span>` });
-    ul.append(el("li", {},
-      el("div", { class: "bead-wrap" }, rowBead), name, chant, wa,
-    ));
+
+    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa);
+    ul.appendChild(li);
   });
   return ul;
 }
@@ -359,19 +390,44 @@ function rollListManageable(roll, currentOwnerUserId) {
       rowBead.dataset.state = String(upd.contact_state);
     });
     rowBead.dataset.person = r.id;
+
+    const name = el("div", { class: "name" });
+    name.innerHTML = esc(r.name) + `<span class="phone">${esc(r.phone || "")}</span>`;
+
+    const lifecycle = el("select", { class: "lifecycle", "data-status": r.status || "chanter" },
+      ...LIFECYCLE.map(s => el("option", { value: s, selected: r.status === s ? true : undefined }, s)),
+    );
+
     const chant = el("button", { class: "chant-tag" + (r.chanted_today ? " on" : "") },
       r.chanted_today ? "✓ chanted" : "chant?");
+    if (r.status !== "daily") chant.setAttribute("disabled", "");
     chant.addEventListener("click", async () => {
+      if (r.status !== "daily") return;
       const next = !r.chanted_today;
       await api("/api/roll/chant", { method: "POST", body: JSON.stringify({ person_id: r.id, chanted: next }) });
       r.chanted_today = next;
       chant.className = "chant-tag" + (next ? " on" : "");
       chant.textContent = next ? "✓ chanted" : "chant?";
     });
-    const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, "WhatsApp");
-    const name = el("div", { class: "name", html: esc(r.name) + `<span class="phone">${esc(r.phone || "")}</span>` });
 
-    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, chant, wa);
+    lifecycle.addEventListener("change", async () => {
+      try {
+        await api(`/api/person/${r.id}/status`, {
+          method: "POST", body: JSON.stringify({ status: lifecycle.value }),
+        });
+        r.status = lifecycle.value;
+        lifecycle.dataset.status = r.status;
+        if (r.status === "daily") chant.removeAttribute("disabled");
+        else { chant.setAttribute("disabled", ""); }
+      } catch (err) {
+        alert(err.message || "Could not update status");
+        lifecycle.value = r.status || "chanter";
+      }
+    });
+
+    const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, "WhatsApp");
+
+    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa);
     ul.append(li);
 
     if (canManage) {

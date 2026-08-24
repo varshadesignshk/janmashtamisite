@@ -202,9 +202,26 @@ textarea { min-height: 4rem; resize: vertical; }
 /* -------------------------------------------------- roll list */
 .roll { list-style: none; padding: 0; margin: 0; }
 .roll li {
-  display: grid; grid-template-columns: auto 1fr auto auto;
-  align-items: center; gap: .75rem;
+  display: grid; grid-template-columns: auto 1fr auto auto auto;
+  align-items: center; gap: .5rem;
   padding: .6rem .3rem; border-bottom: 1px solid var(--line);
+}
+.roll .lifecycle {
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  padding: .25rem .35rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+.roll .lifecycle[data-status="daily"] {
+  border-color: var(--mark-followed);
+  color: var(--mark-followed);
+  font-weight: 500;
+}
+.roll .chant-tag[disabled] {
+  opacity: .35; cursor: not-allowed; pointer-events: none;
 }
 .roll .name { color: var(--ink); font-weight: 500; }
 .roll .name .phone {
