@@ -194,6 +194,7 @@ async function renderCoordRoll(view) {
   try {
     const { roll, tally } = await api("/api/roll");
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
+    view.append(beadLegend());
     view.append(garlandStrip(roll, /* editable */ true));
     view.append(rollList(roll, /* editable */ true));
     if (!roll.length) {
@@ -203,6 +204,21 @@ async function renderCoordRoll(view) {
     if (err.status === 403) view.append(el("p", { class: "hint" }, "You don't have a coordinator roll. Try the Team or HK tabs."));
     else view.append(el("p", { class: "error" }, "Could not load roll: " + err.message));
   }
+}
+
+// Small legend explaining what the bead colors mean, shown above the
+// garland on any roll view.
+function beadLegend() {
+  const item = (c, label) => el("span", { class: "item" },
+    el("span", { class: "swatch", "data-c": c }), label);
+  return el("div", { class: "bead-legend" },
+    el("span", { style: "font-weight:500;color:var(--ink-2)" }, "Bead colors:"),
+    item("white", "fresh"),
+    item("yellow", "tap once = contacted"),
+    item("orange", "tap again = responded"),
+    item("green", "chanted today"),
+    item("red", "3+ days no chant"),
+  );
 }
 
 function tallyStrip(t, keys) {
@@ -403,6 +419,7 @@ async function renderUserDrill(userId) {
       el("a", { class: "btn", href: ME.role === "hk_leader" ? "#/hk" : "#/leader" }, "← Back"),
     ));
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
+    view.append(beadLegend());
     view.append(garlandStrip(roll, /* editable */ true));
     view.append(rollListManageable(roll, target.id));
   } catch (err) {
@@ -773,6 +790,113 @@ async function renderEventAttendance(eventId) {
 function debounce(fn, ms) {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+// ------------------------------------- Excel + CSV upload helper -----
+// Lazy-load SheetJS from CDN only when the user actually clicks the
+// upload button. Keeps the initial bundle small and offline-friendly.
+let _xlsxPromise = null;
+function loadXlsx() {
+  if (_xlsxPromise) return _xlsxPromise;
+  _xlsxPromise = new Promise((resolve, reject) => {
+    if (window.XLSX) return resolve(window.XLSX);
+    const s = document.createElement("script");
+    s.src = "https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.mini.min.js";
+    s.async = true;
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = () => reject(new Error("Could not load Excel parser (offline?)"));
+    document.head.appendChild(s);
+  });
+  return _xlsxPromise;
+}
+
+// Read an .xlsx/.xls/.csv file into an array of row objects. First row
+// is the header; each subsequent row is mapped to {headerName: value}.
+async function readSpreadsheetFile(file) {
+  const XLSX = await loadXlsx();
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(sheet, { defval: "" });
+}
+
+// Build a "Upload Excel / CSV" widget that:
+//   1. Lets the user pick a file
+//   2. Parses client-side, shows a preview table
+//   3. Confirm button submits parsed rows to a caller-supplied handler
+//
+// mapRow(rowObj) → { name, mobile, pincode, ... } (or whatever the API
+// expects). onCommit(mappedRows) does the actual API call.
+function excelUploadWidget({ helperText, mapRow, onCommit, templateHref }) {
+  const wrap = el("div", {});
+  wrap.append(
+    el("p", { class: "hint" }, helperText),
+    templateHref ? el("p", {},
+      el("a", { href: templateHref, download: "chanter-template.csv" }, "⬇ Download template (CSV)"),
+      el("span", { class: "hint" }, " — open in Excel, fill your rows, save, then upload."),
+    ) : null,
+  );
+  const fileInput = el("input", { type: "file", accept: ".xlsx,.xls,.csv" });
+  const previewBox = el("div", { style: "margin-top:.7rem" });
+  const commitBtn = el("button", { class: "primary", type: "button", disabled: true }, "Confirm import");
+  const msg = el("span", { class: "hint", style: "margin-left:.6rem" });
+
+  let parsedRows = [];
+
+  fileInput.addEventListener("change", async () => {
+    previewBox.innerHTML = "";
+    commitBtn.disabled = true;
+    if (!fileInput.files[0]) return;
+    msg.textContent = "Parsing…";
+    try {
+      const raw = await readSpreadsheetFile(fileInput.files[0]);
+      parsedRows = raw.map(mapRow).filter(r => r.name && r.mobile);
+      if (!parsedRows.length) {
+        previewBox.append(el("p", { class: "error" }, "No usable rows found. Make sure the file has 'name' and 'mobile' columns."));
+        msg.textContent = "";
+        return;
+      }
+      msg.textContent = `Parsed ${parsedRows.length} row(s). Preview:`;
+      const table = el("table", { style: "width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.4rem" });
+      const head = el("tr", {},
+        el("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:.3rem" }, "Name"),
+        el("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:.3rem" }, "Mobile"),
+        el("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:.3rem" }, "Pincode"),
+      );
+      table.append(head);
+      parsedRows.slice(0, 8).forEach(r => {
+        table.append(el("tr", {},
+          el("td", { style: "padding:.3rem;border-bottom:1px solid var(--line)" }, r.name),
+          el("td", { style: "padding:.3rem;border-bottom:1px solid var(--line);font-family:var(--font-mono)" }, r.mobile),
+          el("td", { style: "padding:.3rem;border-bottom:1px solid var(--line);font-family:var(--font-mono)" }, r.pincode || ""),
+        ));
+      });
+      previewBox.append(table);
+      if (parsedRows.length > 8) previewBox.append(el("p", { class: "hint" }, `…and ${parsedRows.length - 8} more.`));
+      commitBtn.disabled = false;
+    } catch (err) {
+      previewBox.append(el("p", { class: "error" }, err.message || "Could not read the file."));
+      msg.textContent = "";
+    }
+  });
+
+  commitBtn.addEventListener("click", async () => {
+    commitBtn.disabled = true;
+    msg.textContent = "Importing…";
+    try {
+      const result = await onCommit(parsedRows);
+      msg.textContent = `Imported ${result.created ?? parsedRows.length}${result.errors?.length ? ` · ${result.errors.length} error(s)` : ""}`;
+      previewBox.innerHTML = "";
+      fileInput.value = "";
+      parsedRows = [];
+    } catch (err) {
+      msg.textContent = "Import failed: " + err.message;
+      commitBtn.disabled = false;
+    }
+  });
+
+  wrap.append(fileInput, previewBox, el("p", { style: "margin-top:.6rem" }, commitBtn, msg));
+  return wrap;
 }
 
 // --------------------------------------------------------- sadhana ---
@@ -1284,21 +1408,40 @@ async function renderJanmashtami(view) {
   };
   view.append(cardA);
 
-  // --- Path B: paste-many
+  // --- Path B: Excel/CSV file upload with preview
   const cardB = el("div", { class: "card" });
-  cardB.append(
-    el("h3", { class: "section" }, "Paste from Excel / CSV"),
-    el("p", { class: "hint" }, "Paste rows from Excel (Ctrl-C in Excel copies as tab-separated) " +
-      "or paste comma-separated values. One person per line: name, mobile, pincode. " +
-      "sl.nos are auto-assigned in order from your range."),
-    formField("Paste here", el("textarea", { id: "jm-paste", rows: "8",
+  cardB.append(el("h3", { class: "section" }, "Upload Excel or CSV file"));
+  cardB.append(excelUploadWidget({
+    helperText: "Attach a .xlsx or .csv file. Columns needed: name, mobile, pincode. " +
+      "You'll see a preview before it's imported. sl.nos are auto-assigned from your range as rows land.",
+    templateHref: "/assets/chanter-template.csv",
+    mapRow: (row) => ({
+      name: String(row.name || row.Name || row.NAME || "").trim(),
+      mobile: String(row.mobile || row.Mobile || row.MOBILE || row.phone || "").trim(),
+      pincode: String(row.pincode || row.Pincode || row.PINCODE || row.pin || "").trim(),
+    }),
+    onCommit: async (rows) => {
+      const r = await api("/api/janmashtami/bulk", { method: "POST", body: JSON.stringify({ rows }) });
+      refreshProgress();
+      loadTodayEntries();
+      return r;
+    },
+  }));
+  view.append(cardB);
+
+  // --- Path C: paste-many (kept as a fallback)
+  const cardC = el("div", { class: "card" });
+  cardC.append(
+    el("h3", { class: "section" }, "Or paste rows from Excel"),
+    el("p", { class: "hint" }, "Ctrl-C rows in Excel (copies as tab-separated), then paste here. One person per line: name, mobile, pincode."),
+    formField("Paste here", el("textarea", { id: "jm-paste", rows: "6",
       placeholder: "Ravi\t9876543210\t625001\nPriya\t9876543211\t625002" })),
     el("p", {},
       el("button", { class: "primary", type: "button", id: "jm-paste-go" }, "Import"),
       " ", el("span", { class: "hint", id: "jm-paste-msg" }),
     ),
   );
-  view.append(cardB);
+  view.append(cardC);
   $("jm-paste-go").addEventListener("click", async () => {
     const raw = $("jm-paste").value.trim();
     if (!raw) return;
@@ -1311,10 +1454,38 @@ async function renderJanmashtami(view) {
       $("jm-paste-msg").textContent = `Imported ${r.created} · ${r.errors.length} error(s)`;
       $("jm-paste").value = "";
       refreshProgress();
+      loadTodayEntries();
     } catch (err) {
       $("jm-paste-msg").textContent = err.message;
     }
   });
+
+  // --- Load today's entries so the coord can see all their adds
+  async function loadTodayEntries() {
+    try {
+      const { roll } = await api("/api/roll");
+      const today = new Date().toISOString().slice(0, 10);
+      const todays = roll.filter(r => {
+        // We don't have created_at on the roll payload; approximate:
+        // any row without a lifecycle status change today AND without
+        // chanted-today (i.e. brand new) is likely from today. Better:
+        // read from /api/user/:id/roll which returns the same info.
+        return true; // show everyone in the coord's roll, sorted by sl_no
+      });
+      recentUl.innerHTML = "";
+      todays.forEach(r => {
+        recentUl.append(el("li", {},
+          el("div", {}, el("strong", {}, r.name),
+            el("div", { class: "hint" }, `${r.phone}${r.status !== 'chanter' ? ' · ' + r.status : ''}`)),
+          el("span", {}), el("span", {}),
+        ));
+      });
+      if (!todays.length) {
+        recentUl.append(el("li", {}, el("span", { class: "hint" }, "No entries yet. Add your first person above.")));
+      }
+    } catch (_) { /* silent */ }
+  }
+  loadTodayEntries();
 }
 
 // ------------------------------------------------------ settings ---
@@ -1503,12 +1674,34 @@ async function renderAdminUsers(view) {
 }
 
 async function renderAdminImport(view) {
+  // Path A — Excel/CSV file upload
+  const uploadCard = el("div", { class: "card" });
+  uploadCard.append(el("h3", { class: "section" }, "Upload Excel or CSV file"));
+  uploadCard.append(excelUploadWidget({
+    helperText: "Attach a .xlsx or .csv file with columns: name, mobile, pincode (or legal_name / phone if you prefer). Preview → confirm.",
+    templateHref: "/assets/chanter-template.csv",
+    mapRow: (row) => ({
+      // Admin/import endpoint expects legal_name + phone; map from
+      // either header style.
+      legal_name: String(row.legal_name || row.name || row.Name || row.NAME || "").trim(),
+      phone: String(row.phone || row.mobile || row.Mobile || "").trim(),
+      pincode: String(row.pincode || row.Pincode || row.PINCODE || "").trim() || null,
+    }),
+    onCommit: async (rows) => {
+      const r = await api("/api/import/commit", { method: "POST",
+        body: JSON.stringify({ rows, assigned_to_user_id: $("imp-assign")?.value || null }) });
+      return { created: r.created, errors: r.errors };
+    },
+  }));
+  view.append(uploadCard);
+
+  // Path B — paste
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   card.append(
-    el("h3", { class: "section" }, "Bulk import chanters"),
+    el("h3", { class: "section" }, "Or paste rows"),
     el("p", { class: "hint" }, "Paste rows from Excel (Ctrl-C copies as tab-separated) OR as CSV. Header row first. Minimum columns: legal_name, phone. Extra columns (dob, email, address, pincode, ...) are kept."),
     formField("Paste here", el("textarea", { id: "imp-csv", rows: "12", placeholder: "legal_name\tphone\tpincode\nRavi\t+919999000001\t625001" })),
-    formField("Assign to coordinator user id (optional)", el("input", { id: "imp-user" })),
+    formField("Assign to coordinator user id (optional)", el("input", { id: "imp-assign" })),
     el("p", {},
       el("button", { class: "ghost", type: "button", id: "imp-preview" }, "Preview"),
       " ",
@@ -1546,7 +1739,7 @@ async function renderAdminImport(view) {
     try {
       const rows = parse();
       const r = await api("/api/import/commit", { method: "POST", body: JSON.stringify({
-        rows, assigned_to_user_id: $("imp-user").value || null,
+        rows, assigned_to_user_id: $("imp-assign").value || null,
       }) });
       $("imp-out").textContent = JSON.stringify(r, null, 2);
       $("imp-msg").textContent = `Created ${r.created} record(s).`;

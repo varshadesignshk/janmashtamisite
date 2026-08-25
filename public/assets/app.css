@@ -319,6 +319,23 @@ textarea { min-height: 4rem; resize: vertical; }
 }
 .garland .bead { --sz: 22px; }
 
+/* --------- bead legend --------- */
+.bead-legend {
+  display: flex; flex-wrap: wrap; gap: .7rem;
+  padding: .5rem 0 0; margin-bottom: -0.4rem;
+  font-size: .72rem; color: var(--muted);
+}
+.bead-legend .item { display: inline-flex; align-items: center; gap: .3rem; }
+.bead-legend .swatch {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 1.5px solid var(--mark-none-edge); background: var(--mark-none);
+  display: inline-block;
+}
+.bead-legend .swatch[data-c="yellow"] { background: #E8B023; border-color: #C99510; }
+.bead-legend .swatch[data-c="orange"] { background: #DE7A2A; border-color: #B85F1C; }
+.bead-legend .swatch[data-c="green"]  { background: #2FA65D; border-color: #22854A; }
+.bead-legend .swatch[data-c="red"]    { background: var(--mark-none); border: 2px solid var(--mark-attention); }
+
 /* -------------------------------------------------- forms */
 .card {
   background: var(--surface); border: 1px solid var(--line);
