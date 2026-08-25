@@ -104,6 +104,7 @@ async function showApp() {
   renderNav();
   renderRoute();
   refreshPointsChip();
+  refreshLbSide();
 }
 
 // Header points chip — small oval showing today's and overall points
@@ -125,6 +126,49 @@ async function refreshPointsChip() {
   } catch (_) { chip.hidden = true; }
 }
 window.refreshPointsChip = refreshPointsChip;
+
+// Floating leaderboard sidebar — desktop-only, always visible while
+// scrolling. Shows today's top 3 coords + your own rank if you're
+// competing. Refreshes every 45 seconds so numbers stay live.
+let _lbSideTimer = null;
+async function refreshLbSide() {
+  const side = $("lb-side");
+  if (!side) return;
+  const isCompetitor = ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role);
+  if (!isCompetitor) { side.hidden = true; return; }
+  try {
+    const { rows } = await api("/api/leaderboard/daily");
+    side.innerHTML = "";
+    side.append(el("h4", {}, "Today's leaders", el("span", { style: "font-size:.7rem;color:var(--muted)" }, "🏆")));
+    const top3 = rows.slice(0, 3);
+    if (!top3.length) {
+      side.append(el("p", { class: "hint", style: "font-size:.75rem" }, "No points yet today."));
+      side.hidden = false;
+      return;
+    }
+    const container = el("div", { class: "lb-rows" });
+    const medals = ["🥇","🥈","🥉"];
+    top3.forEach((r, i) => {
+      container.append(el("div", { class: "lb-row" + (r.user_id === ME.id ? " me" : "") },
+        el("span", {}, medals[i]),
+        el("span", { class: "name", title: r.name }, r.name),
+        el("span", { class: "pts" }, String(r.pts)),
+      ));
+    });
+    side.append(container);
+    // If the current user isn't in the top 3, show their own rank
+    const myIdx = rows.findIndex(r => r.user_id === ME.id);
+    if (ME.role === "njy_coordinator" && myIdx >= 3) {
+      side.append(el("div", { class: "lb-you-line" },
+        `You: #${myIdx + 1}  ·  ${rows[myIdx].pts} pts`));
+    }
+    side.append(el("a", { class: "lb-open", href: "#/leaderboard/daily" }, "Full leaderboard →"));
+    side.hidden = false;
+  } catch (_) { side.hidden = true; }
+  clearTimeout(_lbSideTimer);
+  _lbSideTimer = setTimeout(refreshLbSide, 45_000);
+}
+window.refreshLbSide = refreshLbSide;
 
 function can(feature) {
   if (ME.role === "hk_leader") return true;
@@ -374,10 +418,12 @@ function rollList(roll, editable) {
 async function renderLeaderDashboard(view) {
   view.append(el("h2", { class: "section" }, "Team"));
   view.append(helpBanner(
-    "Your coordinators, each shown with two progress bars: 'chanted " +
-    "today' (out of the Plan-2 40-per-group target) and 'one-month " +
-    "daily' (of the daily chanters who've stuck with it). Tap 'Open' " +
-    "on any coordinator to see their roll and act on their behalf."
+    "Your coordinators, each shown with two progress bars. " +
+    "**Chanted today** — how many of the coordinator's whole roll " +
+    "chanted today. **One-month daily** — how many of their " +
+    "daily-committed chanters have stuck with it for the past month " +
+    "(≥25 chants in the last 30 days). Tap Open to drill into any " +
+    "coordinator's roll and act on their behalf."
   ));
   const loader = loadingLine("Loading your coordinators…");
   view.append(loader);
@@ -397,14 +443,18 @@ async function renderLeaderDashboard(view) {
 }
 
 // Reusable per-coordinator progress card. Used on both Team and HK
-// dashboards. Shows two progress bars — chanted-today and one-month
-// daily — plus the drill-in link.
+// dashboards. Two progress bars:
+//   - Chanted today   → how many of the coord's roll chanted today
+//   - One-month daily → how many of the daily-committed chanters have
+//                       stuck with it for the past month
+// Both bars are % of that coord's actual roll count, not a fixed
+// Plan-2 target.
 function coordCard(c) {
-  const target = c.target || 40;
-  const pctToday = Math.min(100, Math.round(100 * (c.chanted_today || 0) / target));
-  const monthlyTotal = c.daily_chanter_total || 0;
-  const pctMonthly = monthlyTotal
-    ? Math.min(100, Math.round(100 * (c.one_month_daily || 0) / monthlyTotal))
+  const assigned = Math.max(1, c.assigned || 0);
+  const dailyTotal = c.daily_chanter_total || 0;
+  const pctToday = Math.min(100, Math.round(100 * (c.chanted_today || 0) / assigned));
+  const pctMonthly = dailyTotal
+    ? Math.min(100, Math.round(100 * (c.one_month_daily || 0) / dailyTotal))
     : 0;
   const midToday = pctToday >= 60 ? 0 : (pctToday >= 30 ? 1 : 2);
   const midMonthly = pctMonthly >= 60 ? 0 : (pctMonthly >= 30 ? 1 : 2);
@@ -417,12 +467,12 @@ function coordCard(c) {
       el("div", { class: "hint", style: "margin-top:.2rem" }, `${c.assigned} chanters in roll`),
       el("div", { class: "progress-line", style: "margin-top:.55rem" },
         el("span", {}, "Chanted today"),
-        el("span", { class: "fraction" }, `${c.chanted_today}/${target}`),
+        el("span", { class: "fraction" }, `${c.chanted_today || 0} of ${c.assigned || 0}`),
       ),
       el("div", { class: "pbar", "data-mid": String(midToday), style: `--pct:${pctToday}%` }),
       el("div", { class: "progress-line", style: "margin-top:.4rem" },
         el("span", {}, "One-month daily"),
-        el("span", { class: "fraction" }, `${c.one_month_daily || 0}/${monthlyTotal || 0}`),
+        el("span", { class: "fraction" }, `${c.one_month_daily || 0} of ${dailyTotal} daily`),
       ),
       el("div", { class: "pbar", "data-mid": String(midMonthly), style: `--pct:${pctMonthly}%` }),
     ),
@@ -748,7 +798,10 @@ async function renderEventAttendance(eventId) {
         : "Tap any coordinator's row to expand and mark their chanters. You can also use the search fallback below."));
       const bul = el("ul", { class: "list" });
       for (const b of breakdown) {
-        const pct = Math.min(100, Math.round(100 * b.attended / (b.target || 40)));
+        // Progress bar measured against the coord's real roll size,
+        // not a hardcoded target.
+        const denom = Math.max(1, b.assigned || 0);
+        const pct = Math.min(100, Math.round(100 * b.attended / denom));
         const mid = pct >= 60 ? 0 : (pct >= 30 ? 1 : 2);
         const bodyId = `att-body-${b.user_id}`;
         const isSelf = b.user_id === ME.id;
@@ -762,8 +815,8 @@ async function renderEventAttendance(eventId) {
             el("span", { class: "hint" }, `${b.attended}/${b.assigned} in roll · tap to expand`),
           ),
           el("div", { class: "progress-line", style: "margin-top:.4rem" },
-            el("span", {}, "Attended vs target"),
-            el("span", { class: "fraction" }, `${b.attended}/${b.target || 40}`),
+            el("span", {}, "Attended"),
+            el("span", { class: "fraction" }, `${b.attended} of ${b.assigned || 0}`),
           ),
           el("div", { class: "pbar", "data-mid": String(mid), style: `--pct:${pct}%` }),
         );

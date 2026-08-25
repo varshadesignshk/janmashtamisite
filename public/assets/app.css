@@ -223,6 +223,75 @@ textarea { min-height: 4rem; resize: vertical; }
 .topbar .who strong { color: var(--ink-2); font-weight: 500; }
 .topbar .who a { margin-left: .3rem; }
 
+/* --------- floating leaderboard sidebar (desktop only) --------- */
+/* A slim always-visible panel on the right edge showing today's top
+ * three coordinators + the signed-in coord's own rank. Hidden on
+ * anything narrower than 1050px so it never overlaps the main content
+ * on tablets or phones. */
+.lb-side {
+  position: fixed;
+  top: 5rem;
+  right: 1rem;
+  width: 220px;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: .75rem .9rem;
+  font-size: .82rem;
+  z-index: 40;
+}
+.lb-side h4 {
+  margin: 0 0 .5rem;
+  font-family: var(--font-display);
+  color: var(--peacock-deep);
+  font-size: .95rem;
+  font-weight: 400;
+  display: flex; align-items: baseline; justify-content: space-between;
+}
+.lb-side .lb-rows { display: flex; flex-direction: column; gap: .3rem; }
+.lb-side .lb-row {
+  display: grid; grid-template-columns: auto 1fr auto; gap: .4rem;
+  align-items: center;
+  padding: .28rem .35rem;
+  border-radius: var(--radius-s);
+}
+.lb-side .lb-row.me {
+  background: linear-gradient(180deg, var(--tint-responded), var(--tint-followed));
+  border: 1px solid var(--mark-responded);
+}
+.lb-side .lb-row .name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink-2);
+}
+.lb-side .lb-row .pts {
+  font-family: var(--font-mono);
+  color: var(--mark-responded);
+  font-weight: 600;
+}
+.lb-side .lb-you-line {
+  margin-top: .5rem;
+  padding-top: .5rem;
+  border-top: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: .75rem;
+  text-align: center;
+}
+.lb-side a.lb-open {
+  display: block; text-align: center; margin-top: .55rem;
+  padding: .3rem .5rem; border-radius: var(--radius-s);
+  border: 1px solid var(--line); color: var(--ink-2);
+  text-decoration: none; font-size: .78rem;
+}
+.lb-side a.lb-open:hover { border-color: var(--peacock-deep); color: var(--peacock-deep); }
+
+/* Hide on anything narrower than desktop — no room for it. */
+@media (max-width: 1049px) {
+  .lb-side { display: none !important; }
+}
+
 /* --------- points chip in the header --------- */
 /* Two-tone: teal frame + gold coins inside. The number itself is
  * rendered in the validated gold so it reads as "you earned points". */

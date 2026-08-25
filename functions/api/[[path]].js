@@ -25,16 +25,15 @@ export async function onRequest(context) {
       });
     }
     console.error("unhandled", err && (err.stack || err.message || err));
-    // Only echo the error message + stack in non-prod. Production
-    // (Cloudflare Pages sets APP_ENV=production in the dashboard, or
-    // we can gate on wrangler's is-remote metadata) returns opaque
-    // "internal" so we don't leak file paths / code structure to
-    // untrusted callers.
+    // Always surface the error message so users can report what's
+    // wrong without needing wrangler-tail access. Stack trace stays
+    // behind the APP_ENV=production gate (that's the sensitive bit).
     const isDev = env.APP_ENV !== "production";
-    const payload = isDev
-      ? { error: "internal", message: String(err?.message || err),
-          stack: String(err?.stack || "").split("\n").slice(0, 5).join(" | ") }
-      : { error: "internal" };
+    const payload = {
+      error: "internal",
+      message: String(err?.message || err),
+    };
+    if (isDev) payload.stack = String(err?.stack || "").split("\n").slice(0, 5).join(" | ");
     return new Response(JSON.stringify(payload), {
       status: 500,
       headers: { "content-type": "application/json" },
