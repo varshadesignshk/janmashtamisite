@@ -132,6 +132,7 @@ function renderNav() {
     { href: "#/bv",        label: "BV",       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
     { href: "#/janmashtami", label: "Janmashtami", when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/leaderboard", label: "Leaderboard", when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
+    { href: "#/profile",     label: "My profile", when: () => ME.role === "njy_coordinator" },
     { href: "#/settings",  label: "Settings", when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
     { href: "#/admin",     label: "Admin",    when: () => can("feature_admin") },
   ];
@@ -180,6 +181,8 @@ function renderRoute() {
     "settings": renderSettings,
     "janmashtami": renderJanmashtami,
     "leaderboard": () => renderLeaderboard(arg || "daily"),
+    "profile":      () => renderProfile(arg),
+    "points-rules": () => renderPointsRules(view),
     "member":   () => renderMemberDetails(arg),
     "group-report": () => renderGroupReport(arg),
   };
@@ -217,7 +220,7 @@ function beadLegend() {
     item("yellow", "tap once = contacted"),
     item("orange", "tap again = responded"),
     item("green", "chanted today"),
-    item("red", "3+ days no chant"),
+    item("red", "needs attention — 3+ days no chant"),
   );
 }
 
@@ -231,6 +234,17 @@ function tallyStrip(t, keys) {
     ));
   }
   return row;
+}
+
+// Human-readable label for a bead color — used in tooltips.
+function beadColorLabel(c) {
+  return ({
+    white: "fresh, not marked today",
+    yellow: "contacted today",
+    orange: "responded today",
+    green: "chanted today",
+    red: "needs attention — 3+ days no chant",
+  })[c] || "fresh";
 }
 
 // Bead now takes a color name — one of white/yellow/orange/green/red.
@@ -257,7 +271,7 @@ function garlandStrip(roll, editable) {
     } : null);
     // Tagging garland beads with data-person so row-tap can update them too
     b.dataset.person = r.id;
-    b.title = `${r.name} — ${r.bead_color || "white"}`;
+    b.title = `${r.name} — ${beadColorLabel(r.bead_color)}`;
     g.append(b);
   });
   return g;
@@ -1296,44 +1310,223 @@ async function renderGroupReport(groupId) {
 }
 
 // ---------------------------------------------------- Leaderboard ---
+// Generation token so a stale in-flight fetch doesn't append rows into
+// a view that has already been re-rendered for a different tab.
+let leaderboardGen = 0;
 async function renderLeaderboard(kind) {
+  const myGen = ++leaderboardGen;
   const view = $("view");
   view.append(el("h2", { class: "section" }, "Leaderboard"));
 
   const tabs = el("div", { class: "nav", style: "border:none" });
   const t = (k, label) => el("a", { class: kind === k ? "active" : "", href: `#/leaderboard/${k}` }, label);
-  tabs.append(t("daily", "Today"), t("overall", "Overall (P1+P2)"));
+  tabs.append(
+    t("daily", "Today's points"),
+    t("overall", "Overall (Phase 1 + 2)"),
+    el("a", { href: "#/points-rules", style: "margin-left:auto" }, "How points work ↗"),
+  );
   view.append(tabs);
 
   view.append(el("p", { class: "hint" },
     kind === "daily"
-      ? "Points reset every midnight IST. +10 per chanted-today, +5 per follow-up, +50 per NJY attendance, +50 perfect-day."
-      : "Cumulative Phase 1 + Phase 2. Includes Janmashtami entry/commit tier bonuses and milestone bonuses (35/50 one-month-daily → +200; 16/50 NJY-2 → +200; 12/50 NJY-3 → +400)."
+      ? "Points earned today only — resets every midnight IST. Chant a chanter = +10 · Follow up = +5 · NJY attendance = +50 · Perfect day (all chanters chanted) = +50."
+      : "Cumulative Phase 1 + Phase 2. Adds Janmashtami entry / commit tier bonuses and milestone bonuses. Tap the rules link for the full point matrix."
   ));
+
+  const loader = el("p", { class: "hint" }, "Loading…");
+  view.append(loader);
 
   try {
     const { rows } = await api(`/api/leaderboard/${kind}`);
+    if (myGen !== leaderboardGen) return;   // stale — a newer tab click ran already
+    loader.remove();
     if (!rows.length) return view.append(el("p", { class: "hint" }, "No coordinators yet."));
     const ul = el("ul", { class: "list" });
     const medals = ["🥇", "🥈", "🥉"];
     rows.forEach((r, i) => {
-      const rank = i + 1;
-      const label = medals[i] || `#${rank}`;
-      const breakdownText = (r.breakdown || []).map(b => `${b.k}: ${b.pts}`).join(" · ");
+      const label = medals[i] || `#${i + 1}`;
+      const breakdownText = (r.breakdown || []).map(b => `${prettyPointKind(b.k)}: ${b.pts}`).join(" · ");
       const li = el("li", {},
         el("div", {}, el("strong", {}, `${label}  ${r.name}`),
           el("div", { class: "hint", style: "margin-top:.15rem" }, breakdownText || "—")),
         el("span", { class: "score" }, `${r.pts} pts`),
         r.user_id === ME.id
-          ? el("span", { class: "pill on" }, "you")
-          : el("a", { class: "btn", href: `#/user/${r.user_id}` }, "Open"),
+          ? el("a", { class: "pill on", href: `#/profile/${r.user_id}`, style: "text-decoration:none" }, "you — view profile")
+          : el("a", { class: "btn", href: `#/profile/${r.user_id}` }, "Open"),
       );
       ul.append(li);
     });
     view.append(ul);
   } catch (err) {
+    if (myGen !== leaderboardGen) return;
+    loader.remove();
     view.append(el("p", { class: "error" }, err.message));
   }
+}
+
+// Turn the internal point-kind slugs into short human labels.
+function prettyPointKind(k) {
+  return ({
+    chanted: "chanted today",
+    follow_up: "follow-ups",
+    njy_attend: "NJY attends",
+    perfect_day: "perfect day",
+    chant_days: "chant days",
+    follow_ups: "follow-ups",
+    njy_attends: "NJY attends",
+    njy_triple: "3-NJY streak",
+    jm_entries: "Janmashtami entries",
+    jm_daily_commits: "daily commits",
+    milestone_35_one_month: "milestone 35 one-month",
+    milestone_16_njy2: "milestone 16 NJY-2",
+    milestone_12_njy3: "milestone 12 NJY-3",
+  })[k] || k.replace(/_/g, " ");
+}
+
+// ---------------------------------------------------- Profile ---
+// A coord's own "how am I doing" page. LeetCode-style transaction view
+// showing every point-earning bucket with its count and total.
+async function renderProfile(userId) {
+  const view = $("view");
+  const target = userId || ME.id;
+  view.append(el("h2", { class: "section" }, "Profile"));
+  const loader = el("p", { class: "hint" }, "Loading…");
+  view.append(loader);
+  try {
+    // Fetch both boards; find this user's row.
+    const [dailyRes, overallRes] = await Promise.all([
+      api("/api/leaderboard/daily"),
+      api("/api/leaderboard/overall"),
+    ]);
+    loader.remove();
+    const daily = dailyRes.rows.find(r => r.user_id === target);
+    const overall = overallRes.rows.find(r => r.user_id === target);
+    const name = daily?.name || overall?.name || "Coordinator";
+    const dailyRank = dailyRes.rows.findIndex(r => r.user_id === target) + 1;
+    const overallRank = overallRes.rows.findIndex(r => r.user_id === target) + 1;
+
+    view.append(el("div", { class: "spread" },
+      el("h3", { class: "section", style: "margin:0" }, name),
+      el("a", { class: "btn", href: "#/leaderboard/overall" }, "← Back to leaderboard"),
+    ));
+
+    // KPI strip
+    const kpis = el("div", { class: "tally" });
+    kpis.append(
+      el("div", { class: "cell" },
+        el("div", { class: "n" }, String(daily?.pts || 0)),
+        el("div", { class: "k" }, "Today's points")),
+      el("div", { class: "cell" },
+        el("div", { class: "n" }, String(overall?.pts || 0)),
+        el("div", { class: "k" }, "Overall points")),
+      el("div", { class: "cell" },
+        el("div", { class: "n" }, dailyRank ? `#${dailyRank}` : "—"),
+        el("div", { class: "k" }, "Rank today")),
+      el("div", { class: "cell" },
+        el("div", { class: "n" }, overallRank ? `#${overallRank}` : "—"),
+        el("div", { class: "k" }, "Rank overall")),
+    );
+    view.append(kpis);
+
+    // Two breakdown lists, side by side on desktop / stacked on phone.
+    const grid = el("div", { class: "grid2", style: "margin-top:1rem" });
+    grid.append(pointsBreakdownCard("Today", daily?.breakdown));
+    grid.append(pointsBreakdownCard("Overall (P1+P2)", overall?.breakdown));
+    view.append(grid);
+
+    view.append(el("p", { style: "margin-top:1rem" },
+      el("a", { class: "btn", href: "#/points-rules" }, "See full points rules →"),
+    ));
+  } catch (err) {
+    loader.remove();
+    view.append(el("p", { class: "error" }, err.message));
+  }
+}
+
+function pointsBreakdownCard(title, breakdown) {
+  const card = el("div", { class: "card", style: "margin:0" });
+  card.append(el("h3", { class: "section", style: "margin-top:0" }, title));
+  if (!breakdown || !breakdown.length) {
+    card.append(el("p", { class: "hint" }, "No points yet in this scope."));
+    return card;
+  }
+  const total = breakdown.reduce((s, b) => s + (b.pts || 0), 0);
+  const ul = el("ul", { class: "list" });
+  for (const b of breakdown) {
+    ul.append(el("li", {},
+      el("div", {}, el("strong", {}, prettyPointKind(b.k)),
+        el("div", { class: "hint" }, b.n ? `${b.n} × action` : "milestone")),
+      el("span", { class: "score" }, `+${b.pts}`),
+      el("span", {}),
+    ));
+  }
+  card.append(ul);
+  card.append(el("p", { style: "text-align:right;font-family:var(--font-mono);color:var(--peacock-deep);margin-top:.4rem" },
+    "Total ", el("strong", {}, `${total} pts`)));
+  return card;
+}
+
+// ---------------------------------------------------- Points rules ---
+// A static reference — the full "how points are earned" table so
+// coordinators know what to do to climb.
+function renderPointsRules(view) {
+  view.append(el("h2", { class: "section" }, "How points are earned"));
+  view.append(el("p", { class: "hint" }, "This is the full point matrix for Phase 1 and Phase 2. Keep an eye on the milestone bonuses — they're the biggest earners."));
+
+  const daily = el("div", { class: "card" });
+  daily.append(
+    el("h3", { class: "section", style: "margin-top:0" }, "Daily leaderboard (resets midnight IST)"),
+    el("ul", { class: "list" },
+      pointRow("Chanter marked chanted today", "+10"),
+      pointRow("Follow-up (contact-state change today)", "+5"),
+      pointRow("Chanter attended an NJY event", "+50"),
+      pointRow("Same chanter attended ALL 3 NJYs (one-time)", "+100"),
+      pointRow("Chanter hits 7-day chanting streak", "+20"),
+      pointRow("Chanter hits 30-day chanting streak", "+50"),
+      pointRow("Perfect day — all your chanters chanted today", "+50"),
+    ),
+  );
+  view.append(daily);
+
+  const overall = el("div", { class: "card" });
+  overall.append(
+    el("h3", { class: "section", style: "margin-top:0" }, "Overall leaderboard (cumulative P1 + P2)"),
+    el("p", { class: "hint" }, "Everything above accumulates. Plus these one-off Janmashtami-day bonuses:"),
+    el("h3", { class: "section" }, "Janmashtami entries"),
+    el("ul", { class: "list" },
+      pointRow("Each new person entered", "+5"),
+      pointRow("Tier bonus at 25 entries", "+25"),
+      pointRow("Tier bonus at 50 entries", "+50"),
+      pointRow("Tier bonus at 75 entries", "+75"),
+      pointRow("Tier bonus at 100 entries", "+100"),
+    ),
+    el("h3", { class: "section" }, "Daily-chanter commits (on Janmashtami)"),
+    el("ul", { class: "list" },
+      pointRow("Each person set to daily on Janmashtami", "+10"),
+      pointRow("Tier bonus at 15 daily commits", "+30"),
+      pointRow("Tier bonus at 25 daily commits", "+50"),
+      pointRow("Tier bonus at 50 daily commits", "+100"),
+    ),
+    el("h3", { class: "section" }, "Milestones (one-off, permanent)"),
+    el("ul", { class: "list" },
+      pointRow("35 of your 50 chanters stayed daily for a month", "+200"),
+      pointRow("16 of your 50 attended NJY 2", "+200"),
+      pointRow("12 of your 50 attended NJY 3", "+400"),
+    ),
+  );
+  view.append(overall);
+
+  view.append(el("p", { style: "margin-top:1rem" },
+    el("a", { class: "btn", href: "#/leaderboard/overall" }, "← Back to leaderboard"),
+  ));
+}
+
+function pointRow(label, points) {
+  return el("li", {},
+    el("div", {}, el("strong", {}, label)),
+    el("span", { class: "score" }, points),
+    el("span", {}),
+  );
 }
 
 // ---------------------------------------------------- Janmashtami ---

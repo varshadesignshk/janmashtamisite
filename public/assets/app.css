@@ -302,9 +302,11 @@ textarea { min-height: 4rem; resize: vertical; }
 .bead[data-color="yellow"] { background: #E8B023;             border-color: #C99510; }
 .bead[data-color="orange"] { background: #DE7A2A;             border-color: #B85F1C; }
 .bead[data-color="green"]  { background: #2FA65D;             border-color: #22854A; }
+/* Red = "needs attention" — soft red fill, not the danger rose, so it
+ * reads as "gentle nudge" rather than "alarm". */
 .bead[data-color="red"]    {
-  background: var(--mark-none);
-  border: 3px solid var(--mark-attention);
+  background: #F4B3B3;
+  border-color: #C7625C;
 }
 
 /* Back-compat: any old numeric data-state still renders as white so
@@ -334,7 +336,7 @@ textarea { min-height: 4rem; resize: vertical; }
 .bead-legend .swatch[data-c="yellow"] { background: #E8B023; border-color: #C99510; }
 .bead-legend .swatch[data-c="orange"] { background: #DE7A2A; border-color: #B85F1C; }
 .bead-legend .swatch[data-c="green"]  { background: #2FA65D; border-color: #22854A; }
-.bead-legend .swatch[data-c="red"]    { background: var(--mark-none); border: 2px solid var(--mark-attention); }
+.bead-legend .swatch[data-c="red"]    { background: #F4B3B3; border-color: #C7625C; }
 
 /* -------------------------------------------------- forms */
 .card {

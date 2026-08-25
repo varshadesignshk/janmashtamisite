@@ -691,9 +691,9 @@ test("Janmashtami bulk: tab-separated paste imports multiple rows", async () => 
   const { cookie } = await login(s, "coord1", "test-pass-123");
   const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
   const rows = [
-    { name: "Alpha", mobile: "+91-a", pincode: "625001" },
-    { name: "Beta",  mobile: "+91-b", pincode: "625002" },
-    { name: "Gamma", mobile: "+91-c", pincode: "625003" },
+    { name: "Alpha", mobile: "+91777001", pincode: "625001" },
+    { name: "Beta",  mobile: "+91777002", pincode: "625002" },
+    { name: "Gamma", mobile: "+91777003", pincode: "625003" },
   ];
   const r = await route(withCookie("http://x/api/janmashtami/bulk", cookie, {
     method: "POST", body: JSON.stringify({ rows }),
@@ -702,8 +702,8 @@ test("Janmashtami bulk: tab-separated paste imports multiple rows", async () => 
   assert.equal(body.created, 3);
   assert.equal(body.errors.length, 0);
   // sl_nos should be contiguous starting from 10000
-  const alpha = await s.personByPhone("+91-a");
-  const gamma = await s.personByPhone("+91-c");
+  const alpha = await s.personByPhone("+91777001");
+  const gamma = await s.personByPhone("+91777003");
   assert.equal(alpha.sl_no, 10000);
   assert.equal(gamma.sl_no, 10002);
 });
