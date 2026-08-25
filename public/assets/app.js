@@ -244,6 +244,17 @@ function beadLegend() {
   );
 }
 
+// A one-liner "what this tab is for" note. Shown right under the h2
+// on every tab so non-technical users know what they can do here.
+function helpBanner(text) {
+  return el("div", { class: "help-banner" }, text);
+}
+
+// Pulsing "Loading…" line to show while async fetches complete.
+function loadingLine(text = "Loading…") {
+  return el("p", { class: "loading-line" }, text);
+}
+
 function tallyStrip(t, keys) {
   const map = { assigned: "Assigned", chanted_today: "Chanted today", followed_up: "Followed up", needs_visit: "Needs visit", responded: "Responded" };
   const row = el("div", { class: "tally" });
@@ -361,10 +372,18 @@ function rollList(roll, editable) {
 
 // ------------------------------------------------- leader dashboard ---
 async function renderLeaderDashboard(view) {
-  view.append(el("h2", { class: "section" }, "Your coordinators"));
-  view.append(el("p", { class: "hint" }, "Each NJY group targets 40 daily chanters (Plan 2). Progress bar shows chanted-today count against that target."));
+  view.append(el("h2", { class: "section" }, "Team"));
+  view.append(helpBanner(
+    "Your coordinators, each shown with two progress bars: 'chanted " +
+    "today' (out of the Plan-2 40-per-group target) and 'one-month " +
+    "daily' (of the daily chanters who've stuck with it). Tap 'Open' " +
+    "on any coordinator to see their roll and act on their behalf."
+  ));
+  const loader = loadingLine("Loading your coordinators…");
+  view.append(loader);
   try {
     const { coordinators } = await api("/api/leader/coordinators");
+    loader.remove();
     if (!coordinators.length) return view.append(el("p", { class: "hint" }, "No coordinators visible yet."));
     const ul = el("ul", { class: "list" });
     for (const c of coordinators) {
@@ -372,6 +391,7 @@ async function renderLeaderDashboard(view) {
     }
     view.append(ul);
   } catch (err) {
+    loader.remove();
     view.append(el("p", { class: "error" }, err.message));
   }
 }
@@ -411,8 +431,19 @@ function coordCard(c) {
 
 // -------------------------------------------------------- HK dashboard ---
 async function renderHkDashboard(view) {
+  view.append(el("h2", { class: "section" }, "HK Leader dashboard"));
+  view.append(helpBanner(
+    "Big-picture view of the whole programme. Four stat tiles show " +
+    "the overall count of people, how many chanted today, and how many " +
+    "leaders / coordinators are active. Below, every coordinator's " +
+    "progress bars: today's chants and one-month daily chanters. " +
+    "Click Open on any row to drill into that coordinator's roll."
+  ));
+  const loader = loadingLine("Loading dashboard numbers…");
+  view.append(loader);
   try {
     const s = await api("/api/hk/summary");
+    loader.remove();
     const grid = el("div", { class: "tally" });
     grid.append(
       el("div", { class: "cell" }, el("div", { class: "n" }, String(s.total_people)), el("div", { class: "k" }, "People")),
@@ -430,6 +461,7 @@ async function renderHkDashboard(view) {
     }
     view.append(ul);
   } catch (err) {
+    loader.remove();
     view.append(el("p", { class: "error" }, err.message));
   }
 }
@@ -614,6 +646,10 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
 // -------------------------------------------------------- duties ---
 async function renderDuties(view) {
   view.append(el("h2", { class: "section" }, "Your duties"));
+  view.append(helpBanner(
+    "Weekly and monthly tasks assigned to you — coming from the " +
+    "Bhakti-Vrksa action timeline. Tap 'Done' when you complete one."
+  ));
   try {
     const { duties } = await api("/api/duties");
     if (!duties.length) return view.append(el("p", { class: "hint" }, "No pending duties. Duties are auto-generated from the BV Action Timeline as roles get assigned. (Auto-generator not yet built — HK Leader can add duties manually via SQL for now.)"));
@@ -654,6 +690,11 @@ async function renderDuties(view) {
 async function renderEvents(view) {
   view.innerHTML = "";
   view.append(el("h2", { class: "section" }, "NJY yajnas & BG sessions"));
+  view.append(helpBanner(
+    "All the temple's Nama-Japa-Yajna and Bhagavad-Gita sessions. " +
+    "Tap 'Attendance' on any event to mark who came — you can expand " +
+    "your own row and tap-to-present each chanter."
+  ));
   try {
     const { events } = await api("/api/events");
     if (!events.length) return view.append(el("p", { class: "hint" }, "No events yet. HK Leader can create them in Admin → Events."));
@@ -1112,6 +1153,12 @@ async function renderSadhanaBrowse(view) {
 // -------------------------------------------------- BV structure ---
 async function renderBvStructure(view) {
   view.append(el("h2", { class: "section" }, "Bhakti-Vrksa structure"));
+  view.append(helpBanner(
+    "The Circle → Sector → BV Group hierarchy for Phase 4 (Feb 2027 " +
+    "onward). Six circles, four sectors each, three BV groups per " +
+    "sector. Right now HK Leader seeds it here; later, Servant Leaders " +
+    "run their own BV groups against it."
+  ));
   view.append(el("p", { class: "hint" }, "Six named circles from the docs: Krsna, Balarama, Gauranga, Nityananda, Nrsimha, Laksmi. Under Plan 2 (updated): 4 sectors of 3 BV groups each = 72 groups at Week 1, expected to drop to ~50 groups by Week 64. Create/edit groups here."));
   try {
     const { circles, sectors, bv_groups } = await api("/api/bv/structure");
@@ -1754,6 +1801,11 @@ async function renderJanmashtami(view) {
 // WhatsApp buttons. Anyone with a roll gets this screen.
 async function renderSettings(view) {
   view.append(el("h2", { class: "section" }, "Settings"));
+  view.append(helpBanner(
+    "Personal settings for your own account. Right now: the two " +
+    "WhatsApp templates that fill the message text when you tap the " +
+    "WhatsApp button on any chanter's row."
+  ));
   view.append(el("p", { class: "hint" }, "Customise the WhatsApp message your button pre-fills. Use " +
     "{name} anywhere in your text — it gets replaced with each chanter's name at send time. " +
     "You can write in English, Tamil, Hindi, or any script — no special setup needed."));
@@ -1795,6 +1847,13 @@ async function renderSettings(view) {
 async function renderAdmin(tab) {
   const view = $("view");
   view.append(el("h2", { class: "section" }, "Admin"));
+  view.append(helpBanner(
+    "Administrative controls — HK Leader only. Feature gates toggle " +
+    "which roles see which parts of the app (no redeploy needed). " +
+    "Users lets you create logins and assign SL ranges. Bulk import " +
+    "brings chanter lists in from Excel. Events lets you create NJY / " +
+    "BG sessions with their real dates."
+  ));
   const tabs = el("div", { class: "nav", style: "border:none" });
   const t = (key, label) => el("a", { class: tab === key ? "active" : "", href: `#/admin/${key}` }, label);
   tabs.append(t("gates", "Feature gates"), t("users", "Users"), t("import", "Bulk import"), t("events", "Events"));

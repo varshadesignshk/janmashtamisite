@@ -96,6 +96,29 @@ button { font: inherit; cursor: pointer; }
   font-size: .8rem; color: var(--ink-2); cursor: pointer;
 }
 
+/* --------- help banner + loading line --------- */
+/* Every tab gets a short "what this is for" note at the top so
+ * non-technical users know they're in the right place. */
+.help-banner {
+  background: var(--surface);
+  border-left: 3px solid var(--peacock-deep);
+  padding: .55rem .85rem;
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  font-size: .85rem;
+  color: var(--ink-2);
+  margin: 0 0 1rem;
+}
+.loading-line {
+  font-style: italic;
+  color: var(--muted);
+  padding: .8rem 0;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: .5; }
+  50%      { opacity: 1;  }
+}
+
 /* small utility */
 .row { display: flex; gap: .5rem; align-items: center; }
 .spread { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
@@ -201,21 +224,31 @@ textarea { min-height: 4rem; resize: vertical; }
 .topbar .who a { margin-left: .3rem; }
 
 /* --------- points chip in the header --------- */
+/* Two-tone: teal frame + gold coins inside. The number itself is
+ * rendered in the validated gold so it reads as "you earned points". */
 .pts-chip {
   display: inline-flex; align-items: center; gap: .35rem;
-  padding: .18rem .65rem;
+  padding: .22rem .75rem;
   border-radius: 999px;
   font-family: var(--font-mono);
   font-size: .75rem;
-  background: var(--tint-followed);
-  color: var(--mark-followed);
-  border: 1px solid var(--mark-followed);
+  background: linear-gradient(180deg, var(--tint-responded), var(--tint-followed));
+  color: var(--peacock-ink);
+  border: 1px solid var(--mark-responded);
   text-decoration: none;
-  transition: background .12s ease, color .12s ease;
+  transition: transform .1s ease, box-shadow .1s ease;
+  box-shadow: 0 1px 2px rgba(196,131,14,.2);
 }
-.pts-chip:hover { background: var(--mark-followed); color: white; }
-.pts-chip .pts-num { font-weight: 600; }
-.pts-chip .pts-sep { opacity: .6; }
+.pts-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 7px rgba(196,131,14,.28);
+}
+.pts-chip .pts-num {
+  font-weight: 700;
+  color: var(--mark-responded);
+}
+.pts-chip .pts-sep { opacity: .5; }
+.pts-chip::before { content: "🪙"; font-size: .82rem; }
 
 /* -------------------------------------------------- tally strip */
 .tally {
@@ -453,6 +486,47 @@ a[download]:hover {
 }
 .error { color: var(--mark-attention); font-size: .85rem; margin: .5rem 0; }
 .hint { color: var(--muted); font-size: .8rem; }
+
+/* -------------------------------------------------- mobile responsive */
+@media (max-width: 640px) {
+  .app { padding: .8rem .7rem 5rem; }
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .4rem;
+  }
+  .topbar .who {
+    align-items: flex-start;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  .topbar h1 { font-size: 1.35rem; }
+  .tally {
+    grid-template-columns: 1fr 1fr;
+    gap: .4rem;
+  }
+  .tally .cell .n { font-size: 1.15rem; }
+  .grid2 { grid-template-columns: 1fr; }
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .card { padding: .9rem; }
+  .rapid-form {
+    grid-template-columns: 1fr;
+    gap: .5rem;
+  }
+  .nav {
+    gap: .2rem;
+    padding: .35rem 0;
+  }
+  .nav a {
+    font-size: .78rem;
+    padding: .35rem .55rem;
+  }
+  h2.section { font-size: 1.05rem; }
+  h3.section { font-size: 1rem; }
+  .help-banner { font-size: .78rem; padding: .5rem .65rem; }
+}
 
 /* -------------------------------------------------- login screen */
 .center {
