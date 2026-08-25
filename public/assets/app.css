@@ -195,9 +195,27 @@ textarea { min-height: 4rem; resize: vertical; }
   margin: 0; font-family: var(--font-display); color: var(--peacock-deep);
   font-size: 1.6rem; font-weight: 400; letter-spacing: .01em;
 }
-.topbar .who { color: var(--muted); font-size: .9rem; }
+.topbar .who { display: flex; flex-direction: column; align-items: flex-end; gap: .35rem; color: var(--muted); font-size: .9rem; }
+.topbar .who-line { display: flex; gap: .5rem; align-items: baseline; }
 .topbar .who strong { color: var(--ink-2); font-weight: 500; }
-.topbar .who a { margin-left: .8rem; }
+.topbar .who a { margin-left: .3rem; }
+
+/* --------- points chip in the header --------- */
+.pts-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .18rem .65rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  background: var(--tint-followed);
+  color: var(--mark-followed);
+  border: 1px solid var(--mark-followed);
+  text-decoration: none;
+  transition: background .12s ease, color .12s ease;
+}
+.pts-chip:hover { background: var(--mark-followed); color: white; }
+.pts-chip .pts-num { font-weight: 600; }
+.pts-chip .pts-sep { opacity: .6; }
 
 /* -------------------------------------------------- tally strip */
 .tally {
@@ -323,9 +341,14 @@ textarea { min-height: 4rem; resize: vertical; }
 
 /* --------- bead legend --------- */
 .bead-legend {
-  display: flex; flex-wrap: wrap; gap: .7rem;
+  display: flex; flex-wrap: nowrap; gap: .8rem;
   padding: .5rem 0 0; margin-bottom: -0.4rem;
   font-size: .72rem; color: var(--muted);
+  overflow-x: auto;   /* scroll horizontally on narrow phones instead of wrapping */
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .bead-legend { gap: .6rem; font-size: .68rem; }
 }
 .bead-legend .item { display: inline-flex; align-items: center; gap: .3rem; }
 .bead-legend .swatch {

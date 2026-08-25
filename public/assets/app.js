@@ -103,7 +103,28 @@ async function showApp() {
   $("logout").onclick = async (e) => { e.preventDefault(); await api("/api/logout", { method: "POST" }); location.hash = ""; location.reload(); };
   renderNav();
   renderRoute();
+  refreshPointsChip();
 }
+
+// Header points chip — small oval showing today's and overall points
+// for the signed-in coordinator. Silently ignored for other roles.
+async function refreshPointsChip() {
+  const chip = $("pts-chip");
+  if (!chip) return;
+  if (ME.role !== "njy_coordinator") { chip.hidden = true; return; }
+  try {
+    const p = await api("/api/me/points");
+    if (!p.applicable) { chip.hidden = true; return; }
+    chip.innerHTML = "";
+    chip.append(
+      "Today ", el("span", { class: "pts-num" }, String(p.daily || 0)),
+      el("span", { class: "pts-sep" }, " · "),
+      "Overall ", el("span", { class: "pts-num" }, String(p.overall || 0)),
+    );
+    chip.hidden = false;
+  } catch (_) { chip.hidden = true; }
+}
+window.refreshPointsChip = refreshPointsChip;
 
 function can(feature) {
   if (ME.role === "hk_leader") return true;
@@ -210,17 +231,16 @@ async function renderCoordRoll(view) {
 }
 
 // Small legend explaining what the bead colors mean, shown above the
-// garland on any roll view.
+// garland on any roll view. Compact — fits on one line most screens.
 function beadLegend() {
   const item = (c, label) => el("span", { class: "item" },
     el("span", { class: "swatch", "data-c": c }), label);
   return el("div", { class: "bead-legend" },
-    el("span", { style: "font-weight:500;color:var(--ink-2)" }, "Bead colors:"),
     item("white", "fresh"),
-    item("yellow", "tap once = contacted"),
-    item("orange", "tap again = responded"),
-    item("green", "chanted today"),
-    item("red", "needs attention — 3+ days no chant"),
+    item("yellow", "contacted"),
+    item("orange", "responded"),
+    item("green", "chanted"),
+    item("red", "needs attention"),
   );
 }
 
@@ -809,21 +829,44 @@ function debounce(fn, ms) {
 }
 
 // ------------------------------------- Excel + CSV upload helper -----
-// Lazy-load SheetJS from CDN only when the user actually clicks the
-// upload button. Keeps the initial bundle small and offline-friendly.
+// Lazy-load SheetJS (full build — needed for template generation too)
+// only when the user first clicks upload or "Download template".
 let _xlsxPromise = null;
 function loadXlsx() {
   if (_xlsxPromise) return _xlsxPromise;
   _xlsxPromise = new Promise((resolve, reject) => {
     if (window.XLSX) return resolve(window.XLSX);
     const s = document.createElement("script");
-    s.src = "https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.mini.min.js";
+    s.src = "https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js";
     s.async = true;
     s.onload = () => resolve(window.XLSX);
     s.onerror = () => reject(new Error("Could not load Excel parser (offline?)"));
     document.head.appendChild(s);
   });
   return _xlsxPromise;
+}
+
+// Build and download an .xlsx template with the "mobile" column
+// pre-formatted as Text — this stops Excel from auto-converting long
+// numbers to scientific notation.
+async function downloadXlsxTemplate() {
+  const XLSX = await loadXlsx();
+  const data = [
+    ["name", "mobile", "pincode"],
+    ["Ravi Kumar", "9999000001", "625001"],
+    ["Priya Sundari", "9999000002", "625002"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  // Force every cell in column B (mobile) to have type='string' + text format
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: 1 });
+    if (ws[addr]) { ws[addr].t = "s"; ws[addr].z = "@"; }
+  }
+  ws["!cols"] = [{ wch: 22 }, { wch: 18 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Chanters");
+  XLSX.writeFile(wb, "chanter-template.xlsx");
 }
 
 // Read an .xlsx/.xls/.csv file into an array of row objects. First row
@@ -843,14 +886,26 @@ async function readSpreadsheetFile(file) {
 //
 // mapRow(rowObj) → { name, mobile, pincode, ... } (or whatever the API
 // expects). onCommit(mappedRows) does the actual API call.
-function excelUploadWidget({ helperText, mapRow, onCommit, templateHref }) {
+function excelUploadWidget({ helperText, mapRow, onCommit }) {
   const wrap = el("div", {});
+  const tplBtn = el("button", { type: "button", class: "ghost" }, "⬇ Download template (Excel)");
+  tplBtn.addEventListener("click", async () => {
+    tplBtn.disabled = true;
+    tplBtn.textContent = "Generating…";
+    try {
+      await downloadXlsxTemplate();
+      tplBtn.textContent = "⬇ Download template (Excel)";
+    } catch (err) {
+      tplBtn.textContent = "Failed — try again";
+    } finally {
+      tplBtn.disabled = false;
+    }
+  });
   wrap.append(
     el("p", { class: "hint" }, helperText),
-    templateHref ? el("p", {},
-      el("a", { href: templateHref, download: "chanter-template.csv" }, "⬇ Download template (CSV)"),
-      el("span", { class: "hint" }, " — open in Excel, fill your rows, save, then upload."),
-    ) : null,
+    el("p", {}, tplBtn,
+      el("span", { class: "hint" }, " — mobile column is pre-formatted as text, so 10-digit numbers keep their form. Fill your rows in Excel, save, then upload."),
+    ),
   );
   const fileInput = el("input", { type: "file", accept: ".xlsx,.xls,.csv" });
   const previewBox = el("div", { style: "margin-top:.7rem" });
@@ -1575,8 +1630,10 @@ async function renderJanmashtami(view) {
     el("div", {}, el("label", { style: "visibility:hidden" }, "."), submitBtn),
   );
   const feedback = el("p", { class: "hint", style: "margin-top:.6rem" }, "");
+  // "Recent entries" moves to its own card at the bottom of the page;
+  // the quick-add card just prepends new rows into that far-down list.
   const recentUl = el("ul", { class: "list", id: "jm-recent" });
-  cardA.append(form, feedback, el("h3", { class: "section" }, "Recent entries"), recentUl);
+  cardA.append(form, feedback);
   form.onsubmit = async (e) => {
     e.preventDefault();
     submitBtn.disabled = true;
@@ -1609,7 +1666,6 @@ async function renderJanmashtami(view) {
   cardB.append(excelUploadWidget({
     helperText: "Attach a .xlsx or .csv file. Columns needed: name, mobile, pincode. " +
       "You'll see a preview before it's imported. sl.nos are auto-assigned from your range as rows land.",
-    templateHref: "/assets/chanter-template.csv",
     mapRow: (row) => ({
       name: String(row.name || row.Name || row.NAME || "").trim(),
       mobile: String(row.mobile || row.Mobile || row.MOBILE || row.phone || "").trim(),
@@ -1637,6 +1693,15 @@ async function renderJanmashtami(view) {
     ),
   );
   view.append(cardC);
+
+  // --- Path D: today's entries — moved to bottom so the upload options
+  // are what you see first when the tab loads.
+  const cardD = el("div", { class: "card" });
+  cardD.append(el("h3", { class: "section" }, "Today's entries in your roll"));
+  cardD.append(el("p", { class: "hint" }, "Everything you've added today lands here. Scroll down to double-check before the day ends."));
+  cardD.append(recentUl);
+  view.append(cardD);
+
   $("jm-paste-go").addEventListener("click", async () => {
     const raw = $("jm-paste").value.trim();
     if (!raw) return;
@@ -1874,7 +1939,6 @@ async function renderAdminImport(view) {
   uploadCard.append(el("h3", { class: "section" }, "Upload Excel or CSV file"));
   uploadCard.append(excelUploadWidget({
     helperText: "Attach a .xlsx or .csv file with columns: name, mobile, pincode (or legal_name / phone if you prefer). Preview → confirm.",
-    templateHref: "/assets/chanter-template.csv",
     mapRow: (row) => ({
       // Admin/import endpoint expects legal_name + phone; map from
       // either header style.
