@@ -1826,29 +1826,29 @@ async function renderJanmashtami(view) {
     }
   });
 
-  // --- Load today's entries so the coord can see all their adds
+  // Fetch today's Janmashtami entries in insertion order (newest first)
+  // via the dedicated endpoint. Rendered in the bottom card so the
+  // coord can double-check their most recent adds.
   async function loadTodayEntries() {
     try {
-      const { roll } = await api("/api/roll");
-      const today = new Date().toISOString().slice(0, 10);
-      const todays = roll.filter(r => {
-        // We don't have created_at on the roll payload; approximate:
-        // any row without a lifecycle status change today AND without
-        // chanted-today (i.e. brand new) is likely from today. Better:
-        // read from /api/user/:id/roll which returns the same info.
-        return true; // show everyone in the coord's roll, sorted by sl_no
-      });
+      const { entries } = await api("/api/me/janmashtami-entries");
       recentUl.innerHTML = "";
-      todays.forEach(r => {
+      if (!entries.length) {
+        recentUl.append(el("li", {}, el("span", { class: "hint" }, "No entries yet today. Add your first person above.")));
+        return;
+      }
+      entries.forEach(r => {
+        const meta = [
+          r.sl_no ? `sl ${r.sl_no}` : null,
+          r.phone,
+          r.pincode || null,
+        ].filter(Boolean).join(" · ");
         recentUl.append(el("li", {},
           el("div", {}, el("strong", {}, r.name),
-            el("div", { class: "hint" }, `${r.phone}${r.status !== 'chanter' ? ' · ' + r.status : ''}`)),
+            el("div", { class: "hint" }, meta)),
           el("span", {}), el("span", {}),
         ));
       });
-      if (!todays.length) {
-        recentUl.append(el("li", {}, el("span", { class: "hint" }, "No entries yet. Add your first person above.")));
-      }
     } catch (_) { /* silent */ }
   }
   loadTodayEntries();
