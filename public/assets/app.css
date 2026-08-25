@@ -279,6 +279,33 @@ textarea { min-height: 4rem; resize: vertical; }
   font-size: .75rem;
   text-align: center;
 }
+/* The "You" row — a highlighted card matching the header points chip's
+ * gold-coin style so it's obvious where the coordinator stands. */
+.lb-side .lb-you-row {
+  margin-top: .55rem;
+  padding: .4rem .55rem;
+  display: grid; grid-template-columns: auto 1fr auto; gap: .5rem;
+  align-items: center;
+  background: linear-gradient(180deg, var(--tint-responded), var(--tint-followed));
+  border: 1px solid var(--mark-responded);
+  border-radius: var(--radius-s);
+  font-size: .8rem;
+}
+.lb-side .lb-you-label {
+  font-weight: 700; color: var(--peacock-ink);
+  letter-spacing: .04em; font-size: .72rem;
+}
+.lb-side .lb-you-rank {
+  font-family: var(--font-mono);
+  color: var(--peacock-deep);
+  font-weight: 600;
+}
+.lb-side .lb-you-pts {
+  font-family: var(--font-mono);
+  color: var(--mark-responded);
+  font-weight: 700;
+}
+.lb-side .lb-you-row::before { content: "🪙"; }
 .lb-side a.lb-open {
   display: block; text-align: center; margin-top: .55rem;
   padding: .3rem .5rem; border-radius: var(--radius-s);

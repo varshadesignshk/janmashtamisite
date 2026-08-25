@@ -156,11 +156,17 @@ async function refreshLbSide() {
       ));
     });
     side.append(container);
-    // If the current user isn't in the top 3, show their own rank
+    // Always show a dedicated "You" row so the coord sees where they
+    // stand — even if they're in the top three, they see it here in
+    // the golden coin style, not just implicit.
     const myIdx = rows.findIndex(r => r.user_id === ME.id);
-    if (ME.role === "njy_coordinator" && myIdx >= 3) {
-      side.append(el("div", { class: "lb-you-line" },
-        `You: #${myIdx + 1}  ·  ${rows[myIdx].pts} pts`));
+    if (ME.role === "njy_coordinator" && myIdx >= 0) {
+      const me = rows[myIdx];
+      side.append(el("div", { class: "lb-you-row" },
+        el("span", { class: "lb-you-label" }, "You"),
+        el("span", { class: "lb-you-rank" }, `#${myIdx + 1}`),
+        el("span", { class: "lb-you-pts" }, `${me.pts} pts`),
+      ));
     }
     side.append(el("a", { class: "lb-open", href: "#/leaderboard/daily" }, "Full leaderboard →"));
     side.hidden = false;

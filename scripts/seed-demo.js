@@ -29,7 +29,7 @@ out(`-- To remove everything: wrangler d1 execute DB --remote --file=scripts/rem
 out(`-- ============================================================\n`);
 
 const users = [];
-let slCursor = 10000;
+let slCursor = 10001;
 function makeUser(username, display, role) {
   const id = randomUUID();
   users.push({ id, username, display, role });
