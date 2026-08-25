@@ -600,22 +600,22 @@ test("sadhana entry delete removes row", async () => {
   assert.equal(s._tables.sadhana_entries.length, 0);
 });
 
-test("SL ranges: auto-suggest starts at 10000, then increments by 100 per coord", async () => {
+test("SL ranges: auto-suggest starts at 10001, then increments by 100 per coord", async () => {
   const { s } = await seed();
   const { cookie } = await login(s, "hk", "test-pass-123");
   const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
   const r1 = await route(withCookie("http://x/api/admin/next-sl-range", cookie), ctx);
   const b1 = await r1.json();
-  assert.deepEqual(b1, { start: 10000, end: 10099 });
+  assert.deepEqual(b1, { start: 10001, end: 10100 });
   // assign coord1 the first range
   const coordUser = await s.userByUsername("coord1");
   await route(withCookie(`http://x/api/admin/users/${coordUser.id}`, cookie, {
-    method: "POST", body: JSON.stringify({ sl_range_start: 10000, sl_range_end: 10099 }),
+    method: "POST", body: JSON.stringify({ sl_range_start: 10001, sl_range_end: 10100 }),
   }), ctx);
-  // next auto-suggest bumps to 10100
+  // next auto-suggest bumps to 10101
   const r2 = await route(withCookie("http://x/api/admin/next-sl-range", cookie), ctx);
   const b2 = await r2.json();
-  assert.deepEqual(b2, { start: 10100, end: 10199 });
+  assert.deepEqual(b2, { start: 10101, end: 10200 });
 });
 
 test("Leaderboard daily: chants earn 10 pts each, follow-ups 5 pts each", async () => {
