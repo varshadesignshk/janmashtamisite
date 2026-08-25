@@ -355,14 +355,76 @@ input, textarea, select {
 input:focus, textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
 button.primary {
   background: var(--peacock-deep); color: white; border: none;
-  padding: .6rem 1rem; border-radius: var(--radius-s);
-  font-weight: 500; font-size: .95rem;
+  padding: .65rem 1.1rem; border-radius: var(--radius-s);
+  font-weight: 500; font-size: .95rem; letter-spacing: .01em;
+  box-shadow: 0 1px 2px rgba(14,79,82,.15);
+  transition: background .12s ease, transform .06s ease, box-shadow .12s ease;
 }
-button.primary:hover { background: var(--peacock-ink); }
+button.primary:hover:not(:disabled) {
+  background: var(--peacock-ink);
+  box-shadow: 0 2px 6px rgba(14,79,82,.22);
+}
+button.primary:active:not(:disabled) { transform: translateY(1px); }
+button.primary:disabled {
+  opacity: .55; cursor: not-allowed;
+  background: var(--peacock-deep);
+}
 button.ghost {
   background: transparent; color: var(--ink-2);
   border: 1px solid var(--line-strong); padding: .5rem .8rem;
   border-radius: var(--radius-s);
+  transition: background .12s ease, border-color .12s ease;
+}
+button.ghost:hover { background: var(--surface-sunk); border-color: var(--peacock-deep); color: var(--peacock-deep); }
+
+/* --------- file input: pretty it up --------- */
+input[type="file"] {
+  padding: 0;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-sunk);
+  cursor: pointer;
+  border-radius: var(--radius-s);
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: .9rem;
+  transition: border-color .12s ease, background .12s ease;
+}
+input[type="file"]:hover {
+  border-color: var(--peacock-deep);
+  background: var(--tint-followed);
+}
+input[type="file"]::file-selector-button {
+  background: var(--peacock-deep);
+  color: white;
+  border: none;
+  padding: .55rem 1rem;
+  border-radius: var(--radius-s) 0 0 var(--radius-s);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  margin-right: .7rem;
+  transition: background .12s ease;
+}
+input[type="file"]::file-selector-button:hover {
+  background: var(--peacock-ink);
+}
+
+/* --------- template download link --------- */
+a[download] {
+  display: inline-block;
+  padding: .4rem .8rem;
+  background: var(--tint-followed);
+  color: var(--mark-followed);
+  border: 1px solid var(--mark-followed);
+  border-radius: var(--radius-s);
+  text-decoration: none;
+  font-size: .85rem;
+  font-weight: 500;
+  transition: background .12s ease, color .12s ease;
+}
+a[download]:hover {
+  background: var(--mark-followed);
+  color: white;
 }
 .error { color: var(--mark-attention); font-size: .85rem; margin: .5rem 0; }
 .hint { color: var(--muted); font-size: .8rem; }

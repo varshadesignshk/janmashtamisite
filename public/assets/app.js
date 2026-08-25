@@ -252,10 +252,11 @@ function garlandStrip(roll, editable) {
       const upd = await api("/api/roll/mark", { method: "POST", body: JSON.stringify({ person_id: r.id }) });
       r.contact_state = upd.contact_state;
       r.bead_color = recomputeBead(r);
-      b.dataset.color = r.bead_color;
-      // resync any row-level bead with same id
+      // sync all beads for this person (row bead + this garland bead)
       document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.color = r.bead_color);
     } : null);
+    // Tagging garland beads with data-person so row-tap can update them too
+    b.dataset.person = r.id;
     b.title = `${r.name} — ${r.bead_color || "white"}`;
     g.append(b);
   });
@@ -438,7 +439,8 @@ function rollListManageable(roll, currentOwnerUserId) {
       const upd = await api("/api/roll/mark", { method: "POST", body: JSON.stringify({ person_id: r.id }) });
       r.contact_state = upd.contact_state;
       r.bead_color = recomputeBead(r);
-      rowBead.dataset.color = r.bead_color;
+      // sync all beads for this person across garland strip AND row
+      document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.color = r.bead_color);
     });
     rowBead.dataset.person = r.id;
 
@@ -460,7 +462,7 @@ function rollListManageable(roll, currentOwnerUserId) {
       chant.className = "chant-tag" + (next ? " on" : "");
       chant.textContent = next ? "✓ chanted" : "chant?";
       r.bead_color = recomputeBead(r);
-      rowBead.dataset.color = r.bead_color;
+      document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.color = r.bead_color);
     });
 
     lifecycle.addEventListener("change", async () => {
