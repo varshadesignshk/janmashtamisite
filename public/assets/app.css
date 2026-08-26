@@ -73,6 +73,63 @@ button { font: inherit; cursor: pointer; }
   background: var(--peacock-deep); color: white;
 }
 
+/* --------- 14-day chant history strip --------- */
+.history-strip {
+  grid-column: 1 / -1;
+  margin-top: .5rem;
+  padding: .5rem;
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: .3rem;
+}
+.history-day {
+  display: flex; flex-direction: column; align-items: center; gap: .2rem;
+  cursor: pointer;
+  padding: .25rem .1rem;
+  border-radius: var(--radius-s);
+  transition: background .1s ease;
+}
+.history-day:hover { background: var(--surface); }
+.history-day .dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--mark-none);
+  border: 1.5px solid var(--mark-none-edge);
+}
+.history-day.chanted .dot {
+  background: #2FA65D; border-color: #22854A;
+}
+.history-day.today {
+  background: var(--tint-responded);
+  border: 1px solid var(--mark-responded);
+}
+.history-day .label {
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.1;
+}
+.history-day .month {
+  font-size: .55rem;
+  color: var(--muted);
+  opacity: .7;
+}
+@media (max-width: 640px) {
+  .history-strip { grid-template-columns: repeat(7, 1fr); }
+  .history-day .dot { width: 12px; height: 12px; }
+}
+
+.history-btn {
+  background: var(--surface-sunk); border: 1px solid var(--line);
+  color: var(--ink-2);
+  padding: .3rem .55rem; border-radius: var(--radius-s);
+  font-size: .75rem; cursor: pointer;
+}
+.history-btn:hover { border-color: var(--peacock-deep); color: var(--peacock-deep); }
+
 /* --------- manage panel (per-row popover) --------- */
 .manage {
   grid-column: 1 / -1;
@@ -368,7 +425,7 @@ textarea { min-height: 4rem; resize: vertical; }
 .roll { list-style: none; padding: 0; margin: 0; }
 .roll li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
   align-items: center; gap: .5rem;
   padding: .6rem .3rem; border-bottom: 1px solid var(--line);
 }

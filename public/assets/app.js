@@ -328,6 +328,47 @@ function beadColorLabel(c) {
   })[c] || "fresh";
 }
 
+// Build a 14-day history strip for one person. Each day is a small
+// clickable dot — grey for "not chanted", green for "chanted", ringed
+// for today. Tap any dot to toggle that day. Backfilling past dates
+// covers the "they forgot to mark yesterday" case.
+async function buildHistoryStrip(personId) {
+  const strip = el("div", { class: "history-strip" });
+  strip.append(el("div", { class: "hint", style: "grid-column:1/-1;font-size:.7rem" }, "Loading history…"));
+  try {
+    const { history } = await api(`/api/roll/${encodeURIComponent(personId)}/history?days=14`);
+    strip.innerHTML = "";
+    for (const d of history) {
+      // Format short date label: "26" for the day, "Aug" for the month
+      const [_, m, day] = d.date.split("-");
+      const monthName = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m, 10) - 1];
+      const cell = el("div", {
+        class: "history-day" + (d.chanted ? " chanted" : "") + (d.is_today ? " today" : ""),
+        title: `${d.date} — ${d.chanted ? "chanted" : "not chanted"}${d.is_today ? " (today)" : ""}. Tap to toggle.`,
+      },
+        el("div", { class: "label" }, day),
+        el("div", { class: "month" }, monthName),
+        el("div", { class: "dot" }),
+      );
+      cell.addEventListener("click", async () => {
+        const next = !d.chanted;
+        try {
+          await api("/api/roll/chant", { method: "POST", body: JSON.stringify({
+            person_id: personId, chanted: next, entry_date: d.date,
+          }) });
+          d.chanted = next;
+          cell.classList.toggle("chanted", next);
+        } catch (err) { alert(err.message || "Could not update"); }
+      });
+      strip.append(cell);
+    }
+  } catch (err) {
+    strip.innerHTML = "";
+    strip.append(el("p", { class: "hint", style: "grid-column:1/-1;font-size:.7rem" }, "Could not load: " + err.message));
+  }
+  return strip;
+}
+
 // Bead now takes a color name — one of white/yellow/orange/green/red.
 // The old numeric state param still works (falls back to yellow/orange
 // mapping) for callers that haven't been updated yet.
@@ -414,7 +455,16 @@ function rollList(roll, editable) {
 
     const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, "WhatsApp");
 
-    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa);
+    // "History" button — expands a 14-day chant strip below the row
+    const historyBtn = el("button", { class: "history-btn", title: "Show 14-day chant history" }, "📅");
+    historyBtn.addEventListener("click", async () => {
+      const existing = li.querySelector(".history-strip");
+      if (existing) { existing.remove(); return; }
+      const strip = await buildHistoryStrip(r.id);
+      li.append(strip);
+    });
+
+    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, historyBtn);
     ul.appendChild(li);
   });
   return ul;
@@ -604,7 +654,15 @@ function rollListManageable(roll, currentOwnerUserId) {
 
     const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, "WhatsApp");
 
-    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa);
+    const historyBtn = el("button", { class: "history-btn", title: "Show 14-day chant history" }, "📅");
+    historyBtn.addEventListener("click", async () => {
+      const existing = li.querySelector(".history-strip");
+      if (existing) { existing.remove(); return; }
+      const strip = await buildHistoryStrip(r.id);
+      li.append(strip);
+    });
+
+    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, historyBtn);
     ul.append(li);
 
     if (canManage) {
