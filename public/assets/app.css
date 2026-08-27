@@ -429,24 +429,28 @@ textarea { min-height: 4rem; resize: vertical; }
   align-items: center; gap: .5rem;
   padding: .6rem .3rem; border-bottom: 1px solid var(--line);
 }
-/* On narrow screens (phone portrait), stack the controls under the
- * name so nothing is cramped. Bead + name stay on the first line. */
+/* On narrow screens (phone portrait), switch to flex so the row wraps
+ * naturally: bead + name on line 1, lifecycle dropdown full-width on
+ * line 2, action buttons (chant / WhatsApp / 📅 / Manage) on line 3.
+ * Everything gets touchable space, nothing overlaps. */
 @media (max-width: 640px) {
   .roll li {
-    grid-template-columns: auto 1fr;
-    grid-template-areas:
-      "bead name"
-      "ctrl ctrl";
-    row-gap: .35rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem;
+    padding: .7rem .3rem;
   }
-  .roll li > .bead-wrap { grid-area: bead; }
-  .roll li > .name      { grid-area: name; }
-  .roll li > *:nth-child(n+3) {
-    grid-area: ctrl;
-    justify-self: start;
-    display: inline-flex;
-    margin-right: .4rem;
-  }
+  .roll li > .bead-wrap  { order: 1; }
+  .roll li > .name       { order: 2; flex: 1 1 auto; min-width: 0; }
+  .roll li > .lifecycle  { order: 3; width: 100%; margin-top: .1rem; }
+  .roll li > .chant-tag  { order: 4; }
+  .roll li > .wa         { order: 5; }
+  .roll li > .history-btn { order: 6; }
+  .roll li > .mini-btn   { order: 7; }
+  /* The 14-day history strip stays full-width when it opens */
+  .roll li > .history-strip { order: 8; width: 100%; }
+  .roll li > .manage        { order: 9; width: 100%; }
 }
 .roll .lifecycle {
   font-family: var(--font-mono);
