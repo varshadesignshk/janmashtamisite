@@ -376,6 +376,68 @@ textarea { min-height: 4rem; resize: vertical; }
   .lb-side { display: none !important; }
 }
 
+/* --------- mobile leaderboard strip (phones/tablets only) --------- */
+/* A slim always-visible bar pinned to the bottom of the viewport on
+ * phones. Shows medals 🥇🥈🥉 + your own rank if you're outside the
+ * top three. Hidden on desktop (the sidebar takes over there). */
+.lb-strip {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -2px 6px rgba(0,0,0,.08);
+  z-index: 45;
+  padding: .35rem .5rem calc(.35rem + env(safe-area-inset-bottom, 0px));
+  font-size: .72rem;
+}
+.lb-strip-inner {
+  display: flex; align-items: center; gap: .35rem;
+  overflow-x: auto; white-space: nowrap;
+  scrollbar-width: none;
+}
+.lb-strip-inner::-webkit-scrollbar { display: none; }
+.lb-strip-slot {
+  display: inline-flex; align-items: center; gap: .25rem;
+  padding: .2rem .4rem;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--line);
+  flex: 0 0 auto;
+  max-width: 40vw;
+}
+.lb-strip-slot.me,
+.lb-strip-slot.you {
+  background: linear-gradient(180deg, var(--tint-responded), var(--tint-followed));
+  border-color: var(--mark-responded);
+}
+.lb-strip-slot .nm {
+  overflow: hidden; text-overflow: ellipsis;
+  max-width: 30vw;
+  color: var(--ink-2);
+}
+.lb-strip-slot .pt {
+  font-family: var(--font-mono);
+  color: var(--mark-responded); font-weight: 700;
+}
+.lb-strip-empty { color: var(--muted); padding: .2rem .4rem; }
+.lb-strip-more {
+  margin-left: auto;
+  padding: .2rem .5rem;
+  border: 1px solid var(--line); border-radius: var(--radius-s);
+  color: var(--peacock-deep);
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+
+/* Only show the strip on phones/tablets — desktop uses the sidebar. */
+@media (min-width: 1050px) {
+  .lb-strip { display: none !important; }
+}
+/* Keep the app content clear of the strip on phones so the last row
+ * isn't hidden behind it. */
+@media (max-width: 1049px) {
+  main.app { padding-bottom: 3.6rem; }
+}
+
 /* --------- points chip in the header --------- */
 /* Two-tone: teal frame + gold coins inside. The number itself is
  * rendered in the validated gold so it reads as "you earned points". */

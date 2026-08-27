@@ -229,11 +229,50 @@ window.refreshPointsChip = refreshPointsChip;
 let _lbSideTimer = null;
 async function refreshLbSide() {
   const side = $("lb-side");
-  if (!side) return;
+  const strip = $("lb-strip");
+  if (!side && !strip) return;
   const isCompetitor = ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role);
-  if (!isCompetitor) { side.hidden = true; return; }
+  if (!isCompetitor) {
+    if (side) side.hidden = true;
+    if (strip) strip.hidden = true;
+    return;
+  }
   try {
     const { rows } = await api("/api/leaderboard/daily");
+    // --- mobile strip: top 3 + you (compact, single row) ---
+    if (strip) {
+      strip.innerHTML = "";
+      const inner = el("div", { class: "lb-strip-inner" });
+      const top3s = rows.slice(0, 3);
+      const medalsS = ["🥇","🥈","🥉"];
+      if (!top3s.length) {
+        inner.append(el("span", { class: "lb-strip-empty" }, "No points yet today"));
+      } else {
+        top3s.forEach((r, i) => {
+          inner.append(el("span", { class: "lb-strip-slot" + (r.user_id === ME.id ? " me" : "") },
+            el("span", {}, medalsS[i]),
+            el("span", { class: "nm", title: r.name }, r.name),
+            el("span", { class: "pt" }, String(r.pts)),
+          ));
+        });
+        const myIdx = rows.findIndex(r => r.user_id === ME.id);
+        if (myIdx >= 3) {
+          inner.append(el("span", { class: "lb-strip-slot you" },
+            el("span", {}, "🪙"),
+            el("span", { class: "nm" }, `You #${myIdx + 1}`),
+            el("span", { class: "pt" }, String(rows[myIdx].pts)),
+          ));
+        }
+      }
+      inner.append(el("a", { class: "lb-strip-more", href: "#/leaderboard/daily" }, "Full →"));
+      strip.append(inner);
+      strip.hidden = false;
+    }
+    if (!side) {
+      clearTimeout(_lbSideTimer);
+      _lbSideTimer = setTimeout(refreshLbSide, 45_000);
+      return;
+    }
     side.innerHTML = "";
     side.append(el("h4", {}, "Today's leaders", el("span", { style: "font-size:.7rem;color:var(--muted)" }, "🏆")));
     const top3 = rows.slice(0, 3);
@@ -587,9 +626,25 @@ async function renderLeaderDashboard(view) {
   const loader = loadingLine("Loading your coordinators…");
   view.append(loader);
   try {
+    // HK Leader gets the 4 KPI tiles at the top of Team so they have the
+    // whole-org snapshot without needing to switch to the HK tab.
+    if (ME.role === "hk_leader") {
+      try {
+        const s = await api("/api/hk/summary");
+        const grid = el("div", { class: "tally" });
+        grid.append(
+          el("div", { class: "cell" }, el("div", { class: "n" }, String(s.total_people)), el("div", { class: "k" }, t("hd.people"))),
+          el("div", { class: "cell" }, el("div", { class: "n" }, String(s.chanted_today)), el("div", { class: "k" }, t("hd.chanted_today"))),
+          el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_leaders)), el("div", { class: "k" }, t("hd.njy_leaders"))),
+          el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_coordinators)), el("div", { class: "k" }, t("hd.coordinators"))),
+        );
+        view.append(grid);
+      } catch (_) { /* KPIs are supplemental — silent skip */ }
+    }
     const { coordinators } = await api("/api/leader/coordinators");
     loader.remove();
     if (!coordinators.length) return view.append(el("p", { class: "hint" }, "No coordinators visible yet."));
+    view.append(el("h3", { class: "section" }, ME.role === "hk_leader" ? "All coordinators" : "Your coordinators"));
     const ul = el("ul", { class: "list" });
     for (const c of coordinators) {
       ul.append(el("li", {}, coordCard(c)));
@@ -1733,6 +1788,14 @@ async function renderProfile(userId) {
       el("h3", { class: "section", style: "margin:0" }, name),
       el("a", { class: "btn", href: "#/leaderboard/overall" }, "← Back to leaderboard"),
     ));
+
+    // Show the coord's own NJY Leader so they know who to escalate to.
+    // Only meaningful when viewing your OWN profile (userId undefined).
+    if (!userId && ME.manager_display_name) {
+      view.append(el("p", { class: "hint", style: "margin:.2rem 0 .8rem" },
+        "Your NJY Leader: ", el("strong", {}, ME.manager_display_name),
+      ));
+    }
 
     // KPI strip
     const kpis = el("div", { class: "tally" });
