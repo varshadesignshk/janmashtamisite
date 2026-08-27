@@ -12,14 +12,14 @@
 
 <section id="view-login" class="center" hidden>
   <div class="card">
-    <h2>Sign in</h2>
+    <h2 id="login-title">Sign in</h2>
     <form id="login-form" autocomplete="on" method="post" action="javascript:void(0)">
-      <label for="u">Username</label>
+      <label for="u" id="login-u-label">Username</label>
       <input id="u" name="username" required autocapitalize="none" autocorrect="off">
-      <label for="p">Password</label>
+      <label for="p" id="login-p-label">Password</label>
       <input id="p" name="password" type="password" required>
       <p class="error" id="login-err" hidden></p>
-      <p style="margin-top:1.2rem"><button class="primary" type="submit">Sign in</button></p>
+      <p style="margin-top:1.2rem"><button class="primary" type="submit" id="login-btn">Sign in</button></p>
     </form>
     <p class="hint">Nama-Japa-Yajna coordinators &amp; leaders.<br>
       If you don't have an account, ask the temple president.</p>
@@ -34,6 +34,8 @@
         <strong id="who-name"></strong>
         <span id="who-role"></span>
         <a href="#" id="logout">Sign out</a>
+        <!-- Language quick-toggle -->
+        <a href="#" id="lang-toggle" style="margin-left:.4rem;font-size:.75rem;color:var(--muted)" title="Switch language"></a>
       </div>
       <a href="#/profile" id="pts-chip" class="pts-chip" hidden></a>
     </div>
@@ -43,6 +45,7 @@
 </main>
 <aside id="lb-side" class="lb-side" hidden aria-label="Live leaderboard"></aside>
 
+<script src="/assets/i18n.js"></script>
 <script src="/assets/app.js" type="module"></script>
 </body>
 </html>

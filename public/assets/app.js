@@ -80,6 +80,11 @@ window.addEventListener("hashchange", () => { if (ME) renderRoute(); });
 function showLogin() {
   $("view-app").hidden = true;
   $("view-login").hidden = false;
+  // Translate login screen
+  if ($("login-title")) $("login-title").textContent = t("btn.sign_in");
+  if ($("login-u-label")) $("login-u-label").textContent = t("field.username");
+  if ($("login-p-label")) $("login-p-label").textContent = t("field.password");
+  if ($("login-btn")) $("login-btn").textContent = t("btn.sign_in");
   $("login-form").onsubmit = async (e) => {
     e.preventDefault();
     $("login-err").hidden = true;
@@ -90,7 +95,7 @@ function showLogin() {
       const me = await api("/api/me");
       ME = me.user; GATES = me.gates;
       showApp();
-    } catch { $("login-err").textContent = "Wrong username or password."; $("login-err").hidden = false; }
+    } catch { $("login-err").textContent = t("msg.wrong_password"); $("login-err").hidden = false; }
   };
 }
 
@@ -100,7 +105,16 @@ async function showApp() {
   $("view-app").hidden = false;
   $("who-name").textContent = ME.display_name;
   $("who-role").textContent = " · " + humanRole(ME.role);
+  $("logout").textContent = t("nav.sign_out");
   $("logout").onclick = async (e) => { e.preventDefault(); await api("/api/logout", { method: "POST" }); location.hash = ""; location.reload(); };
+  // Language quick-toggle in header
+  const langBtn = $("lang-toggle");
+  if (langBtn) {
+    const cur = getLang();
+    const other = window.LANGS.find(l => l.code !== cur);
+    langBtn.textContent = "🌐 " + other.label;
+    langBtn.onclick = (e) => { e.preventDefault(); setLang(other.code); };
+  }
   renderNav();
   renderRoute();
   refreshPointsChip();
@@ -270,18 +284,18 @@ function renderNav() {
   const SADHANA_ROLES = ["servant_leader", "member", "sector_servant", "circle_servant"];
   const BV_ROLES = ["hk_leader", "circle_servant", "sector_servant", "servant_leader"];
   const items = [
-    { href: "#/",          label: "My roll",  when: () => can("coordinator_roll") && OWNS_ROLL.includes(ME.role) },
-    { href: "#/leader",    label: "Team",     when: () => can("leader_dashboard") },
-    { href: "#/hk",        label: "HK",       when: () => can("hk_dashboard") },
-    { href: "#/duties",    label: "Duties",   when: () => true },
-    { href: "#/events",    label: "Events",   when: () => can("event_attendance") },
-    { href: "#/sadhana",   label: "Sadhana",  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
-    { href: "#/bv",        label: "BV",       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
-    { href: "#/janmashtami", label: "Janmashtami", when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
-    { href: "#/leaderboard", label: "Leaderboard", when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
-    { href: "#/profile",     label: "My profile", when: () => ME.role === "njy_coordinator" },
-    { href: "#/settings",  label: "Settings", when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
-    { href: "#/admin",     label: "Admin",    when: () => can("feature_admin") },
+    { href: "#/",          label: t("nav.my_roll"),  when: () => can("coordinator_roll") && OWNS_ROLL.includes(ME.role) },
+    { href: "#/leader",    label: t("nav.team"),     when: () => can("leader_dashboard") },
+    { href: "#/hk",        label: t("nav.hk"),       when: () => can("hk_dashboard") },
+    { href: "#/duties",    label: t("nav.duties"),   when: () => true },
+    { href: "#/events",    label: t("nav.events"),   when: () => can("event_attendance") },
+    { href: "#/sadhana",   label: t("nav.sadhana"),  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
+    { href: "#/bv",        label: t("nav.bv"),       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
+    { href: "#/janmashtami", label: t("nav.janmashtami"), when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
+    { href: "#/leaderboard", label: t("nav.leaderboard"), when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
+    { href: "#/profile",     label: t("nav.profile"), when: () => ME.role === "njy_coordinator" },
+    { href: "#/settings",  label: t("nav.settings"), when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
+    { href: "#/admin",     label: t("nav.admin"),    when: () => can("feature_admin") },
   ];
   const here = location.hash || "#/";
   for (const it of items) {
@@ -290,7 +304,7 @@ function renderNav() {
     nav.append(a);
   }
   if (deferredInstall) {
-    const btn = el("a", { href: "#", style: "background:var(--tint-followed);border-color:var(--mark-followed);color:var(--mark-followed);margin-left:auto" }, "Install app");
+    const btn = el("a", { href: "#", style: "background:var(--tint-followed);border-color:var(--mark-followed);color:var(--mark-followed);margin-left:auto" }, t("nav.install"));
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
       deferredInstall.prompt();
@@ -370,11 +384,11 @@ function beadLegend() {
   const item = (c, label) => el("span", { class: "item" },
     el("span", { class: "swatch", "data-c": c }), label);
   return el("div", { class: "bead-legend" },
-    item("white", "fresh"),
-    item("yellow", "contacted"),
-    item("orange", "responded"),
-    item("green", "chanted"),
-    item("red", "needs attention"),
+    item("white", t("bead.fresh")),
+    item("yellow", t("bead.contacted")),
+    item("orange", t("bead.responded")),
+    item("green", t("bead.chanted")),
+    item("red", t("bead.needs_attn")),
   );
 }
 
@@ -389,12 +403,18 @@ function loadingLine(text = "Loading…") {
   return el("p", { class: "loading-line" }, text);
 }
 
-function tallyStrip(t, keys) {
-  const map = { assigned: "Assigned", chanted_today: "Chanted today", followed_up: "Followed up", needs_visit: "Needs visit", responded: "Responded" };
+function tallyStrip(tally, keys) {
+  const map = {
+    assigned: t("hd.assigned"),
+    chanted_today: t("hd.chanted_today"),
+    followed_up: t("hd.followed_up"),
+    needs_visit: t("hd.needs_visit"),
+    responded: t("bead.responded"),
+  };
   const row = el("div", { class: "tally" });
   for (const k of keys) {
     row.append(el("div", { class: "cell" },
-      el("div", { class: "n" }, String(t[k] ?? 0)),
+      el("div", { class: "n" }, String(tally[k] ?? 0)),
       el("div", { class: "k" }, map[k] || k),
     ));
   }
@@ -508,7 +528,7 @@ function rollList(roll, editable) {
     );
 
     const chant = el("button", { class: "chant-tag" + (r.chanted_today ? " on" : "") },
-      r.chanted_today ? "✓ chanted" : "chant?");
+      r.chanted_today ? t("btn.chanted") : t("btn.chant_q"));
     if (r.status !== "daily") chant.setAttribute("disabled", "");
     if (editable) chant.addEventListener("click", async () => {
       if (r.status !== "daily") return;
@@ -516,7 +536,7 @@ function rollList(roll, editable) {
       await api("/api/roll/chant", { method: "POST", body: JSON.stringify({ person_id: r.id, chanted: next }) });
       r.chanted_today = next;
       chant.className = "chant-tag" + (next ? " on" : "");
-      chant.textContent = next ? "✓ chanted" : "chant?";
+      chant.textContent = next ? t("btn.chanted") : t("btn.chant_q");
       r.bead_color = recomputeBead(r);
       rowBead.dataset.color = r.bead_color;
       document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.color = r.bead_color);
@@ -537,7 +557,7 @@ function rollList(roll, editable) {
       }
     });
 
-    const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, "WhatsApp");
+    const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
 
     // "History" button — expands a 14-day chant strip below the row
     const historyBtn = el("button", { class: "history-btn", title: "Show 14-day chant history" }, "📅");
@@ -708,7 +728,7 @@ function rollListManageable(roll, currentOwnerUserId) {
     );
 
     const chant = el("button", { class: "chant-tag" + (r.chanted_today ? " on" : "") },
-      r.chanted_today ? "✓ chanted" : "chant?");
+      r.chanted_today ? t("btn.chanted") : t("btn.chant_q"));
     if (r.status !== "daily") chant.setAttribute("disabled", "");
     chant.addEventListener("click", async () => {
       if (r.status !== "daily") return;
@@ -716,7 +736,7 @@ function rollListManageable(roll, currentOwnerUserId) {
       await api("/api/roll/chant", { method: "POST", body: JSON.stringify({ person_id: r.id, chanted: next }) });
       r.chanted_today = next;
       chant.className = "chant-tag" + (next ? " on" : "");
-      chant.textContent = next ? "✓ chanted" : "chant?";
+      chant.textContent = next ? t("btn.chanted") : t("btn.chant_q");
       r.bead_color = recomputeBead(r);
       document.querySelectorAll(`.bead[data-person="${r.id}"]`).forEach(x => x.dataset.color = r.bead_color);
     });
@@ -736,7 +756,7 @@ function rollListManageable(roll, currentOwnerUserId) {
       }
     });
 
-    const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, "WhatsApp");
+    const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
 
     const historyBtn = el("button", { class: "history-btn", title: "Show 14-day chant history" }, "📅");
     historyBtn.addEventListener("click", async () => {
@@ -1864,17 +1884,17 @@ async function renderJanmashtami(view) {
 
   // --- Path A: single-row rapid form
   const cardA = el("div", { class: "card" });
-  cardA.append(el("h3", { class: "section" }, "Quick add"));
+  cardA.append(el("h3", { class: "section" }, t("hd.quick_add")));
   cardA.append(el("p", { class: "hint" }, "Enter one person at a time. Their sl.no is auto-assigned from your assigned range."));
   const form = el("form", { class: "rapid-form", method: "post", action: "javascript:void(0)" });
-  const nameI = el("input", { placeholder: "Name", required: true, autocapitalize: "words" });
-  const mobI  = el("input", { placeholder: "Mobile", required: true, inputmode: "tel" });
-  const pinI  = el("input", { placeholder: "Pincode", inputmode: "numeric" });
-  const submitBtn = el("button", { class: "primary", type: "submit" }, "Add ↵");
+  const nameI = el("input", { placeholder: t("field.name"), required: true, autocapitalize: "words" });
+  const mobI  = el("input", { placeholder: t("field.mobile"), required: true, inputmode: "tel" });
+  const pinI  = el("input", { placeholder: t("field.pincode"), inputmode: "numeric" });
+  const submitBtn = el("button", { class: "primary", type: "submit" }, t("btn.add"));
   form.append(
-    el("div", {}, el("label", {}, "Name"), nameI),
-    el("div", {}, el("label", {}, "Mobile"), mobI),
-    el("div", {}, el("label", {}, "Pincode"), pinI),
+    el("div", {}, el("label", {}, t("field.name")), nameI),
+    el("div", {}, el("label", {}, t("field.mobile")), mobI),
+    el("div", {}, el("label", {}, t("field.pincode")), pinI),
     el("div", {}, el("label", { style: "visibility:hidden" }, "."), submitBtn),
   );
   const feedback = el("p", { class: "hint", style: "margin-top:.6rem" }, "");
@@ -1910,7 +1930,7 @@ async function renderJanmashtami(view) {
 
   // --- Path B: Excel/CSV file upload with preview
   const cardB = el("div", { class: "card" });
-  cardB.append(el("h3", { class: "section" }, "Upload Excel or CSV file"));
+  cardB.append(el("h3", { class: "section" }, t("hd.upload_excel")));
   cardB.append(excelUploadWidget({
     helperText: "Attach a .xlsx or .csv file. Columns needed: name, mobile, pincode. " +
       "You'll see a preview before it's imported. sl.nos are auto-assigned from your range as rows land.",
@@ -1931,7 +1951,7 @@ async function renderJanmashtami(view) {
   // --- Path C: paste-many (kept as a fallback)
   const cardC = el("div", { class: "card" });
   cardC.append(
-    el("h3", { class: "section" }, "Or paste rows from Excel"),
+    el("h3", { class: "section" }, t("hd.paste_excel")),
     el("p", { class: "hint" }, "Ctrl-C rows in Excel (copies as tab-separated), then paste here. One person per line: name, mobile, pincode."),
     formField("Paste here", el("textarea", { id: "jm-paste", rows: "6",
       placeholder: "Ravi\t9876543210\t625001\nPriya\t9876543211\t625002" })),
@@ -1945,7 +1965,7 @@ async function renderJanmashtami(view) {
   // --- Path D: today's entries — moved to bottom so the upload options
   // are what you see first when the tab loads.
   const cardD = el("div", { class: "card" });
-  cardD.append(el("h3", { class: "section" }, "Today's entries in your roll"));
+  cardD.append(el("h3", { class: "section" }, t("hd.today_entries")));
   cardD.append(el("p", { class: "hint" }, "Everything you've added today lands here. Scroll down to double-check before the day ends."));
   cardD.append(recentUl);
   view.append(cardD);
@@ -1976,7 +1996,7 @@ async function renderJanmashtami(view) {
       const { entries } = await api("/api/me/janmashtami-entries");
       recentUl.innerHTML = "";
       if (!entries.length) {
-        recentUl.append(el("li", {}, el("span", { class: "hint" }, "No entries yet today. Add your first person above.")));
+        recentUl.append(el("li", {}, el("span", { class: "hint" }, t("msg.no_entries_today"))));
         return;
       }
       entries.forEach(r => {
@@ -2001,12 +2021,27 @@ async function renderJanmashtami(view) {
 // templates that fill the pre-populated message text on the roll's
 // WhatsApp buttons. Anyone with a roll gets this screen.
 async function renderSettings(view) {
-  view.append(el("h2", { class: "section" }, "Settings"));
+  view.append(el("h2", { class: "section" }, t("hd.settings_title")));
   view.append(helpBanner(
-    "Personal settings for your own account. Right now: the two " +
-    "WhatsApp templates that fill the message text when you tap the " +
-    "WhatsApp button on any chanter's row."
+    "Personal settings for your own account. Choose the app language, " +
+    "and customise the WhatsApp templates that fill in when you tap " +
+    "the WhatsApp button on any chanter's row."
   ));
+
+  // --- Language picker
+  const langCard = el("div", { class: "card" });
+  langCard.append(el("h3", { class: "section", style: "margin-top:0" }, t("hd.language")));
+  langCard.append(el("p", { class: "hint" }, t("msg.pick_lang")));
+  const cur = getLang();
+  const langBtns = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap" });
+  for (const l of window.LANGS) {
+    const active = l.code === cur;
+    const btn = el("button", { class: active ? "primary" : "ghost", type: "button" }, l.label);
+    btn.addEventListener("click", () => { if (!active) setLang(l.code); });
+    langBtns.append(btn);
+  }
+  langCard.append(langBtns);
+  view.append(langCard);
   view.append(el("p", { class: "hint" }, "Customise the WhatsApp message your button pre-fills. Use " +
     "{name} anywhere in your text — it gets replaced with each chanter's name at send time. " +
     "You can write in English, Tamil, Hindi, or any script — no special setup needed."));
@@ -2019,12 +2054,12 @@ async function renderSettings(view) {
   daily.value = ME.wa_template_daily || "";
   nondaily.value = ME.wa_template_nondaily || "";
   card.append(
-    el("h3", { class: "section" }, "Message to daily chanters"),
+    el("h3", { class: "section" }, t("hd.wa_daily")),
     daily,
-    el("h3", { class: "section" }, "Message to non-daily chanters"),
+    el("h3", { class: "section" }, t("hd.wa_nondaily")),
     nondaily,
     el("p", { style: "margin-top:1rem" },
-      el("button", { type: "submit", class: "primary" }, "Save"),
+      el("button", { type: "submit", class: "primary" }, t("btn.save")),
       " ", el("span", { class: "hint", id: "wa-msg" }),
     ),
   );
@@ -2036,7 +2071,7 @@ async function renderSettings(view) {
       }) });
       ME.wa_template_daily = daily.value;
       ME.wa_template_nondaily = nondaily.value;
-      $("wa-msg").textContent = "Saved.";
+      $("wa-msg").textContent = t("msg.saved");
     } catch (err) {
       $("wa-msg").textContent = err.message || "Save failed";
     }
