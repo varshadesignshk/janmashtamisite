@@ -308,12 +308,16 @@ function renderRoute() {
   const h = location.hash || "#/";
   const [path, ...rest] = h.slice(2).split("/"); // strip "#/"
   const arg = rest.join("/");
-  // When HK / NJY Leader land on "#/", send them to their proper home.
-  if ((location.hash === "" || location.hash === "#/") &&
-      (ME.role === "hk_leader" || ME.role === "njy_leader")) {
-    const home = ME.role === "hk_leader" ? "#/hk" : "#/leader";
-    location.replace(home);
-    return;
+  // Auto-land each role on their most-useful tab when the hash is
+  // empty. Coordinators start on the Janmashtami rapid-entry screen
+  // (the main workflow this week); HK / NJY Leader on their
+  // dashboards. Overridable — the user can navigate away freely.
+  if (location.hash === "" || location.hash === "#/") {
+    let home = null;
+    if (ME.role === "hk_leader") home = "#/hk";
+    else if (ME.role === "njy_leader") home = "#/leader";
+    else if (ME.role === "njy_coordinator") home = "#/janmashtami";
+    if (home) { location.replace(home); return; }
   }
   const routes = {
     "":         renderCoordRoll,
