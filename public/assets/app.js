@@ -2129,12 +2129,77 @@ async function renderAdmin(tab) {
   ));
   const tabs = el("div", { class: "nav", style: "border:none" });
   const t = (key, label) => el("a", { class: tab === key ? "active" : "", href: `#/admin/${key}` }, label);
-  tabs.append(t("gates", "Feature gates"), t("users", "Users"), t("import", "Bulk import"), t("events", "Events"));
+  tabs.append(t("gates", "Feature gates"), t("users", "Users"), t("users-bulk", "Bulk create users"), t("import", "Bulk import chanters"), t("events", "Events"));
   view.append(tabs);
   if (tab === "users") return renderAdminUsers(view);
+  if (tab === "users-bulk") return renderAdminUsersBulk(view);
   if (tab === "import") return renderAdminImport(view);
   if (tab === "events") return renderAdminEvents(view);
   return renderAdminGates(view);
+}
+
+// Bulk-create coord/leader accounts from Excel or paste.
+async function renderAdminUsersBulk(view) {
+  view.append(el("h3", { class: "section" }, "Bulk create coordinators and leaders"));
+  view.append(helpBanner(
+    "Paste rows OR upload an Excel file with columns: " +
+    "username, password, display_name, phone, role, manager_username (optional). " +
+    "Role must be one of: hk_leader, njy_leader, njy_coordinator. " +
+    "manager_username links a coord to their NJY leader — use the leader's username."
+  ));
+
+  // Path A — Excel upload
+  const upload = el("div", { class: "card" });
+  upload.append(el("h3", { class: "section", style: "margin-top:0" }, "Upload Excel or CSV"));
+  upload.append(excelUploadWidget({
+    helperText: "Columns: username, password, display_name, phone, role, manager_username.",
+    mapRow: (row) => ({
+      username: String(row.username || row.Username || "").trim(),
+      password: String(row.password || row.Password || "").trim(),
+      display_name: String(row.display_name || row["Display name"] || row.name || row.Name || "").trim(),
+      phone: String(row.phone || row.Phone || row.mobile || "").trim(),
+      role: String(row.role || row.Role || "njy_coordinator").trim(),
+      manager_username: String(row.manager_username || row["Manager username"] || row.manager || "").trim(),
+    }),
+    onCommit: async (rows) => {
+      const r = await api("/api/admin/users/bulk", { method: "POST", body: JSON.stringify({ rows }) });
+      return { created: r.created.length, errors: r.errors };
+    },
+  }));
+  view.append(upload);
+
+  // Path B — Paste
+  const paste = el("div", { class: "card" });
+  paste.append(
+    el("h3", { class: "section", style: "margin-top:0" }, "Or paste rows"),
+    el("p", { class: "hint" }, "One user per line, tab-separated: username, password, display_name, phone, role, manager_username."),
+    formField("Paste", el("textarea", { id: "ub-paste", rows: "8",
+      placeholder: "leader1\tpass123\tRadha Priya\t9876500001\tnjy_leader\t\ncoord01\tpass123\tSri Coord\t9876500002\tnjy_coordinator\tleader1" })),
+    el("p", {}, el("button", { class: "primary", type: "button", id: "ub-go" }, "Import"),
+      " ", el("span", { class: "hint", id: "ub-msg" })),
+    el("pre", { id: "ub-out", style: "font-family:var(--font-mono);font-size:.75rem;color:var(--muted);white-space:pre-wrap" }),
+  );
+  view.append(paste);
+  $("ub-go").addEventListener("click", async () => {
+    const raw = $("ub-paste").value.trim();
+    if (!raw) return;
+    const rows = raw.split(/\r?\n/).map(line => {
+      const parts = line.split(/\t|,/).map(s => s.trim());
+      return {
+        username: parts[0] || "",
+        password: parts[1] || "",
+        display_name: parts[2] || "",
+        phone: parts[3] || "",
+        role: parts[4] || "njy_coordinator",
+        manager_username: parts[5] || "",
+      };
+    }).filter(r => r.username);
+    try {
+      const r = await api("/api/admin/users/bulk", { method: "POST", body: JSON.stringify({ rows }) });
+      $("ub-msg").textContent = `Created ${r.created.length} · ${r.errors.length} error(s)`;
+      $("ub-out").textContent = JSON.stringify(r, null, 2);
+    } catch (err) { $("ub-msg").textContent = err.message; }
+  });
 }
 
 async function renderAdminGates(view) {
@@ -2175,9 +2240,11 @@ async function renderAdminUsers(view) {
     for (const u of users) {
       const rangeText = (u.sl_range_start != null && u.sl_range_end != null)
         ? ` · sl ${u.sl_range_start}-${u.sl_range_end}` : "";
+      const mgr = users.find(x => x.id === u.manager_user_id);
+      const mgrText = mgr ? ` · under ${mgr.display_name || mgr.username}` : "";
       const li = el("li", {},
         el("div", {}, el("strong", {}, u.display_name || u.username),
-          el("div", { class: "hint" }, `${u.username}${rangeText}${u.active ? "" : " · (inactive)"}`)),
+          el("div", { class: "hint" }, `${u.username}${rangeText}${mgrText}${u.active ? "" : " · (inactive)"}`)),
         el("span", { class: "pill" }, humanRole(u.role)),
         el("button", { class: "mini-btn" }, "Edit"),
       );
@@ -2209,12 +2276,21 @@ async function renderAdminUsers(view) {
             const body = {
               display_name: nm.value, role: rl.value, active: act.value === "1",
               sl_range_start: rs.value, sl_range_end: re.value,
+              manager_user_id: mgrSel.value || null,
             };
             if (pw.value) body.password = pw.value;
             await api(`/api/admin/users/${u.id}`, { method: "POST", body: JSON.stringify(body) });
             renderRoute();
           } catch (err) { alert(err.message); }
         });
+        // Manager dropdown — only NJY leaders show up; empty for HK/leader themselves.
+        const leaders = users.filter(x => x.role === "njy_leader" && x.active);
+        const mgrSel = el("select", {},
+          el("option", { value: "" }, "— no manager —"),
+          ...leaders.map(l => el("option", {
+            value: l.id, selected: l.id === u.manager_user_id ? true : undefined,
+          }, l.display_name || l.username)),
+        );
         p.append(
           el("div", {}, el("label", {}, "Display name"), nm),
           el("div", {}, el("label", {}, "Role"), rl),
@@ -2222,6 +2298,7 @@ async function renderAdminUsers(view) {
           el("div", {}, el("label", {}, "Status"), act),
           el("div", {}, el("label", {}, "SL range start"), rs),
           el("div", {}, el("label", {}, "SL range end"), re),
+          el("div", { class: "full" }, el("label", {}, "Manager (NJY Leader — only for coordinators)"), mgrSel),
           el("div", { class: "full" }, autoBtn, " ", save),
         );
         li.append(p);

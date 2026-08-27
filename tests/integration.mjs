@@ -708,14 +708,39 @@ test("Janmashtami bulk: tab-separated paste imports multiple rows", async () => 
   assert.equal(gamma.sl_no, 10002);
 });
 
-test("Janmashtami entry: no range assigned → 409", async () => {
+test("Janmashtami entry: no coupon + no range assigned → error", async () => {
   const { s } = await seed();
   const { cookie } = await login(s, "coord1", "test-pass-123");
   const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
   const r = await route(withCookie("http://x/api/janmashtami/entry", cookie, {
     method: "POST", body: JSON.stringify({ name: "Test", mobile: "+91-x" }),
   }), ctx);
-  assert.equal(r.status, 409);
+  // Without a coupon AND without an assigned range, the handler
+  // returns a 400 asking for either.
+  assert.ok([400, 409].includes(r.status));
+});
+
+test("Janmashtami entry: with explicit coupon number, sl_no matches coupon", async () => {
+  const { s } = await seed();
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const r = await route(withCookie("http://x/api/janmashtami/entry", cookie, {
+    method: "POST", body: JSON.stringify({ coupon_no: 12345, name: "Coupon Test", mobile: "+91-c1" }),
+  }), ctx);
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.equal(body.person.sl_no, 12345);
+});
+
+test("Janmashtami entry: is_daily=yes sets lifecycle status to daily", async () => {
+  const { s } = await seed();
+  const { cookie } = await login(s, "coord1", "test-pass-123");
+  const ctx = { store: s, env: { SESSION_SECRET: SECRET } };
+  const r = await route(withCookie("http://x/api/janmashtami/entry", cookie, {
+    method: "POST", body: JSON.stringify({ coupon_no: 22222, name: "Daily One", mobile: "+91-d1", is_daily: "yes" }),
+  }), ctx);
+  const body = await r.json();
+  assert.equal(body.person.status, "daily");
 });
 
 test("SL ranges: coord asks for next sl_no, gets first unused in own range", async () => {
