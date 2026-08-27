@@ -308,16 +308,20 @@ function renderRoute() {
   const h = location.hash || "#/";
   const [path, ...rest] = h.slice(2).split("/"); // strip "#/"
   const arg = rest.join("/");
-  // Auto-land each role on their most-useful tab when the hash is
-  // empty. Coordinators start on the Janmashtami rapid-entry screen
-  // (the main workflow this week); HK / NJY Leader on their
-  // dashboards. Overridable — the user can navigate away freely.
-  if (location.hash === "" || location.hash === "#/") {
+  // Auto-land each role on their most-useful tab ONLY the very first
+  // time we render after login. If the user later clicks "My roll"
+  // (which is href="#/"), we don't bounce them back to their home tab.
+  if (!window._njyLandedOnce && (location.hash === "" || location.hash === "#/")) {
+    window._njyLandedOnce = true;
     let home = null;
     if (ME.role === "hk_leader") home = "#/hk";
     else if (ME.role === "njy_leader") home = "#/leader";
     else if (ME.role === "njy_coordinator") home = "#/janmashtami";
     if (home) { location.replace(home); return; }
+  } else if (location.hash === "" || location.hash === "#/") {
+    // second and later empty-hash renders → treat as "My roll" (or
+    // whatever renderCoordRoll shows for this role).
+    window._njyLandedOnce = true;
   }
   const routes = {
     "":         renderCoordRoll,
