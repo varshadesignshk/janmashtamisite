@@ -48,11 +48,7 @@ function recomputeBead(r) {
   if (r.contact_state === 1) return "yellow";
   return "white";
 }
-const humanRole = (r) => ({
-  hk_leader: "HK Leader", njy_leader: "NJY Leader",
-  njy_coordinator: "NJY Coordinator", circle_servant: "Circle Servant",
-  sector_servant: "Sector Servant", servant_leader: "Servant Leader", member: "Member",
-})[r] || r;
+const humanRole = (r) => t("role." + r) !== "role." + r ? t("role." + r) : r;
 
 let ME = null, GATES = {};
 
@@ -208,9 +204,9 @@ async function refreshPointsChip() {
     if (!p.applicable) { chip.hidden = true; return; }
     chip.innerHTML = "";
     chip.append(
-      "Today ", el("span", { class: "pts-num" }, String(p.daily || 0)),
+      t("chip.today") + " ", el("span", { class: "pts-num" }, String(p.daily || 0)),
       el("span", { class: "pts-sep" }, " · "),
-      "Overall ", el("span", { class: "pts-num" }, String(p.overall || 0)),
+      t("chip.overall") + " ", el("span", { class: "pts-num" }, String(p.overall || 0)),
     );
     chip.hidden = false;
   } catch (_) { chip.hidden = true; }
@@ -576,15 +572,8 @@ function rollList(roll, editable) {
 
 // ------------------------------------------------- leader dashboard ---
 async function renderLeaderDashboard(view) {
-  view.append(el("h2", { class: "section" }, "Team"));
-  view.append(helpBanner(
-    "Your coordinators, each shown with two progress bars. " +
-    "**Chanted today** — how many of the coordinator's whole roll " +
-    "chanted today. **One-month daily** — how many of their " +
-    "daily-committed chanters have stuck with it for the past month " +
-    "(≥25 chants in the last 30 days). Tap Open to drill into any " +
-    "coordinator's roll and act on their behalf."
-  ));
+  view.append(el("h2", { class: "section" }, t("nav.team")));
+  view.append(helpBanner(t("help.team")));
   const loader = loadingLine("Loading your coordinators…");
   view.append(loader);
   try {
@@ -641,14 +630,8 @@ function coordCard(c) {
 
 // -------------------------------------------------------- HK dashboard ---
 async function renderHkDashboard(view) {
-  view.append(el("h2", { class: "section" }, "HK Leader dashboard"));
-  view.append(helpBanner(
-    "Big-picture view of the whole programme. Four stat tiles show " +
-    "the overall count of people, how many chanted today, and how many " +
-    "leaders / coordinators are active. Below, every coordinator's " +
-    "progress bars: today's chants and one-month daily chanters. " +
-    "Click Open on any row to drill into that coordinator's roll."
-  ));
+  view.append(el("h2", { class: "section" }, t("hd.hk_dashboard")));
+  view.append(helpBanner(t("help.hk_dashboard")));
   const loader = loadingLine("Loading dashboard numbers…");
   view.append(loader);
   try {
@@ -656,10 +639,10 @@ async function renderHkDashboard(view) {
     loader.remove();
     const grid = el("div", { class: "tally" });
     grid.append(
-      el("div", { class: "cell" }, el("div", { class: "n" }, String(s.total_people)), el("div", { class: "k" }, "People")),
-      el("div", { class: "cell" }, el("div", { class: "n" }, String(s.chanted_today)), el("div", { class: "k" }, "Chanted today")),
-      el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_leaders)), el("div", { class: "k" }, "NJY Leaders")),
-      el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_coordinators)), el("div", { class: "k" }, "Coordinators")),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(s.total_people)), el("div", { class: "k" }, t("hd.people"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(s.chanted_today)), el("div", { class: "k" }, t("hd.chanted_today"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_leaders)), el("div", { class: "k" }, t("hd.njy_leaders"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_coordinators)), el("div", { class: "k" }, t("hd.coordinators"))),
     );
     view.append(grid);
     view.append(el("h2", { class: "section" }, "All coordinators"));
@@ -863,11 +846,8 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
 
 // -------------------------------------------------------- duties ---
 async function renderDuties(view) {
-  view.append(el("h2", { class: "section" }, "Your duties"));
-  view.append(helpBanner(
-    "Weekly and monthly tasks assigned to you — coming from the " +
-    "Bhakti-Vrksa action timeline. Tap 'Done' when you complete one."
-  ));
+  view.append(el("h2", { class: "section" }, t("nav.duties")));
+  view.append(helpBanner(t("help.duties")));
   try {
     const { duties } = await api("/api/duties");
     if (!duties.length) return view.append(el("p", { class: "hint" }, "No pending duties. Duties are auto-generated from the BV Action Timeline as roles get assigned. (Auto-generator not yet built — HK Leader can add duties manually via SQL for now.)"));
@@ -907,12 +887,8 @@ async function renderDuties(view) {
 // Each row links to its per-event attendance page.
 async function renderEvents(view) {
   view.innerHTML = "";
-  view.append(el("h2", { class: "section" }, "NJY yajnas & BG sessions"));
-  view.append(helpBanner(
-    "All the temple's Nama-Japa-Yajna and Bhagavad-Gita sessions. " +
-    "Tap 'Attendance' on any event to mark who came — you can expand " +
-    "your own row and tap-to-present each chanter."
-  ));
+  view.append(el("h2", { class: "section" }, t("hd.events")));
+  view.append(helpBanner(t("help.events")));
   try {
     const { events } = await api("/api/events");
     if (!events.length) return view.append(el("p", { class: "hint" }, "No events yet. HK Leader can create them in Admin → Events."));
@@ -922,7 +898,7 @@ async function renderEvents(view) {
         el("div", {}, el("strong", {}, ev.name),
           el("div", { class: "hint" }, `${ev.kind} · ${ev.event_date}${ev.venue ? " · " + esc(ev.venue) : ""}${ev.capacity ? " · cap " + ev.capacity : ""}`)),
         el("span", { class: "pill" }, ev.event_date),
-        el("a", { class: "btn", href: `#/events/${ev.id}` }, "Attendance"),
+        el("a", { class: "btn", href: `#/events/${ev.id}` }, t("btn.attendance")),
       ));
     }
     view.append(ul);
@@ -1885,7 +1861,7 @@ async function renderJanmashtami(view) {
   // --- Path A: single-row rapid form
   const cardA = el("div", { class: "card" });
   cardA.append(el("h3", { class: "section" }, t("hd.quick_add")));
-  cardA.append(el("p", { class: "hint" }, "Enter one person at a time. Their sl.no is auto-assigned from your assigned range."));
+  cardA.append(el("p", { class: "hint" }, t("help.quick_add")));
   const form = el("form", { class: "rapid-form", method: "post", action: "javascript:void(0)" });
   const nameI = el("input", { placeholder: t("field.name"), required: true, autocapitalize: "words" });
   const mobI  = el("input", { placeholder: t("field.mobile"), required: true, inputmode: "tel" });

@@ -82,6 +82,50 @@ const DICT = {
     "msg.no_entries_today": "No entries yet today. Add your first person above.",
     "msg.pick_lang": "Choose the language you want the app to be shown in.",
     "msg.hare_krsna": "Hare Krsna 🙏",
+
+    // Events tab
+    "hd.events": "NJY yajnas & BG sessions",
+    "help.events": "All the temple's Nama-Japa-Yajna and Bhagavad-Gita sessions. Tap 'Attendance' on any event to mark who came — you can expand your own row and tap-to-present each chanter.",
+    "btn.attendance": "Attendance",
+    "hd.attendance_by_coord": "Attendance by coordinator",
+    "help.attendance_by_coord_coord": "Tap your row to expand and mark your chanters present.",
+    "help.attendance_by_coord_leader": "Tap any coordinator's row to expand and mark their chanters. You can also use the search fallback below.",
+    "btn.tap_expand": "tap to expand",
+    "hd.attended_of": "Attended",
+
+    // Roles
+    "role.hk_leader": "HK Leader",
+    "role.njy_leader": "NJY Leader",
+    "role.njy_coordinator": "NJY Coordinator",
+    "role.manjari_servant_leader": "Manjari Servant Leader",
+    "role.circle_servant": "Circle Servant",
+    "role.sector_servant": "Sector Servant",
+    "role.servant_leader": "Servant Leader",
+    "role.member": "Member",
+
+    // Points chip
+    "chip.today": "Today",
+    "chip.overall": "Overall",
+
+    // Team dashboard
+    "help.team": "Your coordinators, each shown with two progress bars. Chanted today — how many of the coordinator's whole roll chanted today. One-month daily — how many of their daily-committed chanters have stuck with it for the past month (≥25 chants in the last 30 days). Tap Open to drill into any coordinator's roll and act on their behalf.",
+
+    // HK dashboard
+    "hd.hk_dashboard": "HK Leader dashboard",
+    "help.hk_dashboard": "Big-picture view of the whole programme. Four stat tiles show the overall count of people, how many chanted today, and how many leaders / coordinators are active. Below, every coordinator's progress bars: today's chants and one-month daily chanters. Click Open on any row to drill into that coordinator's roll.",
+    "hd.people": "People",
+    "hd.njy_leaders": "NJY Leaders",
+    "hd.coordinators": "Coordinators",
+
+    // Duties
+    "help.duties": "Weekly and monthly tasks assigned to you — coming from the Bhakti-Vrksa action timeline. Tap 'Done' when you complete one.",
+    "msg.no_duties": "No pending duties.",
+
+    // Janmashtami quick-add hints
+    "help.quick_add": "Enter one person at a time. Their sl.no is auto-assigned from your assigned range.",
+    "help.upload_excel": "Attach a .xlsx or .csv file with columns: name, mobile, pincode. Preview → confirm.",
+    "help.paste_excel": "Ctrl-C rows in Excel (copies as tab-separated), then paste here. One person per line: name, mobile, pincode.",
+    "help.today_entries": "Everything you've added today lands here. Scroll down to double-check before the day ends.",
   },
 
   ta: {
@@ -163,6 +207,50 @@ const DICT = {
     "msg.no_entries_today": "இன்று எந்த சேர்க்கையும் இல்லை. மேலே முதல் நபரைச் சேர்க்கவும்.",
     "msg.pick_lang": "செயலி காட்டப்பட வேண்டிய மொழியைத் தேர்ந்தெடுக்கவும்.",
     "msg.hare_krsna": "ஹரே கிருஷ்ண 🙏",
+
+    // Events tab
+    "hd.events": "NJY யக்ஞங்கள் மற்றும் பகவத் கீதை",
+    "help.events": "கோவிலின் அனைத்து நாம ஜப யக்ஞ மற்றும் பகவத் கீதை நிகழ்வுகள். எந்த நிகழ்விலும் 'வருகை' பொத்தானை தட்டவும் — உங்கள் வரிசையை விரிக்கலாம் மற்றும் ஒவ்வொரு ஜபிப்பவருக்கும் வந்துள்ளதாக குறிக்கலாம்.",
+    "btn.attendance": "வருகை",
+    "hd.attendance_by_coord": "ஒருங்கிணைப்பாளர் வாரியாக வருகை",
+    "help.attendance_by_coord_coord": "உங்கள் வரிசையை தட்டி விரிவாக்கி உங்கள் ஜபிப்பவர்கள் வந்துள்ளதைக் குறிக்கவும்.",
+    "help.attendance_by_coord_leader": "எந்த ஒருங்கிணைப்பாளர் வரிசையையும் தட்டி விரிவாக்கி அவரது ஜபிப்பவர்களைக் குறிக்கவும். கீழே தேடல் விருப்பமும் உள்ளது.",
+    "btn.tap_expand": "விரிக்க தட்டவும்",
+    "hd.attended_of": "வந்துள்ளார்",
+
+    // Roles
+    "role.hk_leader": "HK தலைவர்",
+    "role.njy_leader": "NJY தலைவர்",
+    "role.njy_coordinator": "NJY ஒருங்கிணைப்பாளர்",
+    "role.manjari_servant_leader": "மஞ்சரி சேவக தலைவர்",
+    "role.circle_servant": "வட்ட சேவகர்",
+    "role.sector_servant": "பிரிவு சேவகர்",
+    "role.servant_leader": "சேவக தலைவர்",
+    "role.member": "உறுப்பினர்",
+
+    // Points chip
+    "chip.today": "இன்று",
+    "chip.overall": "மொத்தம்",
+
+    // Team dashboard
+    "help.team": "உங்கள் ஒருங்கிணைப்பாளர்கள், ஒவ்வொருவருக்கும் இரண்டு முன்னேற்றப் பட்டைகளுடன். இன்று ஜபித்தவர்கள் — ஒருங்கிணைப்பாளரின் மொத்த பட்டியலில் இன்று எத்தனை பேர் ஜபித்தார்கள். ஒரு மாத தினசரி — கடந்த மாதத்தில் தொடர்ந்து ஜபித்தவர்கள். எந்த ஒருங்கிணைப்பாளரின் பட்டியலையும் பார்க்க திற என்பதைத் தட்டவும்.",
+
+    // HK dashboard
+    "hd.hk_dashboard": "HK தலைவர் டாஷ்போர்டு",
+    "help.hk_dashboard": "முழு திட்டத்தின் பெரிய படம். நான்கு புள்ளிவிவரங்கள் மொத்த மக்கள், இன்று ஜபித்தவர்கள், செயலிலுள்ள தலைவர்கள் / ஒருங்கிணைப்பாளர்கள் எண்ணிக்கையைக் காட்டுகின்றன. கீழே ஒவ்வொரு ஒருங்கிணைப்பாளரின் முன்னேற்றப் பட்டைகள்.",
+    "hd.people": "மக்கள்",
+    "hd.njy_leaders": "NJY தலைவர்கள்",
+    "hd.coordinators": "ஒருங்கிணைப்பாளர்கள்",
+
+    // Duties
+    "help.duties": "உங்களுக்கு ஒதுக்கப்பட்ட வாராந்திர மற்றும் மாதாந்திர பணிகள். ஒன்றை முடித்தவுடன் 'முடிந்தது' தட்டவும்.",
+    "msg.no_duties": "நிலுவை பணிகள் இல்லை.",
+
+    // Janmashtami quick-add hints
+    "help.quick_add": "ஒரே நேரத்தில் ஒரு நபரைச் சேர்க்கவும். அவர்களின் sl.no உங்கள் ஒதுக்கப்பட்ட வரம்பிலிருந்து தானாக ஒதுக்கப்படும்.",
+    "help.upload_excel": ".xlsx அல்லது .csv கோப்பை இணைக்கவும். நெடுவரிசைகள்: name, mobile, pincode. முன்னோட்டம் → உறுதி செய்.",
+    "help.paste_excel": "Excel-ல் Ctrl-C செய்து இங்கே ஒட்டவும். ஒரு நபருக்கு ஒரு வரி: name, mobile, pincode.",
+    "help.today_entries": "இன்று நீங்கள் சேர்த்த அனைவரும் இங்கே காட்டப்படுவார்கள். நாள் முடிவதற்குள் ஒருமுறை சரிபாருங்கள்.",
   },
 };
 
