@@ -81,6 +81,16 @@ function showLogin() {
   if ($("login-u-label")) $("login-u-label").textContent = t("field.username");
   if ($("login-p-label")) $("login-p-label").textContent = t("field.password");
   if ($("login-btn")) $("login-btn").textContent = t("btn.sign_in");
+  // Wire the eye toggle on the login password
+  const eye = $("login-eye");
+  if (eye && !eye._wired) {
+    eye._wired = true;
+    eye.addEventListener("click", () => {
+      const p = $("p");
+      if (p.type === "password") { p.type = "text"; eye.textContent = "🙈"; }
+      else { p.type = "password"; eye.textContent = "👁"; }
+    });
+  }
   $("login-form").onsubmit = async (e) => {
     e.preventDefault();
     $("login-err").hidden = true;
@@ -1090,18 +1100,18 @@ function loadXlsx() {
 async function downloadXlsxTemplate() {
   const XLSX = await loadXlsx();
   const data = [
-    ["name", "mobile", "pincode"],
-    ["Ravi Kumar", "9999000001", "625001"],
-    ["Priya Sundari", "9999000002", "625002"],
+    ["coupon_no", "name", "mobile", "pincode", "is_daily"],
+    [1,      "Ravi Kumar",     "9999000001", "625001", "yes"],
+    [2,      "Priya Sundari",  "9999000002", "625002", "no"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  // Force every cell in column B (mobile) to have type='string' + text format
+  // Force column C (mobile) as text so long numbers don't go scientific
   const range = XLSX.utils.decode_range(ws["!ref"]);
   for (let r = range.s.r; r <= range.e.r; r++) {
-    const addr = XLSX.utils.encode_cell({ r, c: 1 });
+    const addr = XLSX.utils.encode_cell({ r, c: 2 });
     if (ws[addr]) { ws[addr].t = "s"; ws[addr].z = "@"; }
   }
-  ws["!cols"] = [{ wch: 22 }, { wch: 18 }, { wch: 10 }];
+  ws["!cols"] = [{ wch: 10 }, { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Chanters");
   XLSX.writeFile(wb, "chanter-template.xlsx");
@@ -1285,6 +1295,21 @@ async function renderSadhana(personId) {
 function formField(labelText, control) {
   const l = el("label", {}, labelText);
   return el("div", {}, l, control);
+}
+
+// Password field with an eye 👁 button that toggles between hidden and
+// shown. Used in Settings > Change password and could be reused on the
+// sign-in page in future.
+function passwordFieldWithEye(id, labelText) {
+  const input = el("input", { id, type: "password", required: true, autocomplete: "new-password" });
+  const eye = el("button", { type: "button", class: "eye-btn", "aria-label": "Show / hide password" }, "👁");
+  eye.addEventListener("click", () => {
+    if (input.type === "password") { input.type = "text"; eye.textContent = "🙈"; }
+    else { input.type = "password"; eye.textContent = "👁"; }
+  });
+  const inputWrap = el("div", { class: "eye-wrap" }, input, eye);
+  const wrap = el("div", {}, el("label", {}, labelText), inputWrap);
+  return { wrap, input, eye };
 }
 
 // -------------------------------------------- sadhana browse mode ---
@@ -1863,11 +1888,13 @@ async function renderJanmashtami(view) {
   cardA.append(el("h3", { class: "section" }, t("hd.quick_add")));
   cardA.append(el("p", { class: "hint" }, t("help.quick_add")));
   const form = el("form", { class: "rapid-form", method: "post", action: "javascript:void(0)" });
+  const couponI = el("input", { placeholder: "e.g. 1234", required: true, inputmode: "numeric", autocomplete: "off" });
   const nameI = el("input", { placeholder: t("field.name"), required: true, autocapitalize: "words" });
   const mobI  = el("input", { placeholder: t("field.mobile"), required: true, inputmode: "tel" });
   const pinI  = el("input", { placeholder: t("field.pincode"), inputmode: "numeric" });
   const submitBtn = el("button", { class: "primary", type: "submit" }, t("btn.add"));
   form.append(
+    el("div", {}, el("label", {}, "Coupon #"), couponI),
     el("div", {}, el("label", {}, t("field.name")), nameI),
     el("div", {}, el("label", {}, t("field.mobile")), mobI),
     el("div", {}, el("label", {}, t("field.pincode")), pinI),
@@ -1884,17 +1911,17 @@ async function renderJanmashtami(view) {
     feedback.textContent = "Saving…";
     try {
       const r = await api("/api/janmashtami/entry", { method: "POST", body: JSON.stringify({
-        name: nameI.value, mobile: mobI.value, pincode: pinI.value,
+        coupon_no: couponI.value, name: nameI.value, mobile: mobI.value, pincode: pinI.value,
       }) });
       const p = r.person;
-      feedback.textContent = `Saved · sl ${p.sl_no} · ${p.legal_name}`;
+      feedback.textContent = `Saved · coupon ${p.sl_no} · ${p.legal_name}`;
       recentUl.prepend(el("li", {},
         el("div", {}, el("strong", {}, p.legal_name),
-          el("div", { class: "hint" }, `sl ${p.sl_no} · ${p.phone}${p.pincode ? " · " + p.pincode : ""}`)),
+          el("div", { class: "hint" }, `coupon ${p.sl_no} · ${p.phone}${p.pincode ? " · " + p.pincode : ""}`)),
         el("span", {}), el("span", {}),
       ));
-      nameI.value = ""; mobI.value = ""; pinI.value = "";
-      nameI.focus();
+      couponI.value = ""; nameI.value = ""; mobI.value = ""; pinI.value = "";
+      couponI.focus();
       refreshProgress();
     } catch (err) {
       feedback.textContent = "Error: " + (err.body?.hint || err.message);
@@ -1908,12 +1935,13 @@ async function renderJanmashtami(view) {
   const cardB = el("div", { class: "card" });
   cardB.append(el("h3", { class: "section" }, t("hd.upload_excel")));
   cardB.append(excelUploadWidget({
-    helperText: "Attach a .xlsx or .csv file. Columns needed: name, mobile, pincode. " +
-      "You'll see a preview before it's imported. sl.nos are auto-assigned from your range as rows land.",
+    helperText: "Attach a .xlsx or .csv file. Columns: coupon_no, name, mobile, pincode, is_daily (optional 'yes'/'no'). Preview → confirm.",
     mapRow: (row) => ({
+      coupon_no: String(row.coupon_no || row.coupon || row.Coupon || row["Coupon #"] || row["Coupon No"] || "").trim(),
       name: String(row.name || row.Name || row.NAME || "").trim(),
       mobile: String(row.mobile || row.Mobile || row.MOBILE || row.phone || "").trim(),
       pincode: String(row.pincode || row.Pincode || row.PINCODE || row.pin || "").trim(),
+      is_daily: String(row.is_daily || row["Daily?"] || row.daily || "").trim().toLowerCase(),
     }),
     onCommit: async (rows) => {
       const r = await api("/api/janmashtami/bulk", { method: "POST", body: JSON.stringify({ rows }) });
@@ -1930,7 +1958,7 @@ async function renderJanmashtami(view) {
     el("h3", { class: "section" }, t("hd.paste_excel")),
     el("p", { class: "hint" }, "Ctrl-C rows in Excel (copies as tab-separated), then paste here. One person per line: name, mobile, pincode."),
     formField("Paste here", el("textarea", { id: "jm-paste", rows: "6",
-      placeholder: "Ravi\t9876543210\t625001\nPriya\t9876543211\t625002" })),
+      placeholder: "1\tRavi\t9876543210\t625001\tyes\n2\tPriya\t9876543211\t625002\tno" })),
     el("p", {},
       el("button", { class: "primary", type: "button", id: "jm-paste-go" }, "Import"),
       " ", el("span", { class: "hint", id: "jm-paste-msg" }),
@@ -1949,9 +1977,16 @@ async function renderJanmashtami(view) {
   $("jm-paste-go").addEventListener("click", async () => {
     const raw = $("jm-paste").value.trim();
     if (!raw) return;
+    // Column order for paste: coupon_no, name, mobile, pincode, is_daily
     const rows = raw.split(/\r?\n/).map(line => {
       const parts = line.split(/\t|,/);
-      return { name: (parts[0] || "").trim(), mobile: (parts[1] || "").trim(), pincode: (parts[2] || "").trim() };
+      return {
+        coupon_no: (parts[0] || "").trim(),
+        name:      (parts[1] || "").trim(),
+        mobile:    (parts[2] || "").trim(),
+        pincode:   (parts[3] || "").trim(),
+        is_daily:  (parts[4] || "").trim().toLowerCase(),
+      };
     }).filter(r => r.name && r.mobile);
     try {
       const r = await api("/api/janmashtami/bulk", { method: "POST", body: JSON.stringify({ rows }) });
@@ -2003,6 +2038,32 @@ async function renderSettings(view) {
     "and customise the WhatsApp templates that fill in when you tap " +
     "the WhatsApp button on any chanter's row."
   ));
+
+  // --- Change my password
+  const pwCard = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
+  pwCard.append(el("h3", { class: "section", style: "margin-top:0" }, "Change my password"));
+  pwCard.append(el("p", { class: "hint" }, "Type your current password and a new one. Minimum 6 characters."));
+  const pwCur = passwordFieldWithEye("cur-pw", "Current password");
+  const pwNew = passwordFieldWithEye("new-pw", "New password");
+  pwCard.append(pwCur.wrap, pwNew.wrap);
+  const pwSave = el("button", { class: "primary", type: "submit" }, t("btn.save"));
+  const pwMsg = el("span", { class: "hint", id: "pw-msg", style: "margin-left:.5rem" });
+  pwCard.append(el("p", { style: "margin-top:.6rem" }, pwSave, pwMsg));
+  pwCard.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api("/api/me/password", { method: "POST", body: JSON.stringify({
+        current_password: pwCur.input.value, new_password: pwNew.input.value,
+      }) });
+      pwMsg.textContent = "Password updated.";
+      pwCur.input.value = ""; pwNew.input.value = "";
+    } catch (err) {
+      pwMsg.textContent = err.body?.error === "wrong_current_password"
+        ? "Current password is wrong."
+        : (err.message || "Could not update.");
+    }
+  };
+  view.append(pwCard);
 
   // --- Language picker
   const langCard = el("div", { class: "card" });

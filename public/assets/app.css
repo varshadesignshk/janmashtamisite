@@ -592,6 +592,24 @@ button.ghost {
 }
 button.ghost:hover { background: var(--surface-sunk); border-color: var(--peacock-deep); color: var(--peacock-deep); }
 
+/* --------- password field with eye toggle --------- */
+.eye-wrap {
+  position: relative;
+}
+.eye-wrap input {
+  padding-right: 2.4rem;
+}
+.eye-btn {
+  position: absolute;
+  right: .4rem; top: 50%;
+  transform: translateY(-50%);
+  background: transparent; border: none;
+  font-size: 1.05rem; cursor: pointer;
+  padding: .2rem .3rem;
+  opacity: .7;
+}
+.eye-btn:hover { opacity: 1; }
+
 /* --------- file input: pretty it up --------- */
 input[type="file"] {
   padding: 0;

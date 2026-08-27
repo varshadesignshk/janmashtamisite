@@ -17,7 +17,10 @@
       <label for="u" id="login-u-label">Username</label>
       <input id="u" name="username" required autocapitalize="none" autocorrect="off">
       <label for="p" id="login-p-label">Password</label>
-      <input id="p" name="password" type="password" required>
+      <div class="eye-wrap">
+        <input id="p" name="password" type="password" required>
+        <button type="button" class="eye-btn" id="login-eye" aria-label="Show / hide password">👁</button>
+      </div>
       <p class="error" id="login-err" hidden></p>
       <p style="margin-top:1.2rem"><button class="primary" type="submit" id="login-btn">Sign in</button></p>
     </form>
