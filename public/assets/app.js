@@ -105,7 +105,83 @@ async function showApp() {
   renderRoute();
   refreshPointsChip();
   refreshLbSide();
+  maybeShowOnboardingTour();
 }
+
+// Show a 5-slide onboarding tour to a coordinator the first time they
+// sign in. Dismissal is remembered in localStorage per user id so the
+// tour never nags. They can re-run it by clearing browser storage.
+function maybeShowOnboardingTour() {
+  if (ME.role !== "njy_coordinator") return;
+  const key = "njy-tour-done-" + ME.id;
+  try { if (localStorage.getItem(key)) return; } catch { /* private mode */ }
+
+  const slides = [
+    {
+      emoji: "🙏 🌸",
+      title: "Welcome, coordinator",
+      body: "This app helps you keep track of the chanters you talk with — who's chanted today, who needs a nudge, and how everyone's doing. It's very simple. Let's walk through the four things you'll do most.",
+    },
+    {
+      emoji: "⚪ 🟡 🟠 🟢 🔴",
+      title: "The bead beside each name",
+      body: "White = fresh (nothing marked). <strong>Tap once</strong> = you contacted them (yellow). <strong>Tap again</strong> = they responded (orange). The bead resets to white every morning. Red means a daily chanter hasn't chanted for 3+ days — needs your attention.",
+    },
+    {
+      emoji: "✓ chanted",
+      title: "The 'chant?' button",
+      body: "When someone tells you they chanted today, tap this button — it turns gold with a tick. The bead also turns green. It's disabled unless the person's status is <strong>daily</strong> (change status via the dropdown next to their name).",
+    },
+    {
+      emoji: "💬",
+      title: "WhatsApp button",
+      body: "Tap the green <strong>WhatsApp</strong> button on any row — WhatsApp opens with a Tamil + English message ready to send to that chanter. You can add a personal line before hitting send. You can also customise your default message in the Settings tab.",
+    },
+    {
+      emoji: "🪙 🏆",
+      title: "Your points and leaderboard",
+      body: "Every action earns points — chanting marks, follow-ups, event attendance. See your live points in the coin chip at the top-right. The <strong>Leaderboard</strong> tab shows how you rank. The <strong>Janmashtami</strong> tab is where you add new chanters on the big day. Tap the <strong>📅</strong> button on any row to see 14 days of chant history.",
+    },
+  ];
+
+  const overlay = el("div", { class: "tour-overlay" });
+  const card = el("div", { class: "tour-card", role: "dialog", "aria-modal": "true" });
+  overlay.append(card);
+  document.body.append(overlay);
+
+  let i = 0;
+  const render = () => {
+    const s = slides[i];
+    card.innerHTML = "";
+    card.append(
+      el("div", { class: "tour-emoji-row" }, s.emoji),
+      el("h3", {}, s.title),
+      el("p", { class: "tour-body", html: s.body }),
+      el("div", { class: "tour-progress" },
+        ...slides.map((_, idx) => el("span", { class: idx === i ? "on" : "" })),
+      ),
+      el("div", { class: "tour-actions" },
+        el("button", { class: "tour-skip" }, "Skip tour"),
+        el("button", { class: "primary" }, i === slides.length - 1 ? "Got it — start using" : "Next →"),
+      ),
+    );
+    card.querySelector(".tour-skip").addEventListener("click", done);
+    card.querySelector(".primary").addEventListener("click", () => {
+      if (i === slides.length - 1) done();
+      else { i++; render(); }
+    });
+  };
+  const done = () => {
+    try { localStorage.setItem(key, "1"); } catch {}
+    overlay.remove();
+  };
+  render();
+}
+// Expose a way to relaunch the tour from anywhere (for testing).
+window.replayTour = () => {
+  try { localStorage.removeItem("njy-tour-done-" + ME.id); } catch {}
+  maybeShowOnboardingTour();
+};
 
 // Header points chip — small oval showing today's and overall points
 // for the signed-in coordinator. Silently ignored for other roles.
