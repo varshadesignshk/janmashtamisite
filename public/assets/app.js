@@ -331,7 +331,10 @@ function renderNav() {
   const items = [
     { href: "#/",          label: t("nav.my_roll"),  when: () => can("coordinator_roll") && OWNS_ROLL.includes(ME.role) },
     { href: "#/leader",    label: t("nav.team"),     when: () => can("leader_dashboard") },
-    { href: "#/hk",        label: t("nav.hk"),       when: () => can("hk_dashboard") },
+    // HK tab hidden for HK Leader — the Team tab now carries the 4 KPI
+    // tiles + all coordinators. Other roles (if ever granted hk_dashboard
+    // by feature-gate) still see it.
+    { href: "#/hk",        label: t("nav.hk"),       when: () => can("hk_dashboard") && ME.role !== "hk_leader" },
     { href: "#/duties",    label: t("nav.duties"),   when: () => true },
     { href: "#/events",    label: t("nav.events"),   when: () => can("event_attendance") },
     { href: "#/sadhana",   label: t("nav.sadhana"),  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
@@ -373,7 +376,7 @@ function renderRoute() {
   if (!window._njyLandedOnce && (location.hash === "" || location.hash === "#/")) {
     window._njyLandedOnce = true;
     let home = null;
-    if (ME.role === "hk_leader") home = "#/hk";
+    if (ME.role === "hk_leader") home = "#/leader";
     else if (ME.role === "njy_leader") home = "#/leader";
     else if (ME.role === "njy_coordinator") home = "#/janmashtami";
     if (home) { location.replace(home); return; }
@@ -410,6 +413,13 @@ function renderRoute() {
 async function renderCoordRoll(view) {
   try {
     const { roll, tally } = await api("/api/roll");
+    // Coord banner: show who their NJY Leader is (or a nudge if unassigned)
+    if (ME.role === "njy_coordinator") {
+      const line = ME.manager_display_name
+        ? el("p", { class: "hint" }, t("hd.your_leader"), ": ", el("strong", {}, ME.manager_display_name))
+        : el("p", { class: "hint" }, t("msg.no_leader"));
+      view.append(line);
+    }
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
     view.append(beadLegend());
     view.append(garlandStrip(roll, /* editable */ true));
@@ -643,8 +653,11 @@ async function renderLeaderDashboard(view) {
     }
     const { coordinators } = await api("/api/leader/coordinators");
     loader.remove();
-    if (!coordinators.length) return view.append(el("p", { class: "hint" }, "No coordinators visible yet."));
-    view.append(el("h3", { class: "section" }, ME.role === "hk_leader" ? "All coordinators" : "Your coordinators"));
+    if (!coordinators.length) {
+      const msg = ME.role === "hk_leader" ? t("msg.no_coords_hk") : t("msg.no_coords_leader");
+      return view.append(el("p", { class: "hint" }, msg));
+    }
+    view.append(el("h3", { class: "section" }, ME.role === "hk_leader" ? t("hd.all_coords") : t("hd.your_coords")));
     const ul = el("ul", { class: "list" });
     for (const c of coordinators) {
       ul.append(el("li", {}, coordCard(c)));
@@ -1153,23 +1166,51 @@ function loadXlsx() {
 // pre-formatted as Text — this stops Excel from auto-converting long
 // numbers to scientific notation.
 async function downloadXlsxTemplate() {
+  // Legacy default — the chanter template (kept for old call sites).
+  return downloadChanterTemplate();
+}
+
+async function downloadChanterTemplate() {
   const XLSX = await loadXlsx();
   const data = [
-    ["coupon_no", "name", "mobile", "pincode", "is_daily"],
-    [1,      "Ravi Kumar",     "9999000001", "625001", "yes"],
-    [2,      "Priya Sundari",  "9999000002", "625002", "no"],
+    ["coupon_no", "name", "mobile", "pincode", "is_daily", "coord_username"],
+    [1, "Ravi Kumar",    "9999000001", "625001", "yes", "coord01"],
+    [2, "Priya Sundari", "9999000002", "625002", "no",  "coord01"],
+    [3, "Anand Gopal",   "9999000003", "625003", "yes", "coord02"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  // Force column C (mobile) as text so long numbers don't go scientific
   const range = XLSX.utils.decode_range(ws["!ref"]);
+  // Mobile column (index 2) as text
   for (let r = range.s.r; r <= range.e.r; r++) {
     const addr = XLSX.utils.encode_cell({ r, c: 2 });
     if (ws[addr]) { ws[addr].t = "s"; ws[addr].z = "@"; }
   }
-  ws["!cols"] = [{ wch: 10 }, { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
+  ws["!cols"] = [{ wch: 10 }, { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 16 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Chanters");
   XLSX.writeFile(wb, "chanter-template.xlsx");
+}
+
+async function downloadUsersTemplate() {
+  const XLSX = await loadXlsx();
+  const data = [
+    ["username", "password", "display_name", "phone", "role", "manager_username"],
+    ["leader01", "pass1234", "Bhakti Vinod Leader",      "9999000101", "njy_leader", ""],
+    ["coord01",  "pass1234", "Sri Krsna Coordinator",    "9999000201", "njy_coordinator", "leader01"],
+    ["coord02",  "pass1234", "Radha Priya Coordinator",  "9999000202", "njy_coordinator", "leader01"],
+    ["coord03",  "pass1234", "Gopala Coordinator",       "9999000203", "njy_coordinator", "leader01"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  // Phone column (index 3) as text
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: 3 });
+    if (ws[addr]) { ws[addr].t = "s"; ws[addr].z = "@"; }
+  }
+  ws["!cols"] = [{ wch: 14 }, { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 18 }, { wch: 16 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Users");
+  XLSX.writeFile(wb, "users-template.xlsx");
 }
 
 // Read an .xlsx/.xls/.csv file into an array of row objects. First row
@@ -1189,15 +1230,16 @@ async function readSpreadsheetFile(file) {
 //
 // mapRow(rowObj) → { name, mobile, pincode, ... } (or whatever the API
 // expects). onCommit(mappedRows) does the actual API call.
-function excelUploadWidget({ helperText, mapRow, onCommit }) {
+function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, templateLabel, previewCols }) {
   const wrap = el("div", {});
-  const tplBtn = el("button", { type: "button", class: "ghost" }, "⬇ Download template (Excel)");
+  const tplLabel = templateLabel || t("btn.download_template");
+  const tplBtn = el("button", { type: "button", class: "ghost" }, tplLabel);
   tplBtn.addEventListener("click", async () => {
     tplBtn.disabled = true;
     tplBtn.textContent = "Generating…";
     try {
-      await downloadXlsxTemplate();
-      tplBtn.textContent = "⬇ Download template (Excel)";
+      await (templateBuilder || downloadXlsxTemplate)();
+      tplBtn.textContent = tplLabel;
     } catch (err) {
       tplBtn.textContent = "Failed — try again";
     } finally {
@@ -2096,18 +2138,14 @@ async function renderJanmashtami(view) {
 // WhatsApp buttons. Anyone with a roll gets this screen.
 async function renderSettings(view) {
   view.append(el("h2", { class: "section" }, t("hd.settings_title")));
-  view.append(helpBanner(
-    "Personal settings for your own account. Choose the app language, " +
-    "and customise the WhatsApp templates that fill in when you tap " +
-    "the WhatsApp button on any chanter's row."
-  ));
+  view.append(helpBanner(t("help.settings")));
 
   // --- Change my password
   const pwCard = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
-  pwCard.append(el("h3", { class: "section", style: "margin-top:0" }, "Change my password"));
-  pwCard.append(el("p", { class: "hint" }, "Type your current password and a new one. Minimum 6 characters."));
-  const pwCur = passwordFieldWithEye("cur-pw", "Current password");
-  const pwNew = passwordFieldWithEye("new-pw", "New password");
+  pwCard.append(el("h3", { class: "section", style: "margin-top:0" }, t("hd.change_pw")));
+  pwCard.append(el("p", { class: "hint" }, t("help.change_pw")));
+  const pwCur = passwordFieldWithEye("cur-pw", t("field.current_pw"));
+  const pwNew = passwordFieldWithEye("new-pw", t("field.new_pw"));
   pwCard.append(pwCur.wrap, pwNew.wrap);
   const pwSave = el("button", { class: "primary", type: "submit" }, t("btn.save"));
   const pwMsg = el("span", { class: "hint", id: "pw-msg", style: "margin-left:.5rem" });
@@ -2118,11 +2156,11 @@ async function renderSettings(view) {
       await api("/api/me/password", { method: "POST", body: JSON.stringify({
         current_password: pwCur.input.value, new_password: pwNew.input.value,
       }) });
-      pwMsg.textContent = "Password updated.";
+      pwMsg.textContent = t("msg.pw_updated");
       pwCur.input.value = ""; pwNew.input.value = "";
     } catch (err) {
       pwMsg.textContent = err.body?.error === "wrong_current_password"
-        ? "Current password is wrong."
+        ? t("msg.pw_wrong_current")
         : (err.message || "Could not update.");
     }
   };
@@ -2142,9 +2180,7 @@ async function renderSettings(view) {
   }
   langCard.append(langBtns);
   view.append(langCard);
-  view.append(el("p", { class: "hint" }, "Customise the WhatsApp message your button pre-fills. Use " +
-    "{name} anywhere in your text — it gets replaced with each chanter's name at send time. " +
-    "You can write in English, Tamil, Hindi, or any script — no special setup needed."));
+  view.append(el("p", { class: "hint" }, t("help.wa_templates")));
 
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   const daily = el("textarea", { id: "wa-daily", rows: "5",
@@ -2203,19 +2239,16 @@ async function renderAdmin(tab) {
 
 // Bulk-create coord/leader accounts from Excel or paste.
 async function renderAdminUsersBulk(view) {
-  view.append(el("h3", { class: "section" }, "Bulk create coordinators and leaders"));
-  view.append(helpBanner(
-    "Paste rows OR upload an Excel file with columns: " +
-    "username, password, display_name, phone, role, manager_username (optional). " +
-    "Role must be one of: hk_leader, njy_leader, njy_coordinator. " +
-    "manager_username links a coord to their NJY leader — use the leader's username."
-  ));
+  view.append(el("h3", { class: "section" }, t("hd.admin_bulk_users")));
+  view.append(helpBanner(t("help.admin_bulk_users")));
 
   // Path A — Excel upload
   const upload = el("div", { class: "card" });
-  upload.append(el("h3", { class: "section", style: "margin-top:0" }, "Upload Excel or CSV"));
+  upload.append(el("h3", { class: "section", style: "margin-top:0" }, t("hd.upload_excel_csv")));
   upload.append(excelUploadWidget({
     helperText: "Columns: username, password, display_name, phone, role, manager_username.",
+    templateBuilder: downloadUsersTemplate,
+    templateLabel: t("btn.download_users_template"),
     mapRow: (row) => ({
       username: String(row.username || row.Username || "").trim(),
       password: String(row.password || row.Password || "").trim(),
@@ -2234,11 +2267,11 @@ async function renderAdminUsersBulk(view) {
   // Path B — Paste
   const paste = el("div", { class: "card" });
   paste.append(
-    el("h3", { class: "section", style: "margin-top:0" }, "Or paste rows"),
+    el("h3", { class: "section", style: "margin-top:0" }, t("hd.paste_rows")),
     el("p", { class: "hint" }, "One user per line, tab-separated: username, password, display_name, phone, role, manager_username."),
     formField("Paste", el("textarea", { id: "ub-paste", rows: "8",
       placeholder: "leader1\tpass123\tRadha Priya\t9876500001\tnjy_leader\t\ncoord01\tpass123\tSri Coord\t9876500002\tnjy_coordinator\tleader1" })),
-    el("p", {}, el("button", { class: "primary", type: "button", id: "ub-go" }, "Import"),
+    el("p", {}, el("button", { class: "primary", type: "button", id: "ub-go" }, t("btn.import")),
       " ", el("span", { class: "hint", id: "ub-msg" })),
     el("pre", { id: "ub-out", style: "font-family:var(--font-mono);font-size:.75rem;color:var(--muted);white-space:pre-wrap" }),
   );
@@ -2406,21 +2439,55 @@ async function renderAdminUsers(view) {
 }
 
 async function renderAdminImport(view) {
+  view.append(helpBanner(t("help.admin_bulk_chanters")));
+
+  // Coord list for the dropdown (data-entry team picks which coord to
+  // assign a batch to; per-row coord_username in the sheet also works
+  // and OVERRIDES this batch default).
+  let coordUsers = [];
+  try {
+    const { users } = await api("/api/admin/users");
+    coordUsers = users.filter(u => u.role === "njy_coordinator" && u.active);
+  } catch { /* ok — leave empty */ }
+
   // Path A — Excel/CSV file upload
   const uploadCard = el("div", { class: "card" });
-  uploadCard.append(el("h3", { class: "section" }, "Upload Excel or CSV file"));
+  uploadCard.append(el("h3", { class: "section" }, t("hd.upload_excel_file")));
+
+  // Coordinator picker for the whole batch (fallback when the sheet
+  // doesn't specify coord_username per row).
+  const coordSel = el("select", { id: "imp-assign-file" },
+    el("option", { value: "" }, "— pick coordinator for this batch (or use coord_username column) —"),
+    ...coordUsers.map(c => el("option", { value: c.id }, `${c.display_name || c.username} (${c.username})`)),
+  );
+  uploadCard.append(el("div", { style: "margin:.4rem 0 .7rem" },
+    el("label", { style: "display:block;font-size:.85rem;color:var(--muted);margin-bottom:.2rem" },
+      "Assign to coordinator (batch default)"),
+    coordSel,
+  ));
+
   uploadCard.append(excelUploadWidget({
-    helperText: "Attach a .xlsx or .csv file with columns: name, mobile, pincode (or legal_name / phone if you prefer). Preview → confirm.",
+    helperText: "Attach a .xlsx or .csv file. Columns: coupon_no, name, mobile, pincode, is_daily, coord_username. coord_username per-row wins over the batch dropdown above.",
+    templateBuilder: downloadChanterTemplate,
+    templateLabel: t("btn.download_chanters_template"),
     mapRow: (row) => ({
-      // Admin/import endpoint expects legal_name + phone; map from
-      // either header style.
       legal_name: String(row.legal_name || row.name || row.Name || row.NAME || "").trim(),
       phone: String(row.phone || row.mobile || row.Mobile || "").trim(),
       pincode: String(row.pincode || row.Pincode || row.PINCODE || "").trim() || null,
+      coupon_no: row.coupon_no || row["Coupon #"] || null,
+      is_daily: String(row.is_daily || row["Daily?"] || "").trim().toLowerCase(),
+      coord_username: String(row.coord_username || row["Coord username"] || "").trim(),
     }),
     onCommit: async (rows) => {
+      // Resolve per-row coord_username → user id via the coord list we
+      // already have. Rows without either wind up on the batch default.
+      const byUsername = new Map(coordUsers.map(c => [c.username.toLowerCase(), c.id]));
+      const enriched = rows.map(r => ({
+        ...r,
+        assigned_to_user_id: (r.coord_username && byUsername.get(r.coord_username.toLowerCase())) || coordSel.value || null,
+      }));
       const r = await api("/api/import/commit", { method: "POST",
-        body: JSON.stringify({ rows, assigned_to_user_id: $("imp-assign")?.value || null }) });
+        body: JSON.stringify({ rows: enriched, assigned_to_user_id: coordSel.value || null }) });
       return { created: r.created, errors: r.errors };
     },
   }));

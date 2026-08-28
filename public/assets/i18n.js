@@ -126,6 +126,37 @@ const DICT = {
     "help.upload_excel": "Attach a .xlsx or .csv file with columns: name, mobile, pincode. Preview → confirm.",
     "help.paste_excel": "Ctrl-C rows in Excel (copies as tab-separated), then paste here. One person per line: name, mobile, pincode.",
     "help.today_entries": "Everything you've added today lands here. Scroll down to double-check before the day ends.",
+
+    // Settings — password + templates
+    "hd.change_pw": "Change my password",
+    "help.change_pw": "Type your current password and a new one. Minimum 6 characters.",
+    "field.current_pw": "Current password",
+    "field.new_pw": "New password",
+    "help.settings": "Personal settings for your own account. Choose the app language, and customise the WhatsApp templates that fill in when you tap the WhatsApp button on any chanter's row.",
+    "help.wa_templates": "Customise the WhatsApp message your button pre-fills. Use {name} anywhere in your text — it gets replaced with each chanter's name at send time. You can write in English, Tamil, Hindi, or any script — no special setup needed.",
+    "msg.pw_updated": "Password updated.",
+    "msg.pw_wrong_current": "Current password is wrong.",
+
+    // Profile / leader link
+    "hd.your_leader": "Your NJY Leader",
+    "msg.no_leader": "No leader assigned yet. Ask HK Leader to link you.",
+
+    // Team / HK merged
+    "help.team_hk": "Big-picture view — 4 stat tiles + every coordinator. Click Open on any row to drill into their roll.",
+    "msg.no_coords_leader": "No coordinators visible yet. Ask HK Leader to link at least one coordinator to you (Admin → Users → Edit → Manager).",
+    "msg.no_coords_hk": "No coordinators yet. Create some in Admin → Users or Admin → Bulk create users.",
+
+    // Admin bulk
+    "hd.admin_bulk_users": "Bulk create coordinators and leaders",
+    "help.admin_bulk_users": "Paste rows OR upload an Excel file with columns: username, password, display_name, phone, role, manager_username (optional). Role must be one of: hk_leader, njy_leader, njy_coordinator. manager_username links a coord to their NJY leader — use the leader's username.",
+    "hd.upload_excel_csv": "Upload Excel or CSV",
+    "hd.paste_rows": "Or paste rows",
+    "btn.import": "Import",
+    "hd.admin_bulk_chanters": "Bulk import chanters",
+    "help.admin_bulk_chanters": "Import chanters from the data-entry team's Excel. The coord_username column tells the app which coordinator each row belongs to — use the coordinator's login username.",
+    "hd.upload_excel_file": "Upload Excel or CSV file",
+    "btn.download_users_template": "⬇ Download users template (Excel)",
+    "btn.download_chanters_template": "⬇ Download chanters template (Excel)",
   },
 
   ta: {
@@ -251,6 +282,37 @@ const DICT = {
     "help.upload_excel": ".xlsx அல்லது .csv கோப்பை இணைக்கவும். நெடுவரிசைகள்: name, mobile, pincode. முன்னோட்டம் → உறுதி செய்.",
     "help.paste_excel": "Excel-ல் Ctrl-C செய்து இங்கே ஒட்டவும். ஒரு நபருக்கு ஒரு வரி: name, mobile, pincode.",
     "help.today_entries": "இன்று நீங்கள் சேர்த்த அனைவரும் இங்கே காட்டப்படுவார்கள். நாள் முடிவதற்குள் ஒருமுறை சரிபாருங்கள்.",
+
+    // Settings — password + templates
+    "hd.change_pw": "என் கடவுச்சொல்லை மாற்று",
+    "help.change_pw": "உங்கள் தற்போதைய கடவுச்சொல்லையும் புதிய கடவுச்சொல்லையும் உள்ளிடவும். குறைந்தது 6 எழுத்துகள்.",
+    "field.current_pw": "தற்போதைய கடவுச்சொல்",
+    "field.new_pw": "புதிய கடவுச்சொல்",
+    "help.settings": "உங்கள் கணக்குக்கான தனிப்பட்ட அமைப்புகள். செயலி மொழியைத் தேர்ந்தெடுங்கள், மற்றும் WhatsApp பொத்தானை தட்டும்போது நிரப்பப்படும் செய்தி வார்ப்புருக்களைத் தனிப்பயனாக்குங்கள்.",
+    "help.wa_templates": "உங்கள் WhatsApp பொத்தான் முன்பே நிரப்பும் செய்தியை தனிப்பயனாக்கவும். {name} என்பதை உங்கள் உரையில் எங்கு வேண்டுமானாலும் பயன்படுத்தலாம் — அனுப்பும் போது ஒவ்வொரு ஜபிப்பவரின் பெயராக மாறும். நீங்கள் ஆங்கிலம், தமிழ், இந்தி அல்லது எந்த எழுத்திலும் எழுதலாம்.",
+    "msg.pw_updated": "கடவுச்சொல் புதுப்பிக்கப்பட்டது.",
+    "msg.pw_wrong_current": "தற்போதைய கடவுச்சொல் தவறு.",
+
+    // Profile / leader link
+    "hd.your_leader": "உங்கள் NJY தலைவர்",
+    "msg.no_leader": "இன்னும் தலைவர் ஒதுக்கப்படவில்லை. HK தலைவரிடம் இணைக்கச் சொல்லவும்.",
+
+    // Team / HK merged
+    "help.team_hk": "முழு படம் — 4 புள்ளிவிவர பட்டைகள் + அனைத்து ஒருங்கிணைப்பாளர்கள். ஒருங்கிணைப்பாளரின் பட்டியலைப் பார்க்க திற என்பதைத் தட்டவும்.",
+    "msg.no_coords_leader": "இன்னும் ஒருங்கிணைப்பாளர்கள் ஒதுக்கப்படவில்லை. HK தலைவரிடம் உங்களுக்கு குறைந்தது ஒரு ஒருங்கிணைப்பாளரை இணைக்கச் சொல்லவும் (நிர்வாகம் → பயனர்கள் → திருத்து → மேலாளர்).",
+    "msg.no_coords_hk": "இன்னும் ஒருங்கிணைப்பாளர்கள் இல்லை. நிர்வாகம் → பயனர்கள் அல்லது நிர்வாகம் → பயனர்களை மொத்தமாக உருவாக்கு என்பதில் உருவாக்கவும்.",
+
+    // Admin bulk
+    "hd.admin_bulk_users": "ஒருங்கிணைப்பாளர்கள் மற்றும் தலைவர்களை மொத்தமாக உருவாக்கு",
+    "help.admin_bulk_users": "வரிசைகளை ஒட்டவும் அல்லது Excel கோப்பை பதிவேற்றவும். நெடுவரிசைகள்: username, password, display_name, phone, role, manager_username (விருப்பம்). role ஒன்றாக இருக்க வேண்டும்: hk_leader, njy_leader, njy_coordinator. manager_username ஒரு ஒருங்கிணைப்பாளரை அவரது NJY தலைவரோடு இணைக்கிறது.",
+    "hd.upload_excel_csv": "Excel அல்லது CSV பதிவேற்று",
+    "hd.paste_rows": "அல்லது வரிசைகளை ஒட்டவும்",
+    "btn.import": "இறக்குமதி",
+    "hd.admin_bulk_chanters": "ஜபிப்பவர்களை மொத்தமாக இறக்குமதி செய்",
+    "help.admin_bulk_chanters": "தரவு உள்ளீட்டு குழுவின் Excel கோப்பிலிருந்து ஜபிப்பவர்களை இறக்குமதி செய்யவும். coord_username நெடுவரிசை ஒவ்வொரு வரியும் எந்த ஒருங்கிணைப்பாளருக்குச் சொந்தமானது என்பதை செயலிக்குச் சொல்கிறது.",
+    "hd.upload_excel_file": "Excel அல்லது CSV கோப்பை பதிவேற்று",
+    "btn.download_users_template": "⬇ பயனர்கள் மாதிரி பதிவிறக்கு (Excel)",
+    "btn.download_chanters_template": "⬇ ஜபிப்பவர்கள் மாதிரி பதிவிறக்கு (Excel)",
   },
 };
 
