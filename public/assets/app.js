@@ -397,7 +397,7 @@ function renderRoute() {
     "admin":    () => renderAdmin(arg || "gates"),
     "settings": renderSettings,
     "janmashtami": renderJanmashtami,
-    "leaderboard": () => renderLeaderboard(arg || "daily"),
+    "leaderboard": () => renderLeaderboard(arg || "daily", rest.join("/")),
     "profile":      () => renderProfile(arg),
     "points-rules": () => renderPointsRules(view),
     "member":   () => renderMemberDetails(arg),
@@ -1924,46 +1924,96 @@ async function renderGroupReport(groupId) {
 // Generation token so a stale in-flight fetch doesn't append rows into
 // a view that has already been re-rendered for a different tab.
 let leaderboardGen = 0;
-async function renderLeaderboard(kind) {
+async function renderLeaderboard(kind, rest) {
   const myGen = ++leaderboardGen;
   const view = $("view");
   view.append(el("h2", { class: "section" }, "Leaderboard"));
 
+  // Route shape: #/leaderboard/<kind>[/leaders]
+  //   kind = "daily" | "overall"
+  //   suffix "/leaders" flips to the NJY-Leader board
+  const canSeeLeadersBoard = ["hk_leader", "njy_leader"].includes(ME.role);
+  const isLeadersBoard = rest === "leaders" && canSeeLeadersBoard;
+
   const tabs = el("div", { class: "nav", style: "border:none" });
-  const t = (k, label) => el("a", { class: kind === k ? "active" : "", href: `#/leaderboard/${k}` }, label);
+  const t = (k, label, extra) => el("a", { class: (kind === k && !!extra === isLeadersBoard) ? "active" : "",
+    href: `#/leaderboard/${k}${extra ? "/leaders" : ""}` }, label);
   tabs.append(
-    t("daily", "Today's points"),
-    t("overall", "Overall (Phase 1 + 2)"),
-    el("a", { href: "#/points-rules", style: "margin-left:auto" }, "How points work ↗"),
+    t("daily", "Coords · Today"),
+    t("overall", "Coords · Overall"),
   );
+  if (canSeeLeadersBoard) {
+    tabs.append(
+      t("daily", "Leaders · Today", "leaders"),
+      t("overall", "Leaders · Overall", "leaders"),
+    );
+  }
+  tabs.append(el("a", { href: "#/points-rules", style: "margin-left:auto" }, "How points work ↗"));
   view.append(tabs);
 
-  view.append(el("p", { class: "hint" },
-    kind === "daily"
-      ? "Points earned today only — resets every midnight IST. Chant a chanter = +10 · Follow up = +5 · NJY attendance = +50 · Perfect day (all chanters chanted) = +50."
-      : "Cumulative Phase 1 + Phase 2. Adds Janmashtami entry / commit tier bonuses and milestone bonuses. Tap the rules link for the full point matrix."
-  ));
+  const hint = isLeadersBoard
+    ? (kind === "daily"
+        ? "NJY Leaders ranked by sum of their coords' today points. Only HK Leader and NJY Leaders see this board."
+        : "NJY Leaders ranked by sum of their coords' Phase-1+2 points. Only HK Leader and NJY Leaders see this board.")
+    : (kind === "daily"
+        ? "Coords ranked by today's points — resets every midnight IST. Chant a chanter = +10 · Follow up = +5 · NJY attendance = +50 · Perfect day = +50."
+        : "Coords ranked cumulatively (Phase 1 + Phase 2). Adds Janmashtami entry/commit tier bonuses and milestone bonuses. Tap the rules link for the full matrix.");
+  view.append(el("p", { class: "hint" }, hint));
 
   const loader = el("p", { class: "hint" }, "Loading…");
   view.append(loader);
 
+  const url = isLeadersBoard
+    ? `/api/leaderboard/leaders/${kind}`
+    : `/api/leaderboard/${kind}`;
+
   try {
-    const { rows } = await api(`/api/leaderboard/${kind}`);
-    if (myGen !== leaderboardGen) return;   // stale — a newer tab click ran already
+    const { rows } = await api(url);
+    if (myGen !== leaderboardGen) return;
     loader.remove();
-    if (!rows.length) return view.append(el("p", { class: "hint" }, "No coordinators yet."));
+
+    // HK's own summary row on top of the LEADERS board — sum-of-all so
+    // HK Leader sees the whole-org total in one line.
+    if (isLeadersBoard && ME.role === "hk_leader" && rows.length) {
+      const orgTotal = rows.reduce((s, r) => s + (r.pts || 0), 0);
+      const orgCoords = rows.reduce((s, r) => {
+        const c = (r.breakdown || []).find(b => b.k === "coords_in_team");
+        return s + (c ? c.n : 0);
+      }, 0);
+      const summary = el("div", { class: "card", style: "margin-bottom:.7rem;background:linear-gradient(180deg,var(--tint-responded),var(--tint-followed));border-color:var(--mark-responded)" },
+        el("div", { class: "spread" },
+          el("div", {}, el("strong", {}, "🏛 HK Leader · Whole org"),
+            el("div", { class: "hint" }, `${rows.length} NJY Leaders · ${orgCoords} coords`)),
+          el("span", { class: "score" }, `${orgTotal} pts`),
+        ),
+      );
+      view.append(summary);
+    }
+
+    if (!rows.length) {
+      return view.append(el("p", { class: "hint" }, isLeadersBoard ? "No NJY Leaders yet." : "No coordinators yet."));
+    }
     const ul = el("ul", { class: "list" });
     const medals = ["🥇", "🥈", "🥉"];
     rows.forEach((r, i) => {
       const label = medals[i] || `#${i + 1}`;
-      const breakdownText = (r.breakdown || []).map(b => `${prettyPointKind(b.k)}: ${b.pts}`).join(" · ");
+      const breakdownText = (r.breakdown || [])
+        .filter(b => b.pts !== 0 || b.n != null)
+        .map(b => b.n != null && b.pts === 0 ? `${prettyPointKind(b.k)}: ${b.n}` : `${prettyPointKind(b.k)}: ${b.pts}`)
+        .join(" · ");
+      // Coord board keeps the "open profile" link. Leaders board goes to
+      // that leader's drill-in page instead of profile (leaders don't
+      // have a personal coord-style profile page).
+      const openHref = isLeadersBoard
+        ? `#/leader/${r.user_id}`
+        : `#/profile/${r.user_id}`;
       const li = el("li", {},
         el("div", {}, el("strong", {}, `${label}  ${r.name}`),
           el("div", { class: "hint", style: "margin-top:.15rem" }, breakdownText || "—")),
         el("span", { class: "score" }, `${r.pts} pts`),
         r.user_id === ME.id
-          ? el("a", { class: "pill on", href: `#/profile/${r.user_id}`, style: "text-decoration:none" }, "you — view profile")
-          : el("a", { class: "btn", href: `#/profile/${r.user_id}` }, "Open"),
+          ? el("a", { class: "pill on", href: openHref, style: "text-decoration:none" }, "you — open")
+          : el("a", { class: "btn", href: openHref }, "Open"),
       );
       ul.append(li);
     });
@@ -1971,7 +2021,11 @@ async function renderLeaderboard(kind) {
   } catch (err) {
     if (myGen !== leaderboardGen) return;
     loader.remove();
-    view.append(el("p", { class: "error" }, err.message));
+    if (err.status === 403) {
+      view.append(el("p", { class: "hint" }, "Leaders leaderboard is only visible to HK Leader and NJY Leaders."));
+    } else {
+      view.append(el("p", { class: "error" }, err.message));
+    }
   }
 }
 
@@ -1991,6 +2045,9 @@ function prettyPointKind(k) {
     milestone_35_one_month: "milestone 35 one-month",
     milestone_16_njy2: "milestone 16 NJY-2",
     milestone_12_njy3: "milestone 12 NJY-3",
+    coords_in_team: "coords in team",
+    coords_scoring: "coords scoring",
+    sum_of_coord_pts: "team total",
   })[k] || k.replace(/_/g, " ");
 }
 
