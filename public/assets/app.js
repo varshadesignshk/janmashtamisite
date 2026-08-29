@@ -387,7 +387,7 @@ function renderRoute() {
   }
   const routes = {
     "":         renderCoordRoll,
-    "leader":   renderLeaderDashboard,
+    "leader":   () => arg ? renderLeaderDrill(arg) : renderLeaderDashboard($("view")),
     "hk":       renderHkDashboard,
     "user":     () => renderUserDrill(arg),
     "duties":   renderDuties,
@@ -632,32 +632,18 @@ function rollList(roll, editable) {
 // ------------------------------------------------- leader dashboard ---
 async function renderLeaderDashboard(view) {
   view.append(el("h2", { class: "section" }, t("nav.team")));
+  // HK Leader: hierarchical view — NJY Leaders first, drill to their coords.
+  if (ME.role === "hk_leader") return renderHkLeadersList(view);
   view.append(helpBanner(t("help.team")));
   const loader = loadingLine("Loading your coordinators…");
   view.append(loader);
   try {
-    // HK Leader gets the 4 KPI tiles at the top of Team so they have the
-    // whole-org snapshot without needing to switch to the HK tab.
-    if (ME.role === "hk_leader") {
-      try {
-        const s = await api("/api/hk/summary");
-        const grid = el("div", { class: "tally" });
-        grid.append(
-          el("div", { class: "cell" }, el("div", { class: "n" }, String(s.total_people)), el("div", { class: "k" }, t("hd.people"))),
-          el("div", { class: "cell" }, el("div", { class: "n" }, String(s.chanted_today)), el("div", { class: "k" }, t("hd.chanted_today"))),
-          el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_leaders)), el("div", { class: "k" }, t("hd.njy_leaders"))),
-          el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_coordinators)), el("div", { class: "k" }, t("hd.coordinators"))),
-        );
-        view.append(grid);
-      } catch (_) { /* KPIs are supplemental — silent skip */ }
-    }
     const { coordinators } = await api("/api/leader/coordinators");
     loader.remove();
     if (!coordinators.length) {
-      const msg = ME.role === "hk_leader" ? t("msg.no_coords_hk") : t("msg.no_coords_leader");
-      return view.append(el("p", { class: "hint" }, msg));
+      return view.append(el("p", { class: "hint" }, t("msg.no_coords_leader")));
     }
-    view.append(el("h3", { class: "section" }, ME.role === "hk_leader" ? t("hd.all_coords") : t("hd.your_coords")));
+    view.append(el("h3", { class: "section" }, t("hd.your_coords")));
     const ul = el("ul", { class: "list" });
     for (const c of coordinators) {
       ul.append(el("li", {}, coordCard(c)));
@@ -667,6 +653,204 @@ async function renderLeaderDashboard(view) {
     loader.remove();
     view.append(el("p", { class: "error" }, err.message));
   }
+}
+
+// HK Leader home — the leaders list with per-leader aggregates. Each row
+// drills into a leader-detail page showing that leader's coords.
+async function renderHkLeadersList(view) {
+  view.append(helpBanner(t("help.hk_leaders_list")));
+  const loader = loadingLine("Loading leaders…");
+  view.append(loader);
+  try {
+    // KPI tiles first (fast — single query behind the scenes)
+    try {
+      const s = await api("/api/hk/summary");
+      const grid = el("div", { class: "tally" });
+      grid.append(
+        el("div", { class: "cell" }, el("div", { class: "n" }, String(s.total_people)), el("div", { class: "k" }, t("hd.people"))),
+        el("div", { class: "cell" }, el("div", { class: "n" }, String(s.chanted_today)), el("div", { class: "k" }, t("hd.chanted_today"))),
+        el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_leaders)), el("div", { class: "k" }, t("hd.njy_leaders"))),
+        el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_coordinators)), el("div", { class: "k" }, t("hd.coordinators"))),
+      );
+      view.append(grid);
+    } catch (_) {}
+    const { leaders } = await api("/api/hk/leaders");
+    loader.remove();
+    view.append(el("h3", { class: "section" }, t("hd.hk_leaders_list")));
+    if (!leaders.length) return view.append(el("p", { class: "hint" }, t("msg.no_coords_hk")));
+    const ul = el("ul", { class: "list" });
+    for (const l of leaders) ul.append(el("li", {}, leaderRowCard(l)));
+    view.append(ul);
+  } catch (err) {
+    loader.remove();
+    view.append(el("p", { class: "error" }, err.message));
+  }
+}
+
+function leaderRowCard(l) {
+  const activePct = l.coord_count ? Math.round(100 * l.active_coords_today / l.coord_count) : 0;
+  return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
+    el("div", {},
+      el("div", { class: "spread" },
+        el("strong", {}, l.name),
+        el("a", { class: "btn", href: `#/leader/${l.user_id}` }, t("btn.open")),
+      ),
+      el("div", { class: "hint", style: "margin-top:.2rem" },
+        `${l.coord_count} ${t("hd.coordinators").toLowerCase()} · ${l.assigned} ${t("hd.people").toLowerCase()}`,
+      ),
+      el("div", { class: "progress-line", style: "margin-top:.55rem" },
+        el("span", {}, t("hd.coords_active_today")),
+        el("span", { class: "fraction" }, `${l.active_coords_today} of ${l.coord_count}`),
+      ),
+      el("div", { class: "pbar", "data-mid": String(activePct >= 60 ? 0 : (activePct >= 30 ? 1 : 2)), style: `--pct:${activePct}%` }),
+      el("div", { class: "progress-line", style: "margin-top:.4rem" },
+        el("span", {}, t("hd.chanted_today")),
+        el("span", { class: "fraction" }, `${l.chanted_today} of ${l.assigned}`),
+      ),
+    ),
+  );
+}
+
+// HK drills into a specific NJY Leader — sees that leader's coords with
+// the same coordCard used elsewhere, PLUS an assign button that opens
+// a picker to move coords under this leader.
+async function renderLeaderDrill(leaderId) {
+  const view = $("view");
+  const backHref = ME.role === "hk_leader" ? "#/leader" : "#/";
+  const loader = loadingLine("Loading…");
+  view.append(loader);
+  try {
+    const target = await api(`/api/user/${encodeURIComponent(leaderId)}`).catch(() => null);
+    // Fall back to enumerating leaders if the single-user endpoint isn't there.
+    const [{ leaders }, { users }] = await Promise.all([
+      api("/api/hk/leaders").catch(() => ({ leaders: [] })),
+      api("/api/admin/users").catch(() => ({ users: [] })),
+    ]);
+    const leader = leaders.find(l => l.user_id === leaderId) || {};
+    const leaderUser = users.find(u => u.id === leaderId);
+    const name = leader.name || leaderUser?.display_name || leaderUser?.username || "Leader";
+    loader.remove();
+    view.append(el("div", { class: "spread" },
+      el("h2", { class: "section" }, `${name} · ${humanRole("njy_leader")}`),
+      el("a", { class: "btn", href: backHref }, t("btn.back")),
+    ));
+    // KPI strip for this leader
+    const grid = el("div", { class: "tally" });
+    grid.append(
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(leader.coord_count || 0)), el("div", { class: "k" }, t("hd.coords_in_team"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(leader.active_coords_today || 0)), el("div", { class: "k" }, t("hd.coords_active_today"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(leader.assigned || 0)), el("div", { class: "k" }, t("hd.people"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(leader.chanted_today || 0)), el("div", { class: "k" }, t("hd.chanted_today"))),
+    );
+    view.append(grid);
+
+    // Assign button
+    if (ME.role === "hk_leader") {
+      const assignBtn = el("button", { class: "primary" }, t("btn.assign_coords"));
+      assignBtn.addEventListener("click", () => openAssignCoordsModal(leaderId, name, users));
+      view.append(el("p", { style: "margin:.6rem 0" }, assignBtn));
+    }
+
+    // This leader's coords — fetch the per-leader coord list. The
+    // /api/leader/coordinators endpoint filters by the CURRENT user, so
+    // we filter client-side from all coordinators against manager_user_id.
+    const myCoords = users.filter(u => u.role === "njy_coordinator" && u.active && u.manager_user_id === leaderId);
+    view.append(el("h3", { class: "section" }, t("hd.currently_assigned")));
+    if (!myCoords.length) {
+      view.append(el("p", { class: "hint" }, "No coordinators assigned to this leader yet."));
+      return;
+    }
+    // Enrich each with the same shape coordCard expects. Cheapest path:
+    // reuse /api/leader/coordinators (HK sees all) and filter.
+    try {
+      const { coordinators } = await api("/api/leader/coordinators");
+      const wanted = new Set(myCoords.map(c => c.id));
+      const rows = coordinators.filter(c => wanted.has(c.user_id));
+      const ul = el("ul", { class: "list" });
+      for (const c of rows) ul.append(el("li", {}, coordCard(c)));
+      view.append(ul);
+    } catch (err) {
+      view.append(el("p", { class: "error" }, err.message));
+    }
+  } catch (err) {
+    loader.remove();
+    view.append(el("p", { class: "error" }, err.message));
+  }
+}
+
+// Modal to bulk-assign coords under a leader. Shows currently-assigned
+// as ticked, and unassigned coords with a ✱ so HK can see who's floating.
+function openAssignCoordsModal(leaderId, leaderName, allUsers) {
+  const backdrop = el("div", {
+    style: "position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto",
+  });
+  const box = el("div", {
+    style: "background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);max-width:520px;width:100%;padding:1rem 1.2rem;box-shadow:var(--shadow)",
+  });
+  box.append(el("div", { class: "spread" },
+    el("h3", { class: "section", style: "margin:0" }, t("hd.assign_coords_title") + " " + leaderName),
+    el("button", { class: "ghost", type: "button", id: "am-close" }, "✕"),
+  ));
+  box.append(el("p", { class: "hint" }, t("help.assign_coords")));
+
+  const coords = allUsers.filter(u => u.role === "njy_coordinator" && u.active);
+  const assigned = coords.filter(c => c.manager_user_id === leaderId);
+  const otherAssigned = coords.filter(c => c.manager_user_id && c.manager_user_id !== leaderId);
+  const unassigned = coords.filter(c => !c.manager_user_id);
+
+  const list = el("div", { style: "max-height:50vh;overflow-y:auto;margin-top:.6rem" });
+  const section = (title, items, ticked) => {
+    if (!items.length) return null;
+    const wrap = el("div", { style: "margin-bottom:.7rem" });
+    wrap.append(el("h4", { style: "margin:.4rem 0 .3rem;color:var(--peacock-deep);font-size:.9rem" }, title));
+    for (const c of items) {
+      const cb = el("input", { type: "checkbox", value: c.id });
+      if (ticked) cb.checked = true;
+      const row = el("label", {
+        style: "display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.85rem;border-bottom:1px dashed var(--line);cursor:pointer",
+      }, cb, el("span", {}, `${c.display_name || c.username} `, el("span", { class: "hint" }, `· ${c.username}`)));
+      wrap.append(row);
+    }
+    list.append(wrap);
+  };
+  section(t("hd.currently_assigned"), assigned, true);
+  section("Unassigned ✱", unassigned, false);
+  if (otherAssigned.length) {
+    section("Currently under another leader", otherAssigned, false);
+  }
+  box.append(list);
+
+  const msg = el("span", { class: "hint", style: "margin-left:.6rem" });
+  const save = el("button", { class: "primary" }, t("btn.save_assignments"));
+  box.append(el("p", { style: "margin-top:.7rem" }, save, msg));
+
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    const checked = Array.from(box.querySelectorAll("input[type=checkbox]:checked")).map(x => x.value);
+    const unchecked = Array.from(box.querySelectorAll("input[type=checkbox]:not(:checked)")).map(x => x.value);
+    // Unassign coords that WERE this leader's but are now unchecked
+    const toRelease = assigned.map(c => c.id).filter(id => unchecked.includes(id));
+    try {
+      if (checked.length) {
+        await api(`/api/hk/leader/${leaderId}/assign`, { method: "POST",
+          body: JSON.stringify({ coord_user_ids: checked }) });
+      }
+      if (toRelease.length) {
+        await api(`/api/hk/leader/${leaderId}/assign`, { method: "POST",
+          body: JSON.stringify({ coord_user_ids: toRelease, unassign: true }) });
+      }
+      msg.textContent = t("msg.assign_saved");
+      // Refresh the drill page
+      setTimeout(() => { backdrop.remove(); renderRoute(); }, 500);
+    } catch (err) {
+      msg.textContent = err.message || "Failed.";
+      save.disabled = false;
+    }
+  });
+  box.querySelector("#am-close").addEventListener("click", () => backdrop.remove());
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+  backdrop.append(box);
+  document.body.append(backdrop);
 }
 
 // Reusable per-coordinator progress card. Used on both Team and HK
@@ -2412,7 +2596,7 @@ async function renderAdminUsers(view) {
       el("div", { class: "grid2" },
         formField("Password", el("input", { id: "u-pass", type: "password", required: true })),
         formField("Role", el("select", { id: "u-role" },
-          el("option", { value: "njy_coordinator" }, "NJY Coordinator"),
+          el("option", { value: "njy_coordinator" }, "NJY Group Coordinator"),
           el("option", { value: "njy_leader" }, "NJY Leader"),
           el("option", { value: "servant_leader" }, "Servant Leader"),
           el("option", { value: "sector_servant" }, "Sector Servant"),

@@ -96,7 +96,7 @@ const DICT = {
     // Roles
     "role.hk_leader": "HK Leader",
     "role.njy_leader": "NJY Leader",
-    "role.njy_coordinator": "NJY Coordinator",
+    "role.njy_coordinator": "NJY Group Coordinator",
     "role.manjari_servant_leader": "Manjari Servant Leader",
     "role.circle_servant": "Circle Servant",
     "role.sector_servant": "Sector Servant",
@@ -157,6 +157,19 @@ const DICT = {
     "hd.upload_excel_file": "Upload Excel or CSV file",
     "btn.download_users_template": "⬇ Download users template (Excel)",
     "btn.download_chanters_template": "⬇ Download chanters template (Excel)",
+
+    // HK-leader drill hierarchy
+    "hd.hk_leaders_list": "NJY Leaders",
+    "help.hk_leaders_list": "Every NJY Leader with their aggregate stats. Coords active today shows how many of that leader's coords have marked at least one chant today — a proxy for follow-up. Tap Open to see that leader's coordinators, assign new ones, or drill into any coord's roll.",
+    "hd.coords_active_today": "Coords active today",
+    "hd.coords_in_team": "Coordinators in team",
+    "btn.assign_coords": "＋ Assign coordinators",
+    "hd.assign_coords_title": "Assign coordinators to",
+    "help.assign_coords": "Pick coordinators to move UNDER this leader. Currently-assigned coords are ticked and remain ticked; untick to release. Unassigned coords appear at the bottom with the ✱ mark.",
+    "btn.save_assignments": "Save assignments",
+    "msg.assign_saved": "Saved assignments.",
+    "hd.currently_assigned": "Currently assigned",
+    "hd.unassigned_coords": "Unassigned coordinators",
   },
 
   ta: {
@@ -252,7 +265,7 @@ const DICT = {
     // Roles
     "role.hk_leader": "HK தலைவர்",
     "role.njy_leader": "NJY தலைவர்",
-    "role.njy_coordinator": "NJY ஒருங்கிணைப்பாளர்",
+    "role.njy_coordinator": "NJY குழு ஒருங்கிணைப்பாளர்",
     "role.manjari_servant_leader": "மஞ்சரி சேவக தலைவர்",
     "role.circle_servant": "வட்ட சேவகர்",
     "role.sector_servant": "பிரிவு சேவகர்",
@@ -313,6 +326,19 @@ const DICT = {
     "hd.upload_excel_file": "Excel அல்லது CSV கோப்பை பதிவேற்று",
     "btn.download_users_template": "⬇ பயனர்கள் மாதிரி பதிவிறக்கு (Excel)",
     "btn.download_chanters_template": "⬇ ஜபிப்பவர்கள் மாதிரி பதிவிறக்கு (Excel)",
+
+    // HK-leader drill hierarchy
+    "hd.hk_leaders_list": "NJY தலைவர்கள்",
+    "help.hk_leaders_list": "ஒவ்வொரு NJY தலைவரின் மொத்த புள்ளிவிவரங்கள். இன்று செயல்பட்ட ஒருங்கிணைப்பாளர்கள் — அந்த தலைவரின் எத்தனை ஒருங்கிணைப்பாளர்கள் இன்று குறைந்தது ஒரு ஜபத்தை பதிவு செய்துள்ளனர் என்பதைக் காட்டுகிறது. திற என்பதைத் தட்டி தலைவரின் ஒருங்கிணைப்பாளர்களைப் பார்க்கவும், புதியவற்றை ஒதுக்கவும், அல்லது எந்த ஒருங்கிணைப்பாளரின் பட்டியலிலும் இறங்கவும்.",
+    "hd.coords_active_today": "இன்று செயல்பட்ட ஒருங்கிணைப்பாளர்கள்",
+    "hd.coords_in_team": "குழுவில் ஒருங்கிணைப்பாளர்கள்",
+    "btn.assign_coords": "＋ ஒருங்கிணைப்பாளர்களை ஒதுக்கு",
+    "hd.assign_coords_title": "ஒருங்கிணைப்பாளர்களை ஒதுக்கவும்:",
+    "help.assign_coords": "இந்த தலைவரின் கீழ் நகர்த்த ஒருங்கிணைப்பாளர்களைத் தேர்ந்தெடுக்கவும். தற்போது ஒதுக்கப்பட்டவர்கள் தேர்வுசெய்யப்பட்டுள்ளனர்; விடுவிக்க தேர்வை நீக்கவும். ஒதுக்கப்படாதவர்கள் ✱ குறியுடன் கீழே வருவார்கள்.",
+    "btn.save_assignments": "ஒதுக்கீடுகளை சேமி",
+    "msg.assign_saved": "சேமிக்கப்பட்டது.",
+    "hd.currently_assigned": "தற்போது ஒதுக்கப்பட்டவர்கள்",
+    "hd.unassigned_coords": "ஒதுக்கப்படாத ஒருங்கிணைப்பாளர்கள்",
   },
 };
 
