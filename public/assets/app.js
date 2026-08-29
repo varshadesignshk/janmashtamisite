@@ -21,6 +21,73 @@ const el = (tag, attrs = {}, ...children) => {
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
 
+// Turn a raw error code from the server (or an in-app validation code)
+// into a friendly, actionable sentence the operator can act on. Add a
+// case here whenever the backend introduces a new bad(...) code, so the
+// UI never falls back to opaque "http_500" or "duplicate_phone".
+const ERROR_MESSAGES = {
+  // Auth
+  invalid_credentials: "Wrong username or password.",
+  missing_credentials: "Type both username and password.",
+  wrong_current_password: "Current password is wrong.",
+  password_too_short: "New password must be at least 6 characters.",
+  both_passwords_required: "Fill in both current and new password.",
+  session_secret_missing: "Server misconfigured (SESSION_SECRET not set). Contact admin.",
+  unauthorized: "You need to sign in again.",
+  forbidden: "You don't have permission for this action.",
+  // Not found
+  not_found: "Nothing found at this path.",
+  user_not_found: "That user doesn't exist.",
+  target_user_not_found: "The user you're trying to update doesn't exist.",
+  person_not_found: "That chanter doesn't exist.",
+  event_not_found: "That event doesn't exist.",
+  leader_not_found: "That NJY Leader doesn't exist.",
+  duty_not_found: "That duty doesn't exist.",
+  not_your_roll: "That chanter belongs to a different coordinator.",
+  // Users
+  username_taken: "That username is already used — pick another.",
+  missing_fields: "One or more required fields are blank.",
+  bad_role: "Role must be one of: hk_leader, njy_leader, njy_coordinator, servant_leader, sector_servant, circle_servant.",
+  manager_not_found: "manager_username points to a leader that doesn't exist yet — did you import the leader row first?",
+  // Chanter import
+  duplicate_phone: "A chanter with that phone number already exists.",
+  duplicate_coupon: "A chanter with that coupon number already exists.",
+  duplicate_sl_no: "That serial number is already used.",
+  coupon_or_range_required: "Enter a coupon number, or ask HK Leader to assign your coord an sl_range.",
+  range_exhausted_or_missing: "Your assigned sl_no range is exhausted — ask HK Leader to widen it.",
+  name_and_mobile_required: "Both name and mobile are required.",
+  // Bulk
+  rows_required: "The request had no rows to import.",
+  bad_body: "The request body was malformed.",
+  bad_status: "That status value isn't allowed.",
+  no_templates: "Nothing was changed — WhatsApp templates were empty.",
+  bad_subscription: "Push subscription data was incomplete.",
+  endpoint_required: "Push endpoint missing.",
+  person_id_required: "Missing person_id.",
+  group_id_required: "Missing group_id.",
+  // Network / HTTP
+  http_400: "The server rejected the request (400 Bad Request). Check your input.",
+  http_401: "Session expired — sign in again.",
+  http_403: "You don't have permission for this action.",
+  http_404: "Not found.",
+  http_409: "That conflicts with existing data (usually a duplicate).",
+  http_500: "The server hit an error. Try again in a minute; if it repeats, check dev console for the exact cause.",
+  http_502: "Server unreachable (bad gateway). Cloudflare may still be deploying — wait 60 seconds and retry.",
+  http_503: "Server temporarily unavailable. Retry shortly.",
+};
+function humanizeError(err) {
+  if (!err) return "Something went wrong.";
+  if (typeof err === "string") return ERROR_MESSAGES[err] || err;
+  const code = err.body?.error || err.error || err.message || "";
+  if (ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+  if (err.status) {
+    const gen = ERROR_MESSAGES[`http_${err.status}`];
+    if (gen) return `${gen} (code: ${code})`;
+  }
+  return code || String(err);
+}
+window.humanizeError = humanizeError;
+
 const api = async (path, opts = {}) => {
   const method = (opts.method || "GET").toUpperCase();
   try {
@@ -40,7 +107,15 @@ const api = async (path, opts = {}) => {
       console.log("body:", body);
       console.log("request opts:", opts);
       console.groupEnd();
-      const e = new Error(body.error || `http_${res.status}`);
+      // Raw code preserved for exact-match branches (e.g. some UIs
+      // still branch on wrong_current_password). But err.message is
+      // now the FRIENDLY sentence, so every "catch (err) { view.append
+      // (err.message) }" spot upgrades automatically without touching
+      // 30 call sites.
+      const code = body.error || `http_${res.status}`;
+      const friendly = humanizeError({ body, status: res.status });
+      const e = new Error(friendly);
+      e.code = code;
       e.status = res.status; e.body = body; e.path = path; e.method = method;
       throw e;
     }
@@ -1565,18 +1640,24 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
       const result = await onCommit(parsedRows);
       const created = result.created ?? parsedRows.length;
       const errs = result.errors || [];
-      msg.textContent = `Imported ${created}${errs.length ? ` · ${errs.length} error(s)` : ""}`;
-      // Every error row rendered inline so the operator can SEE which
-      // row broke and WHY, instead of a bare "3 error(s)" count.
+      msg.textContent = `Imported ${created}${errs.length ? ` · ${errs.length} row error(s)` : ""}`;
+
+      // Case A — some rows failed on the backend. Render each with a
+      // friendly reason (humanizeError translates codes like
+      // "username_taken" → "That username is already used…").
       if (errs.length) {
-        const card = el("div", { class: "card", style: "border-color:var(--mark-red,#c02020);background:#fff5f5;margin-top:.5rem" });
-        card.append(el("strong", { style: "color:#c02020" }, `${errs.length} row(s) rejected:`));
-        const ul = el("ul", { style: "margin:.4rem 0 0;padding-left:1.2rem;font-family:var(--font-mono);font-size:.78rem" });
+        const card = el("div", { class: "card", style: "border-color:#c02020;background:#fff5f5;margin-top:.5rem" });
+        card.append(el("h4", { style: "color:#c02020;margin:0 0 .3rem" }, `${errs.length} row(s) rejected by the server:`));
+        const ul = el("ul", { style: "margin:.2rem 0 0;padding-left:1.2rem;font-size:.85rem" });
         errs.slice(0, 20).forEach(e => {
-          // Rows can come back as {row:{...}, error:"..."} or plain {error, username}
-          const label = e.row?.username || e.username || e.row?.name || e.name || e.row?.legal_name || e.legal_name || "(row)";
-          const reason = e.error || e.reason || JSON.stringify(e);
-          ul.append(el("li", {}, `${label} — `, el("span", { style: "color:#c02020" }, reason)));
+          const label = e.row?.username || e.username || e.row?.name || e.name || e.row?.legal_name || e.legal_name || `row #${(e.index ?? "?") + 1}`;
+          const rawReason = e.error || e.reason || (e.message ? e.message : "");
+          const friendly = humanizeError({ body: { error: rawReason }, status: 400 });
+          ul.append(el("li", { style: "margin-bottom:.2rem" },
+            el("strong", {}, label), " — ",
+            el("span", {}, friendly),
+            el("span", { class: "hint", style: "margin-left:.4rem;font-family:var(--font-mono);font-size:.7rem" }, `[${rawReason}]`),
+          ));
         });
         if (errs.length > 20) ul.append(el("li", { class: "hint" }, `…and ${errs.length - 20} more (see browser console)`));
         card.append(ul);
@@ -1585,13 +1666,36 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
         errs.forEach((e, i) => console.log(`row ${i}:`, e));
         console.groupEnd();
       }
+
+      // Case B — the server returned created:0 with NO row-errors. Very
+      // suspicious (usually means all rows were silently filtered or the
+      // endpoint returned an unexpected shape). Surface it loudly.
+      if (created === 0 && !errs.length) {
+        const card = el("div", { class: "card", style: "border-color:#c07a00;background:#fff8ee;margin-top:.5rem" });
+        card.append(el("h4", { style: "color:#c07a00;margin:0 0 .3rem" }, "0 rows imported, but the server didn't return any row errors."));
+        card.append(el("p", { style: "margin:0;font-size:.85rem" },
+          "This usually means: (1) the file's rows didn't map to any usable data, (2) they were all duplicates the server silently skipped, or (3) the endpoint returned an unexpected shape. ",
+          "Open the browser console (F12) for full request/response detail — every API call logs there now.",
+        ));
+        errBox.append(card);
+      }
+
       previewBox.innerHTML = "";
       fileInput.value = "";
       parsedRows = [];
-      if (created > 0) commitBtn.disabled = true; else commitBtn.disabled = false;
+      commitBtn.disabled = created > 0;
     } catch (err) {
-      msg.textContent = "Import failed: " + err.message;
-      // api() already logged to console, but re-log with widget context
+      // Whole-request failure (network, 500, 403, etc). Show friendly
+      // message on-screen AND full detail in the error box + console.
+      const friendly = humanizeError(err);
+      msg.textContent = "Import failed: " + friendly;
+      const card = el("div", { class: "card", style: "border-color:#c02020;background:#fff5f5;margin-top:.5rem" });
+      card.append(el("h4", { style: "color:#c02020;margin:0 0 .3rem" }, "Import failed"));
+      card.append(el("p", { style: "margin:0 0 .3rem;font-size:.9rem" }, friendly));
+      const detail = err.body?.error || err.message || "unknown";
+      card.append(el("p", { class: "hint", style: "margin:0;font-family:var(--font-mono);font-size:.75rem" },
+        `Raw: HTTP ${err.status || "?"} · ${detail}`));
+      errBox.append(card);
       console.error("[import commit] failed:", err);
       commitBtn.disabled = false;
     }
