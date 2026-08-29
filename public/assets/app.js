@@ -804,11 +804,17 @@ function openAssignCoordsModal(leaderId, leaderName, allUsers) {
     const wrap = el("div", { style: "margin-bottom:.7rem" });
     wrap.append(el("h4", { style: "margin:.4rem 0 .3rem;color:var(--peacock-deep);font-size:.9rem" }, title));
     for (const c of items) {
-      const cb = el("input", { type: "checkbox", value: c.id });
+      const cb = el("input", { type: "checkbox", value: c.id, style: "flex:0 0 auto;margin:0" });
       if (ticked) cb.checked = true;
       const row = el("label", {
-        style: "display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.85rem;border-bottom:1px dashed var(--line);cursor:pointer",
-      }, cb, el("span", {}, `${c.display_name || c.username} `, el("span", { class: "hint" }, `· ${c.username}`)));
+        style: "display:flex;align-items:center;gap:.6rem;padding:.4rem .1rem;font-size:.9rem;border-bottom:1px dashed var(--line);cursor:pointer;line-height:1.3",
+      },
+        cb,
+        el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left" },
+          el("strong", { style: "font-weight:500;color:var(--ink-2)" }, c.display_name || c.username),
+          el("span", { class: "hint", style: "margin-left:.4rem;font-size:.8rem" }, `· ${c.username}`),
+        ),
+      );
       wrap.append(row);
     }
     list.append(wrap);
