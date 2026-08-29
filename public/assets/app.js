@@ -803,6 +803,7 @@ async function renderHkLeadersList(view) {
 
 function leaderRowCard(l) {
   const activePct = l.coord_count ? Math.round(100 * l.active_coords_today / l.coord_count) : 0;
+  const chantedPct = l.assigned ? Math.round(100 * l.chanted_today / l.assigned) : 0;
   return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
     el("div", {},
       el("div", { class: "spread" },
@@ -821,6 +822,7 @@ function leaderRowCard(l) {
         el("span", {}, t("hd.chanted_today")),
         el("span", { class: "fraction" }, `${l.chanted_today} of ${l.assigned}`),
       ),
+      el("div", { class: "pbar", "data-mid": String(chantedPct >= 60 ? 0 : (chantedPct >= 30 ? 1 : 2)), style: `--pct:${chantedPct}%` }),
     ),
   );
 }
