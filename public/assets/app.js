@@ -2417,14 +2417,26 @@ async function renderAdmin(tab) {
     "BG sessions with their real dates."
   ));
   const tabs = el("div", { class: "nav", style: "border:none" });
-  const t = (key, label) => el("a", { class: tab === key ? "active" : "", href: `#/admin/${key}` }, label);
-  tabs.append(t("gates", "Feature gates"), t("users", "Users"), t("users-bulk", "Bulk create users"), t("import", "Bulk import chanters"), t("events", "Events"));
+  // Each sub-tab is now individually gate-able. HK Leader always sees
+  // everything (can() short-circuits). For any other role, only the
+  // sub-tabs their gate allows show up here — and route access is guarded
+  // below in case they hit the URL directly.
+  const subGates = [
+    { key: "gates",       gate: "admin_gates",           label: "Feature gates",      render: renderAdminGates },
+    { key: "users",       gate: "admin_users",           label: "Users",              render: renderAdminUsers },
+    { key: "users-bulk",  gate: "admin_users_bulk",      label: "Bulk create users",  render: renderAdminUsersBulk },
+    { key: "import",      gate: "admin_import_chanters", label: "Bulk import chanters", render: renderAdminImport },
+    { key: "events",      gate: "admin_events",          label: "Events",             render: renderAdminEvents },
+  ];
+  const visible = subGates.filter(s => can(s.gate));
+  const mkTab = (key, label) => el("a", { class: tab === key ? "active" : "", href: `#/admin/${key}` }, label);
+  for (const s of visible) tabs.append(mkTab(s.key, s.label));
   view.append(tabs);
-  if (tab === "users") return renderAdminUsers(view);
-  if (tab === "users-bulk") return renderAdminUsersBulk(view);
-  if (tab === "import") return renderAdminImport(view);
-  if (tab === "events") return renderAdminEvents(view);
-  return renderAdminGates(view);
+  const target = subGates.find(s => s.key === tab) || subGates[0];
+  if (!can(target.gate)) {
+    return view.append(el("p", { class: "hint" }, "You don't have access to this admin section."));
+  }
+  return target.render(view);
 }
 
 // Bulk-create coord/leader accounts from Excel or paste.
