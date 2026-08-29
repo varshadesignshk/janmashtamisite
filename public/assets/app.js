@@ -1420,7 +1420,7 @@ async function readSpreadsheetFile(file) {
 //
 // mapRow(rowObj) → { name, mobile, pincode, ... } (or whatever the API
 // expects). onCommit(mappedRows) does the actual API call.
-function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, templateLabel, previewCols }) {
+function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, templateLabel, previewCols, isValidRow, emptyMessage, previewRow }) {
   const wrap = el("div", {});
   const tplLabel = templateLabel || t("btn.download_template");
   const tplBtn = el("button", { type: "button", class: "ghost" }, tplLabel);
@@ -1456,25 +1456,29 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
     msg.textContent = "Parsing…";
     try {
       const raw = await readSpreadsheetFile(fileInput.files[0]);
-      parsedRows = raw.map(mapRow).filter(r => r.name && r.mobile);
+      // The default row-validity check kept this widget chanter-only.
+      // Now every caller can pass their own shape check + empty message.
+      const rowIsValid = isValidRow || ((r) => r.name && r.mobile);
+      parsedRows = raw.map(mapRow).filter(rowIsValid);
       if (!parsedRows.length) {
-        previewBox.append(el("p", { class: "error" }, "No usable rows found. Make sure the file has 'name' and 'mobile' columns."));
+        previewBox.append(el("p", { class: "error" }, emptyMessage
+          || "No usable rows found. Make sure the file has 'name' and 'mobile' columns."));
         msg.textContent = "";
         return;
       }
       msg.textContent = `Parsed ${parsedRows.length} row(s). Preview:`;
       const table = el("table", { style: "width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.4rem" });
-      const head = el("tr", {},
-        el("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:.3rem" }, "Name"),
-        el("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:.3rem" }, "Mobile"),
-        el("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:.3rem" }, "Pincode"),
-      );
+      // Default preview is chanter-shaped; each caller can override with
+      // previewCols (header labels) + previewRow (row -> [cell values]).
+      const cols = previewCols || ["Name", "Mobile", "Pincode"];
+      const rowFn = previewRow || ((r) => [r.name || "", r.mobile || "", r.pincode || ""]);
+      const head = el("tr", {}, ...cols.map(c =>
+        el("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:.3rem" }, c)));
       table.append(head);
       parsedRows.slice(0, 8).forEach(r => {
         table.append(el("tr", {},
-          el("td", { style: "padding:.3rem;border-bottom:1px solid var(--line)" }, r.name),
-          el("td", { style: "padding:.3rem;border-bottom:1px solid var(--line);font-family:var(--font-mono)" }, r.mobile),
-          el("td", { style: "padding:.3rem;border-bottom:1px solid var(--line);font-family:var(--font-mono)" }, r.pincode || ""),
+          ...rowFn(r).map(v =>
+            el("td", { style: "padding:.3rem;border-bottom:1px solid var(--line)" }, String(v ?? ""))),
         ));
       });
       previewBox.append(table);
@@ -2508,6 +2512,10 @@ async function renderAdminUsersBulk(view) {
     helperText: "Columns: username, password, display_name, phone, role, manager_username.",
     templateBuilder: downloadUsersTemplate,
     templateLabel: t("btn.download_users_template"),
+    isValidRow: (r) => r.username && r.display_name,
+    emptyMessage: "No usable rows found. Make sure the file has 'username' and 'display_name' columns filled in.",
+    previewCols: ["Username", "Display name", "Role", "Phone", "Manager"],
+    previewRow: (r) => [r.username, r.display_name, r.role, r.phone, r.manager_username],
     mapRow: (row) => ({
       username: String(row.username || row.Username || "").trim(),
       password: String(row.password || row.Password || "").trim(),
