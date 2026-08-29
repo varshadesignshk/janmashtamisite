@@ -2683,13 +2683,22 @@ async function renderAdminImport(view) {
   }));
   view.append(uploadCard);
 
-  // Path B — paste
+  // Path B — paste. Same coord picker as the file-upload path, so
+  // the operator never has to type a raw user id.
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
+  const pasteCoordSel = el("select", { id: "imp-assign" },
+    el("option", { value: "" }, "— pick coordinator for these pasted rows (or leave blank if coord_username is in the rows) —"),
+    ...coordUsers.map(c => el("option", { value: c.id }, `${c.display_name || c.username} (${c.username})`)),
+  );
   card.append(
-    el("h3", { class: "section" }, "Or paste rows"),
-    el("p", { class: "hint" }, "Paste rows from Excel (Ctrl-C copies as tab-separated) OR as CSV. Header row first. Minimum columns: legal_name, phone. Extra columns (dob, email, address, pincode, ...) are kept."),
-    formField("Paste here", el("textarea", { id: "imp-csv", rows: "12", placeholder: "legal_name\tphone\tpincode\nRavi\t+919999000001\t625001" })),
-    formField("Assign to coordinator user id (optional)", el("input", { id: "imp-assign" })),
+    el("h3", { class: "section" }, t("hd.paste_rows")),
+    el("p", { class: "hint" }, "Paste rows from Excel (Ctrl-C copies as tab-separated) OR as CSV. Header row first. Minimum columns: legal_name/name, phone/mobile. Optional: pincode, coupon_no, is_daily, coord_username."),
+    formField("Paste here", el("textarea", { id: "imp-csv", rows: "12", placeholder: "coupon_no\tname\tmobile\tpincode\tis_daily\tcoord_username\n1001\tRavi\t9999000001\t625001\tyes\tcoord01" })),
+    el("div", { style: "margin:.4rem 0" },
+      el("label", { style: "display:block;font-size:.85rem;color:var(--muted);margin-bottom:.2rem" },
+        "Assign to coordinator (batch default)"),
+      pasteCoordSel,
+    ),
     el("p", {},
       el("button", { class: "ghost", type: "button", id: "imp-preview" }, "Preview"),
       " ",
@@ -2725,9 +2734,20 @@ async function renderAdminImport(view) {
   card.onsubmit = async (e) => {
     e.preventDefault();
     try {
-      const rows = parse();
+      const rawRows = parse();
+      // Resolve per-row coord_username to user id, mirroring the file-upload path.
+      const byUsername = new Map(coordUsers.map(c => [c.username.toLowerCase(), c.id]));
+      const rows = rawRows.map(r => {
+        const un = String(r.coord_username || "").trim().toLowerCase();
+        return {
+          ...r,
+          legal_name: r.legal_name || r.name || "",
+          phone: r.phone || r.mobile || "",
+          assigned_to_user_id: (un && byUsername.get(un)) || pasteCoordSel.value || null,
+        };
+      });
       const r = await api("/api/import/commit", { method: "POST", body: JSON.stringify({
-        rows, assigned_to_user_id: $("imp-assign").value || null,
+        rows, assigned_to_user_id: pasteCoordSel.value || null,
       }) });
       $("imp-out").textContent = JSON.stringify(r, null, 2);
       $("imp-msg").textContent = `Created ${r.created} record(s).`;
