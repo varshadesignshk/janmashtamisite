@@ -1495,13 +1495,40 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
     msg.textContent = "Parsing…";
     try {
       const raw = await readSpreadsheetFile(fileInput.files[0]);
-      // The default row-validity check kept this widget chanter-only.
-      // Now every caller can pass their own shape check + empty message.
       const rowIsValid = isValidRow || ((r) => r.name && r.mobile);
-      parsedRows = raw.map(mapRow).filter(rowIsValid);
+      const mapped = raw.map(mapRow);
+      parsedRows = mapped.filter(rowIsValid);
+      // Console-log everything about the parse so client-side rejects
+      // aren't invisible. The complaint was "nothing here as well" —
+      // now every parse dump shows header keys, kept count, and each
+      // rejected row with its reason.
+      const droppedCount = mapped.length - parsedRows.length;
+      console.groupCollapsed(`%c[import parse] raw:${raw.length}  kept:${parsedRows.length}  dropped:${droppedCount}`,
+        droppedCount ? "color:#c07a00;font-weight:600" : "color:#0a7b52;font-weight:600");
+      console.log("first raw row (sheet columns as-is):", raw[0] || "(empty)");
+      console.log("first mapped row (after column rename):", mapped[0] || "(empty)");
+      console.log("validator check:", rowIsValid.toString());
+      if (droppedCount) {
+        console.log("dropped rows (first 20):");
+        let shown = 0;
+        for (let i = 0; i < mapped.length && shown < 20; i++) {
+          if (!rowIsValid(mapped[i])) {
+            console.log(`  row ${i}: raw=`, raw[i], " mapped=", mapped[i]);
+            shown++;
+          }
+        }
+      }
+      console.groupEnd();
       if (!parsedRows.length) {
+        // Print header keys the sheet actually had so operator can
+        // eyeball spelling issues (e.g. "Coupon_no" vs "coupon_no").
+        const headers = raw[0] ? Object.keys(raw[0]) : [];
         previewBox.append(el("p", { class: "error" }, emptyMessage
           || "No usable rows found. Make sure the file has 'name' and 'mobile' columns."));
+        if (headers.length) {
+          previewBox.append(el("p", { class: "hint", style: "font-family:var(--font-mono);font-size:.75rem;color:var(--muted)" },
+            "Headers found in the file: ", el("code", {}, headers.join(", "))));
+        }
         msg.textContent = "";
         return;
       }
@@ -2833,6 +2860,10 @@ async function renderAdminImport(view) {
     helperText: "Attach a .xlsx or .csv file. Columns: coupon_no, name, mobile, pincode, is_daily, coord_username. coord_username per-row wins over the batch dropdown above.",
     templateBuilder: downloadChanterTemplate,
     templateLabel: t("btn.download_chanters_template"),
+    isValidRow: (r) => r.legal_name && r.phone,
+    emptyMessage: "No usable rows found. Make sure the file has 'name' and 'mobile' columns (case-insensitive) with non-empty values.",
+    previewCols: ["Coupon #", "Name", "Mobile", "Pincode", "Daily?", "Coord"],
+    previewRow: (r) => [r.coupon_no, r.legal_name, r.phone, r.pincode || "", r.is_daily || "", r.coord_username || ""],
     mapRow: (row) => ({
       legal_name: String(row.legal_name || row.name || row.Name || row.NAME || "").trim(),
       phone: String(row.phone || row.mobile || row.Mobile || "").trim(),
