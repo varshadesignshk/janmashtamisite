@@ -2592,35 +2592,66 @@ async function renderAdminUsers(view) {
       ul.append(li);
     }
     view.append(ul);
+    // Leaders list drives the Manager dropdown — only NJY Leaders are
+    // valid managers (a coord's boss).
+    const leaders = users.filter(u => u.role === "njy_leader" && u.active);
     const form = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
+    const roleSel = el("select", { id: "u-role" },
+      el("option", { value: "njy_coordinator" }, "NJY Group Coordinator"),
+      el("option", { value: "njy_leader" }, "NJY Leader"),
+      el("option", { value: "servant_leader" }, "Servant Leader"),
+      el("option", { value: "sector_servant" }, "Sector Servant"),
+      el("option", { value: "circle_servant" }, "Circle Servant"),
+      el("option", { value: "hk_leader" }, "HK Leader"),
+    );
+    const mgrSel = el("select", { id: "u-manager" },
+      el("option", { value: "" }, "— no manager —"),
+      ...leaders.map(l => el("option", { value: l.username }, l.display_name || l.username)),
+    );
+    const mgrRow = el("div", { id: "u-manager-row" },
+      formField("Manager (NJY Leader)", mgrSel),
+    );
+    const updateMgrVisibility = () => {
+      mgrRow.style.display = (roleSel.value === "njy_coordinator") ? "" : "none";
+    };
+    roleSel.addEventListener("change", updateMgrVisibility);
     form.append(
       el("h3", { class: "section" }, "New user"),
+      el("p", { class: "hint" }, "Add a single leader or coordinator. Use Bulk create users when you have many at once."),
       el("div", { class: "grid2" },
-        formField("Username", el("input", { id: "u-name", required: true })),
+        formField("Username", el("input", { id: "u-name", required: true, autocapitalize: "none", autocomplete: "off" })),
         formField("Display name", el("input", { id: "u-display", required: true })),
       ),
       el("div", { class: "grid2" },
         formField("Password", el("input", { id: "u-pass", type: "password", required: true })),
-        formField("Role", el("select", { id: "u-role" },
-          el("option", { value: "njy_coordinator" }, "NJY Group Coordinator"),
-          el("option", { value: "njy_leader" }, "NJY Leader"),
-          el("option", { value: "servant_leader" }, "Servant Leader"),
-          el("option", { value: "sector_servant" }, "Sector Servant"),
-          el("option", { value: "circle_servant" }, "Circle Servant"),
-          el("option", { value: "hk_leader" }, "HK Leader"),
-        )),
+        formField("Phone", el("input", { id: "u-phone", inputmode: "numeric", placeholder: "10-digit or +91…" })),
+      ),
+      el("div", { class: "grid2" },
+        formField("Role", roleSel),
+        mgrRow,
       ),
       el("p", {}, el("button", { class: "primary", type: "submit" }, "Create user"),
         " ", el("span", { class: "hint", id: "u-msg" })),
     );
+    updateMgrVisibility();
     form.onsubmit = async (e) => {
       e.preventDefault();
-      const body = { username: $("u-name").value, password: $("u-pass").value,
-        display_name: $("u-display").value, role: $("u-role").value };
+      const body = {
+        username: $("u-name").value.trim(),
+        password: $("u-pass").value,
+        display_name: $("u-display").value.trim(),
+        role: $("u-role").value,
+        phone: $("u-phone").value.trim() || undefined,
+        manager_username: (roleSel.value === "njy_coordinator" && mgrSel.value) ? mgrSel.value : undefined,
+      };
       try {
         await api("/api/admin/users", { method: "POST", body: JSON.stringify(body) });
         $("u-msg").textContent = "Created."; renderRoute();
-      } catch (err) { $("u-msg").textContent = err.message; }
+      } catch (err) {
+        $("u-msg").textContent = err.body?.error === "username_taken" ? "That username is already taken."
+          : err.body?.error === "manager_not_found" ? "Manager not found — pick again."
+          : (err.message || "Could not create.");
+      }
     };
     view.append(form);
   } catch (err) {
