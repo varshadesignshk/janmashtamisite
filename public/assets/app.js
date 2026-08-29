@@ -22,14 +22,53 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
 
 const api = async (path, opts = {}) => {
-  const res = await fetch(path, {
-    ...opts, credentials: "same-origin",
-    headers: { "content-type": "application/json", ...(opts.headers || {}) },
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) { const e = new Error(body.error || `http_${res.status}`); e.status = res.status; e.body = body; throw e; }
-  return body;
+  const method = (opts.method || "GET").toUpperCase();
+  try {
+    const res = await fetch(path, {
+      ...opts, credentials: "same-origin",
+      headers: { "content-type": "application/json", ...(opts.headers || {}) },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Structured console log for every API failure — the top ask
+      // was "why nothing in console??? everytime it comes error, must
+      // be in console across everywhere". So we ALWAYS log the path,
+      // status, and full server payload with a group so it's easy to
+      // scan in devtools.
+      console.groupCollapsed(`%c[api] ${method} ${path} → ${res.status}`, "color:#c02020;font-weight:600");
+      console.log("error:", body.error || "(none)");
+      console.log("body:", body);
+      console.log("request opts:", opts);
+      console.groupEnd();
+      const e = new Error(body.error || `http_${res.status}`);
+      e.status = res.status; e.body = body; e.path = path; e.method = method;
+      throw e;
+    }
+    // Successful non-200 (like 207 partial), or a 200 with an `errors`
+    // array (common on bulk endpoints) — surface it too.
+    if (Array.isArray(body.errors) && body.errors.length) {
+      console.groupCollapsed(`%c[api] ${method} ${path} → 200 with ${body.errors.length} row error(s)`, "color:#c07a00;font-weight:600");
+      body.errors.slice(0, 10).forEach((e, i) => console.log(`row ${i}:`, e));
+      if (body.errors.length > 10) console.log(`…${body.errors.length - 10} more`);
+      console.groupEnd();
+    }
+    return body;
+  } catch (netErr) {
+    if (netErr && netErr.status != null) throw netErr; // already logged above
+    console.error(`[api] ${method} ${path} — network/JS error:`, netErr);
+    throw netErr;
+  }
 };
+
+// Global safety net — any promise rejection or JS error that reaches
+// the runtime unwrapped goes to console with context. Without this a
+// silent await in an event handler dies with no trace.
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("[unhandledrejection]", e.reason);
+});
+window.addEventListener("error", (e) => {
+  console.error("[window.error]", e.message, "at", e.filename + ":" + e.lineno, e.error);
+});
 
 const STATE_LABEL = ["uncontacted", "contacted", "responded"];
 const LIFECYCLE = ["chanter","daily","njy1","njy2","njy3","manjari","bv_member","dropped"];
@@ -1490,22 +1529,48 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
     }
   });
 
+  const errBox = el("div", { style: "margin-top:.6rem" });
   commitBtn.addEventListener("click", async () => {
     commitBtn.disabled = true;
     msg.textContent = "Importing…";
+    errBox.innerHTML = "";
     try {
       const result = await onCommit(parsedRows);
-      msg.textContent = `Imported ${result.created ?? parsedRows.length}${result.errors?.length ? ` · ${result.errors.length} error(s)` : ""}`;
+      const created = result.created ?? parsedRows.length;
+      const errs = result.errors || [];
+      msg.textContent = `Imported ${created}${errs.length ? ` · ${errs.length} error(s)` : ""}`;
+      // Every error row rendered inline so the operator can SEE which
+      // row broke and WHY, instead of a bare "3 error(s)" count.
+      if (errs.length) {
+        const card = el("div", { class: "card", style: "border-color:var(--mark-red,#c02020);background:#fff5f5;margin-top:.5rem" });
+        card.append(el("strong", { style: "color:#c02020" }, `${errs.length} row(s) rejected:`));
+        const ul = el("ul", { style: "margin:.4rem 0 0;padding-left:1.2rem;font-family:var(--font-mono);font-size:.78rem" });
+        errs.slice(0, 20).forEach(e => {
+          // Rows can come back as {row:{...}, error:"..."} or plain {error, username}
+          const label = e.row?.username || e.username || e.row?.name || e.name || e.row?.legal_name || e.legal_name || "(row)";
+          const reason = e.error || e.reason || JSON.stringify(e);
+          ul.append(el("li", {}, `${label} — `, el("span", { style: "color:#c02020" }, reason)));
+        });
+        if (errs.length > 20) ul.append(el("li", { class: "hint" }, `…and ${errs.length - 20} more (see browser console)`));
+        card.append(ul);
+        errBox.append(card);
+        console.groupCollapsed(`%c[import] ${errs.length} row error(s)`, "color:#c02020;font-weight:600");
+        errs.forEach((e, i) => console.log(`row ${i}:`, e));
+        console.groupEnd();
+      }
       previewBox.innerHTML = "";
       fileInput.value = "";
       parsedRows = [];
+      if (created > 0) commitBtn.disabled = true; else commitBtn.disabled = false;
     } catch (err) {
       msg.textContent = "Import failed: " + err.message;
+      // api() already logged to console, but re-log with widget context
+      console.error("[import commit] failed:", err);
       commitBtn.disabled = false;
     }
   });
 
-  wrap.append(fileInput, previewBox, el("p", { style: "margin-top:.6rem" }, commitBtn, msg));
+  wrap.append(fileInput, previewBox, el("p", { style: "margin-top:.6rem" }, commitBtn, msg), errBox);
   return wrap;
 }
 
