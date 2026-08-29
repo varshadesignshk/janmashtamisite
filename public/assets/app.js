@@ -2138,11 +2138,15 @@ async function renderLeaderboard(kind, rest) {
   // Route shape: #/leaderboard/<kind>[/leaders]
   //   kind = "daily" | "overall"
   //   suffix "/leaders" flips to the NJY-Leader board
+  // Router passes `kind` as the entire arg after "leaderboard/", which
+  // can be "daily/leaders" — split it here so both halves work.
+  const [actualKind, ...suffixParts] = String(kind || "daily").split("/");
+  const suffix = suffixParts.join("/") || (rest || "");
   const canSeeLeadersBoard = ["hk_leader", "njy_leader"].includes(ME.role);
-  const isLeadersBoard = rest === "leaders" && canSeeLeadersBoard;
+  const isLeadersBoard = suffix === "leaders" && canSeeLeadersBoard;
 
   const tabs = el("div", { class: "nav", style: "border:none" });
-  const t = (k, label, extra) => el("a", { class: (kind === k && !!extra === isLeadersBoard) ? "active" : "",
+  const t = (k, label, extra) => el("a", { class: (actualKind === k && !!extra === isLeadersBoard) ? "active" : "",
     href: `#/leaderboard/${k}${extra ? "/leaders" : ""}` }, label);
   tabs.append(
     t("daily", "Coords · Today"),
@@ -2158,10 +2162,10 @@ async function renderLeaderboard(kind, rest) {
   view.append(tabs);
 
   const hint = isLeadersBoard
-    ? (kind === "daily"
+    ? (actualKind === "daily"
         ? "NJY Leaders ranked by sum of their coords' today points. Only HK Leader and NJY Leaders see this board."
         : "NJY Leaders ranked by sum of their coords' Phase-1+2 points. Only HK Leader and NJY Leaders see this board.")
-    : (kind === "daily"
+    : (actualKind === "daily"
         ? "Coords ranked by today's points — resets every midnight IST. Chant a chanter = +10 · Follow up = +5 · NJY attendance = +50 · Perfect day = +50."
         : "Coords ranked cumulatively (Phase 1 + Phase 2). Adds Janmashtami entry/commit tier bonuses and milestone bonuses. Tap the rules link for the full matrix.");
   view.append(el("p", { class: "hint" }, hint));
@@ -2170,8 +2174,8 @@ async function renderLeaderboard(kind, rest) {
   view.append(loader);
 
   const url = isLeadersBoard
-    ? `/api/leaderboard/leaders/${kind}`
-    : `/api/leaderboard/${kind}`;
+    ? `/api/leaderboard/leaders/${actualKind}`
+    : `/api/leaderboard/${actualKind}`;
 
   try {
     const { rows } = await api(url);
