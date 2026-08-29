@@ -973,39 +973,43 @@ function openAssignCoordsModal(leaderId, leaderName, allUsers) {
   document.body.append(backdrop);
 }
 
-// Reusable per-coordinator progress card. Used on both Team and HK
-// dashboards. Two progress bars:
-//   - Chanted today   → how many of the coord's roll chanted today
-//   - One-month daily → how many of the daily-committed chanters have
-//                       stuck with it for the past month
-// Both bars are % of that coord's actual roll count, not a fixed
-// Plan-2 target.
+// Reusable per-coordinator progress card. SKJ-cohort focused (initially
+// 100 daily-committed chanters). Two progress bars:
+//   - SKJ chanted today → daily-committed people who chanted today
+//   - Consistency       → daily-committed people with at least one chant
+//                          in the last 3 days (3+ consecutive misses
+//                          means they've been disqualified from the
+//                          streak).
+// Denominators for both = total daily-committed chanters, NOT whole roll.
 function coordCard(c) {
-  const assigned = Math.max(1, c.assigned || 0);
   const dailyTotal = c.daily_chanter_total || 0;
-  const pctToday = Math.min(100, Math.round(100 * (c.chanted_today || 0) / assigned));
-  const pctMonthly = dailyTotal
-    ? Math.min(100, Math.round(100 * (c.one_month_daily || 0) / dailyTotal))
-    : 0;
+  const denom = Math.max(1, dailyTotal);
+  const daily_chanted = c.daily_chanted_today || 0;
+  const consistent = c.consistent_daily ?? c.one_month_daily ?? 0;
+  const disqualified = Math.max(0, dailyTotal - consistent);
+  const pctToday = Math.min(100, Math.round(100 * daily_chanted / denom));
+  const pctConsistent = Math.min(100, Math.round(100 * consistent / denom));
   const midToday = pctToday >= 60 ? 0 : (pctToday >= 30 ? 1 : 2);
-  const midMonthly = pctMonthly >= 60 ? 0 : (pctMonthly >= 30 ? 1 : 2);
+  const midConsistent = pctConsistent >= 60 ? 0 : (pctConsistent >= 30 ? 1 : 2);
   return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
     el("div", {},
       el("div", { class: "spread" },
         el("strong", {}, c.name),
         el("a", { class: "btn", href: `#/user/${c.user_id}` }, "Open"),
       ),
-      el("div", { class: "hint", style: "margin-top:.2rem" }, `${c.assigned} chanters in roll`),
+      el("div", { class: "hint", style: "margin-top:.2rem" },
+        `${dailyTotal} SKJ daily-committed · ${c.assigned || 0} in whole roll`,
+      ),
       el("div", { class: "progress-line", style: "margin-top:.55rem" },
-        el("span", {}, "Chanted today"),
-        el("span", { class: "fraction" }, `${c.chanted_today || 0} of ${c.assigned || 0}`),
+        el("span", { title: "How many of the daily-committed chanters chanted today" }, "SKJ chanted today"),
+        el("span", { class: "fraction" }, `${daily_chanted} of ${dailyTotal}`),
       ),
       el("div", { class: "pbar", "data-mid": String(midToday), style: `--pct:${pctToday}%` }),
       el("div", { class: "progress-line", style: "margin-top:.4rem" },
-        el("span", {}, "One-month daily"),
-        el("span", { class: "fraction" }, `${c.one_month_daily || 0} of ${dailyTotal} daily`),
+        el("span", { title: "Daily-committed chanters still on the streak. 3+ consecutive missed days = disqualified." }, "Consistency streak"),
+        el("span", { class: "fraction" }, `${consistent} of ${dailyTotal}${disqualified ? ` · ${disqualified} out` : ""}`),
       ),
-      el("div", { class: "pbar", "data-mid": String(midMonthly), style: `--pct:${pctMonthly}%` }),
+      el("div", { class: "pbar", "data-mid": String(midConsistent), style: `--pct:${pctConsistent}%` }),
     ),
   );
 }
