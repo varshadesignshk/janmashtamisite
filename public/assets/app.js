@@ -513,6 +513,7 @@ function renderRoute() {
     "janmashtami": renderJanmashtami,
     "leaderboard": () => renderLeaderboard(arg || "daily", rest.join("/")),
     "broadcast":   renderBroadcast,
+    "wa-group":    renderWaGroup,
     "profile":      () => renderProfile(arg),
     "points-rules": () => renderPointsRules(view),
     "member":   () => renderMemberDetails(arg),
@@ -536,14 +537,16 @@ async function renderCoordRoll(view) {
       view.append(line);
     }
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
-    // Broadcast button — only for coords who own a roll. Opens the
-    // sequential-queue mode that walks them through 100 wa.me sends.
+    // Broadcast + WA group buttons — coords only.
     if (roll.length > 0 && ME.role === "njy_coordinator") {
       const broadcastRow = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0" });
       broadcastRow.append(
         el("a", { class: "primary", href: "#/broadcast",
           style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
           "📢 Broadcast today's message"),
+        el("a", { class: "btn", href: "#/wa-group",
+          style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
+          ME.wa_group_link ? "💬 My WhatsApp group" : "💬 Set up my WhatsApp group"),
       );
       view.append(broadcastRow);
     }
@@ -751,6 +754,176 @@ function renderBroadcastQueue(view) {
     const v = $("view"); v.innerHTML = "";
     renderBroadcastQueue(v);
   });
+}
+
+// -------------------------------------------------- WhatsApp Group ---
+// Per-coord group management: paste the WA invite link once, then
+// multi-select chanters and run the sequential queue to send them
+// personalised invite messages. WhatsApp doesn't allow programmatic
+// group-adds from personal accounts, so the flow is always
+// "chanter taps the link → WhatsApp shows Join Group screen".
+async function renderWaGroup(view) {
+  if (ME.role !== "njy_coordinator") {
+    view.append(el("h2", { class: "section" }, "WhatsApp Group"));
+    view.append(el("p", { class: "hint" }, "This screen is for NJY Coordinators managing their own group."));
+    return;
+  }
+  view.append(el("div", { class: "spread" },
+    el("h2", { class: "section" }, "💬 My WhatsApp Group"),
+    el("a", { class: "btn", href: "#/" }, t("btn.back")),
+  ));
+  view.append(helpBanner(
+    "One-time setup: create a WhatsApp group in WhatsApp app, copy its invite link, and paste below. " +
+    "Then you can send personal invite messages to your chanters so they can join. " +
+    "WhatsApp does NOT allow apps to add chanters directly — they must tap the invite link themselves."
+  ));
+
+  // --- Setup card ---
+  const setup = el("div", { class: "card" });
+  setup.append(el("h3", { class: "section", style: "margin-top:0" }, "Group settings"));
+
+  const nameI = el("input", { id: "wg-name", placeholder: "e.g. SKJ Chanters — Sri Krsna Coord" });
+  nameI.value = ME.wa_group_name || "";
+  const linkI = el("input", { id: "wg-link", placeholder: "https://chat.whatsapp.com/xxxxxxx" });
+  linkI.value = ME.wa_group_link || "";
+  const msg = el("span", { class: "hint", style: "margin-left:.5rem" });
+  const saveBtn = el("button", { class: "primary", id: "wg-save" }, "Save");
+  const testBtn = el("button", { class: "btn", id: "wg-test", style: "margin-left:.4rem" }, "Test link");
+  const clearBtn = el("button", { class: "btn", id: "wg-clear", style: "margin-left:.4rem" }, "Clear");
+
+  setup.append(
+    formField("Group name (optional)", nameI),
+    formField("Invite link (from WhatsApp → group → Group Info → Invite via link)", linkI),
+    el("p", { style: "margin-top:.7rem" }, saveBtn, testBtn, clearBtn, msg),
+  );
+
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    try {
+      const link = linkI.value.trim();
+      if (link && !/^https:\/\/chat\.whatsapp\.com\//i.test(link)) {
+        throw new Error("Link must start with https://chat.whatsapp.com/");
+      }
+      await api("/api/me/wa-group", { method: "POST",
+        body: JSON.stringify({ wa_group_link: link, wa_group_name: nameI.value.trim() }) });
+      ME.wa_group_link = link || null;
+      ME.wa_group_name = nameI.value.trim() || null;
+      msg.textContent = "Saved.";
+    } catch (err) { msg.textContent = "Failed: " + err.message; }
+    finally { saveBtn.disabled = false; }
+  });
+  testBtn.addEventListener("click", () => {
+    const link = linkI.value.trim();
+    if (!link) { msg.textContent = "Paste a link first."; return; }
+    window.open(link, "_blank");
+  });
+  clearBtn.addEventListener("click", async () => {
+    if (!confirm("Clear the saved group link and name?")) return;
+    nameI.value = ""; linkI.value = "";
+    try {
+      await api("/api/me/wa-group", { method: "POST",
+        body: JSON.stringify({ wa_group_link: "", wa_group_name: "" }) });
+      ME.wa_group_link = null; ME.wa_group_name = null;
+      msg.textContent = "Cleared.";
+    } catch (err) { msg.textContent = "Failed: " + err.message; }
+  });
+  view.append(setup);
+
+  // --- Invite chanters card ---
+  const linkNow = () => (linkI.value || "").trim();
+  const invite = el("div", { class: "card" });
+  invite.append(el("h3", { class: "section", style: "margin-top:0" }, "Invite chanters to this group"));
+
+  const loader = loadingLine("Loading your roll…");
+  invite.append(loader);
+  view.append(invite);
+
+  try {
+    const { roll } = await api("/api/roll");
+    loader.remove();
+    if (!roll.length) {
+      invite.append(el("p", { class: "hint" }, "No chanters in your roll yet."));
+      return;
+    }
+
+    invite.append(el("p", { class: "hint" },
+      "Select chanters below. Tap the button to walk through sending each an invite message via your personal WhatsApp. " +
+      "The message includes your group's invite link — chanter taps it → WhatsApp opens Join Group prompt."));
+
+    // Message template for invites
+    const inviteMsg = el("textarea", { id: "wg-inv-msg", rows: 4,
+      style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px" });
+    inviteMsg.value = "Hare Krsna {name}! 🌸\n\nI'm inviting you to join our chanting group on WhatsApp. Tap here to join 🙏\n\n{link}";
+    invite.append(el("p", { class: "hint" }, "Invite message. Use ", el("code", {}, "{name}"), " for chanter's name and ", el("code", {}, "{link}"), " for the group link."));
+    invite.append(inviteMsg);
+
+    // Chanter multi-select list
+    const listHead = el("div", { class: "spread", style: "margin-top:.7rem" });
+    const selectAll = el("input", { type: "checkbox", id: "wg-select-all" });
+    listHead.append(
+      el("label", { style: "display:flex;gap:.3rem;align-items:center" }, selectAll, el("span", {}, "Select all")),
+      el("span", { class: "hint", id: "wg-count" }, "0 selected"),
+    );
+    invite.append(listHead);
+
+    const ul = el("ul", { class: "list", style: "max-height:300px;overflow-y:auto;margin-top:.4rem" });
+    const rowChecks = [];
+    roll.forEach((r) => {
+      const cb = el("input", { type: "checkbox", value: r.id, "data-name": r.name, "data-phone": r.phone });
+      rowChecks.push(cb);
+      cb.addEventListener("change", updateCount);
+      const li = el("li", {},
+        el("label", { style: "display:flex;gap:.6rem;align-items:center;cursor:pointer" },
+          cb,
+          el("span", { style: "flex:1" }, el("strong", {}, r.name), " ",
+            el("span", { class: "hint", style: "font-size:.75rem" }, r.phone)),
+        ),
+      );
+      ul.append(li);
+    });
+    invite.append(ul);
+    function updateCount() {
+      const selected = rowChecks.filter(c => c.checked).length;
+      $("wg-count").textContent = `${selected} selected`;
+    }
+    selectAll.addEventListener("change", () => {
+      rowChecks.forEach(c => { c.checked = selectAll.checked; });
+      updateCount();
+    });
+
+    // Send-invite button
+    const sendBtn = el("button", { class: "primary", id: "wg-send-invites", type: "button" },
+      "Start invite queue →");
+    invite.append(el("p", { style: "margin-top:.7rem" }, sendBtn));
+
+    sendBtn.addEventListener("click", () => {
+      const link = linkNow();
+      if (!link) { alert("Paste and Save your group invite link first (top of this page)."); return; }
+      const selected = rowChecks.filter(c => c.checked);
+      if (!selected.length) { alert("Select at least one chanter."); return; }
+      const template = inviteMsg.value.trim();
+      if (!template.includes("{link}")) {
+        if (!confirm("Your message doesn't include {link}. Chanters won't get the join link. Continue anyway?")) return;
+      }
+      const compiled = template.replace(/\{link\}/g, link);
+      // Reuse the broadcast queue infrastructure with this invite message.
+      window._njyBroadcast = {
+        queue: selected.map(c => ({
+          id: c.value,
+          name: c.dataset.name,
+          phone: c.dataset.phone,
+          sent: false, skipped: false,
+        })),
+        index: 0,
+        messageTemplate: compiled,
+        startedAt: new Date().toISOString(),
+      };
+      location.hash = "#/broadcast";
+    });
+  } catch (err) {
+    loader.remove();
+    invite.append(el("p", { class: "error" }, "Could not load roll: " + err.message));
+  }
 }
 
 // Small legend explaining what the bead colors mean, shown above the
