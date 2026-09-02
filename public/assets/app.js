@@ -550,6 +550,18 @@ async function renderCoordRoll(view) {
       );
       view.append(broadcastRow);
     }
+    // Care-moment surfacing — coords only, shown right below the tally
+    if (roll.length > 0 && ME.role === "njy_coordinator") {
+      const carePlaceholder = el("div", {});
+      view.append(carePlaceholder);
+      // Fetch care moments async so the roll UI renders immediately.
+      (async () => {
+        try {
+          const cm = await api("/api/roll/care-moments");
+          renderCareMomentPanel(carePlaceholder, cm);
+        } catch { /* silent — nice-to-have, not blocking */ }
+      })();
+    }
     view.append(beadLegend());
     view.append(garlandStrip(roll, /* editable */ true));
     view.append(rollList(roll, /* editable */ true));
@@ -560,6 +572,67 @@ async function renderCoordRoll(view) {
     if (err.status === 403) view.append(el("p", { class: "hint" }, "You don't have a coordinator roll. Try the Team or HK tabs."));
     else view.append(el("p", { class: "error" }, "Could not load roll: " + err.message));
   }
+}
+
+// ----------------------------------------------- Care-Moment panel ---
+// Compact "Needs your attention" section on the coord's Roll. Each row
+// is a one-tap deep-link to send a specific pre-composed WhatsApp
+// message to that chanter. Keeps the outreach targeted and human.
+function renderCareMomentPanel(container, cm) {
+  container.innerHTML = "";
+  const total = (cm.counts.missed_3_plus || 0) + (cm.counts.missed_2 || 0) + (cm.counts.milestones || 0);
+  if (!total) {
+    // Positive reinforcement when everyone's on track
+    container.append(el("div", { class: "card",
+      style: "background:linear-gradient(180deg,var(--tint-responded,#d9f0e5),var(--tint-followed,#f4ead4));border-color:var(--mark-responded,#0e8f5d);margin:.6rem 0" },
+      el("p", { style: "margin:0;font-weight:500" }, "🌸 Your team is on track today. Hare Krsna 🙏"),
+    ));
+    return;
+  }
+  const wrap = el("div", { class: "card", style: "margin:.6rem 0" });
+  wrap.append(el("h3", { class: "section", style: "margin-top:0;display:flex;align-items:center;gap:.4rem" },
+    el("span", {}, "🎯 Needs your attention"),
+    el("span", { class: "hint", style: "font-weight:400;font-size:.8rem" }, `(${total})`),
+  ));
+
+  const buildRow = (item, icon, subtitle, priority) => {
+    const row = el("div", {
+      style: "display:grid;grid-template-columns:auto 1fr auto;gap:.5rem;align-items:center;padding:.4rem 0;border-bottom:1px dashed var(--line)",
+    });
+    row.append(
+      el("span", { style: "font-size:1.2rem;line-height:1" }, icon),
+      el("div", {},
+        el("strong", { style: "font-size:.9rem" }, item.name),
+        el("div", { class: "hint", style: "font-size:.75rem" }, subtitle),
+      ),
+      el("a", {
+        class: priority === "high" ? "primary" : "btn",
+        href: item.wa_url, target: "_blank",
+        style: "text-decoration:none;padding:.35rem .7rem;border-radius:6px;font-size:.8rem;white-space:nowrap",
+      }, "Send 💬"),
+    );
+    return row;
+  };
+
+  // Missed 3+ days — highest priority, red icon
+  for (const item of (cm.missed_3_plus || [])) {
+    wrap.append(buildRow(item, "🔴",
+      `Missed ${item.days_missed}+ days — needs personal check-in`, "high"));
+  }
+  // Missed 2 days — amber
+  for (const item of (cm.missed_2 || [])) {
+    wrap.append(buildRow(item, "🟠",
+      "Missed yesterday — gentle nudge", "medium"));
+  }
+  // Streak milestones — celebrate
+  for (const item of (cm.milestones || [])) {
+    wrap.append(buildRow(item, "🎉",
+      `${item.streak_days}-day chanting streak — celebrate!`, "medium"));
+  }
+
+  wrap.append(el("p", { class: "hint", style: "margin:.5rem 0 0;font-size:.75rem" },
+    "Tapping Send opens WhatsApp with a suggested message. Edit or send as-is."));
+  container.append(wrap);
 }
 
 // -------------------------------------------------- Broadcast queue ---
