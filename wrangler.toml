@@ -2,19 +2,17 @@ name = "njy-app"
 compatibility_date = "2026-08-01"
 pages_build_output_dir = "public"
 
-# D1 binding is intentionally NOT declared here. Each Cloudflare Pages
-# project (staging + production, in different accounts) sets its own
-# D1 database binding via the Dashboard:
-#   Settings → Functions → Bindings → D1 database → variable "DB" →
-#   pick the database that lives in that account.
-#
-# Why: hard-coding database_id would tie wrangler.toml to a single
-# account. Removing the block unlocks the Dashboard UI so each
-# environment resolves "DB" against its own account's D1.
-#
-# Local dev + migrations: pass `--config-name njy` or the database
-# name directly, e.g.
-#   npx wrangler d1 migrations apply njy --remote
+# D1 database. Staging account's DB `njy` (ID below). Production uses a
+# DIFFERENT wrangler.toml (branched at push time or via env override —
+# see PRODUCTION-SETUP.md for the promote-to-prod workflow).
+[[d1_databases]]
+binding = "DB"
+database_name = "njy"
+database_id = "ac889cea-b0ca-47f2-ac6c-c4953cb1211a"
+migrations_dir = "schema"
+
+# Session secret and VAPID keys are set via `wrangler pages secret put`.
+# Do not put secrets in this file.
 
 [vars]
 APP_TZ = "Asia/Kolkata"
