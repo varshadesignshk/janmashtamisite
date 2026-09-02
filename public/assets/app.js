@@ -512,6 +512,7 @@ function renderRoute() {
     "settings": renderSettings,
     "janmashtami": renderJanmashtami,
     "leaderboard": () => renderLeaderboard(arg || "daily", rest.join("/")),
+    "broadcast":   renderBroadcast,
     "profile":      () => renderProfile(arg),
     "points-rules": () => renderPointsRules(view),
     "member":   () => renderMemberDetails(arg),
@@ -535,6 +536,17 @@ async function renderCoordRoll(view) {
       view.append(line);
     }
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
+    // Broadcast button — only for coords who own a roll. Opens the
+    // sequential-queue mode that walks them through 100 wa.me sends.
+    if (roll.length > 0 && ME.role === "njy_coordinator") {
+      const broadcastRow = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0" });
+      broadcastRow.append(
+        el("a", { class: "primary", href: "#/broadcast",
+          style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
+          "📢 Broadcast today's message"),
+      );
+      view.append(broadcastRow);
+    }
     view.append(beadLegend());
     view.append(garlandStrip(roll, /* editable */ true));
     view.append(rollList(roll, /* editable */ true));
@@ -545,6 +557,200 @@ async function renderCoordRoll(view) {
     if (err.status === 403) view.append(el("p", { class: "hint" }, "You don't have a coordinator roll. Try the Team or HK tabs."));
     else view.append(el("p", { class: "error" }, "Could not load roll: " + err.message));
   }
+}
+
+// -------------------------------------------------- Broadcast queue ---
+// A coord-only screen that walks through the roll one chanter at a
+// time, opening wa.me with a pre-personalised message each time. The
+// coord physically taps WhatsApp's Send button — no automation, zero
+// ban risk. See docs/BROADCAST.md for the full rationale.
+async function renderBroadcast(view) {
+  if (ME.role !== "njy_coordinator") {
+    view.append(el("h2", { class: "section" }, "Broadcast"));
+    view.append(el("p", { class: "hint" }, "Broadcast mode is available only to NJY Coordinators for their own roll."));
+    return;
+  }
+  // Split: setup screen if no queue in-progress; queue mode if there is.
+  if (window._njyBroadcast && window._njyBroadcast.queue) {
+    return renderBroadcastQueue(view);
+  }
+  return renderBroadcastSetup(view);
+}
+
+async function renderBroadcastSetup(view) {
+  view.append(el("div", { class: "spread" },
+    el("h2", { class: "section" }, "📢 Broadcast today's message"),
+    el("a", { class: "btn", href: "#/" }, t("btn.back")),
+  ));
+  view.append(helpBanner(
+    "Send the same WhatsApp message to every chanter in your roll — one tap per person. " +
+    "Each send opens WhatsApp with the message ready; you tap Send, and the app queues the next chanter. " +
+    "Takes ~5-8 minutes for 100 chanters. Every message goes from YOUR personal WhatsApp."
+  ));
+  const loader = loadingLine("Loading your roll…");
+  view.append(loader);
+  try {
+    const { roll } = await api("/api/roll");
+    loader.remove();
+    if (!roll.length) {
+      view.append(el("p", { class: "hint" }, "No chanters in your roll yet."));
+      return;
+    }
+    // Message editor — defaults to coord's saved daily template.
+    const defaultMsg = ME.wa_template_daily
+      || "Hare Krsna {name}! 🌸\n\nDid you complete your daily rounds today?\nEven one round makes the day meaningful. 🙏";
+    const msgTa = el("textarea", { id: "bc-msg", rows: 5,
+      style: "width:100%;font-family:inherit;padding:.5rem;border:1px solid var(--line);border-radius:6px" });
+    msgTa.value = defaultMsg;
+
+    const skipChanted = el("input", { type: "checkbox", id: "bc-skip-chanted", checked: true });
+    const skipRed = el("input", { type: "checkbox", id: "bc-skip-red", checked: false });
+
+    // Live count of who'll receive it based on filter toggles.
+    const countLine = el("p", { class: "hint", style: "margin-top:.5rem" });
+    function recount() {
+      const filtered = roll.filter(r => {
+        if (skipChanted.checked && r.chanted_today) return false;
+        if (skipRed.checked && r.bead_color === "red") return false;
+        return true;
+      });
+      countLine.innerHTML = "";
+      countLine.append(el("strong", {}, `${filtered.length}`), ` of ${roll.length} chanters will receive this.`);
+    }
+    skipChanted.addEventListener("change", recount);
+    skipRed.addEventListener("change", recount);
+    recount();
+
+    const card = el("div", { class: "card" },
+      el("h3", { class: "section", style: "margin-top:0" }, "Message"),
+      el("p", { class: "hint" }, "Use ", el("code", {}, "{name}"), " anywhere in the text — it gets replaced with each chanter's actual name at send time."),
+      msgTa,
+      el("h3", { class: "section" }, "Who receives"),
+      el("label", { style: "display:flex;gap:.4rem;align-items:center;margin:.3rem 0" },
+        skipChanted, el("span", {}, "Skip chanters who already chanted today")),
+      el("label", { style: "display:flex;gap:.4rem;align-items:center;margin:.3rem 0" },
+        skipRed, el("span", {}, "Skip disqualified chanters (bead red — missed 3+ days)")),
+      countLine,
+      el("p", { style: "margin-top:1rem" },
+        el("button", { class: "primary", id: "bc-start" }, "Start Broadcast →"),
+      ),
+    );
+    view.append(card);
+
+    $("bc-start").addEventListener("click", () => {
+      const messageTemplate = msgTa.value.trim();
+      if (!messageTemplate) { alert("Type a message first."); return; }
+      const filtered = roll.filter(r => {
+        if (skipChanted.checked && r.chanted_today) return false;
+        if (skipRed.checked && r.bead_color === "red") return false;
+        return true;
+      });
+      if (!filtered.length) { alert("No chanters match your filters."); return; }
+      // Init session state
+      window._njyBroadcast = {
+        queue: filtered.map(r => ({
+          id: r.id, name: r.name, phone: r.phone,
+          sent: false, skipped: false,
+        })),
+        index: 0,
+        messageTemplate,
+        startedAt: new Date().toISOString(),
+      };
+      // Re-render into queue mode.
+      const v = $("view"); v.innerHTML = "";
+      renderBroadcastQueue(v);
+    });
+  } catch (err) {
+    loader.remove();
+    view.append(el("p", { class: "error" }, "Could not load roll: " + err.message));
+  }
+}
+
+function renderBroadcastQueue(view) {
+  const state = window._njyBroadcast;
+  if (!state) { location.hash = "#/broadcast"; return; }
+  const total = state.queue.length;
+  const sentCount = state.queue.filter(x => x.sent).length;
+  const skipCount = state.queue.filter(x => x.skipped).length;
+  const done = state.index >= total;
+
+  view.append(el("div", { class: "spread" },
+    el("h2", { class: "section" }, done ? "✅ Broadcast complete" : `📢 Broadcast · ${state.index + 1} of ${total}`),
+    el("button", { class: "btn", id: "bc-cancel", type: "button" }, done ? "Close" : "Pause & exit"),
+  ));
+
+  $("bc-cancel").addEventListener("click", () => {
+    if (done || confirm(`Pause broadcast? ${sentCount} sent, ${total - sentCount - skipCount} remaining.`)) {
+      window._njyBroadcast = null;
+      location.hash = "#/";
+    }
+  });
+
+  // Progress bar
+  const pct = Math.min(100, Math.round(100 * (sentCount + skipCount) / total));
+  view.append(el("div", { class: "pbar", "data-mid": "0",
+    style: `--pct:${pct}%;height:10px;border-radius:5px;margin-bottom:.9rem` }));
+  view.append(el("p", { class: "hint" },
+    `Sent: ${sentCount} · Skipped: ${skipCount} · Remaining: ${Math.max(0, total - sentCount - skipCount)}`));
+
+  if (done) {
+    view.append(el("div", { class: "card" },
+      el("h3", { class: "section", style: "margin-top:0" }, "Session summary"),
+      el("p", {}, `Started: ${new Date(state.startedAt).toLocaleTimeString()}`),
+      el("p", {}, `Completed: ${new Date().toLocaleTimeString()}`),
+      el("p", {}, `Sent to ${sentCount} chanter(s). Skipped ${skipCount}.`),
+      el("p", { style: "margin-top:1rem" },
+        el("a", { class: "primary", href: "#/", style: "text-decoration:none;padding:.5rem 1rem;border-radius:6px" }, "Return to Roll")),
+    ));
+    return;
+  }
+
+  // Current chanter card
+  const cur = state.queue[state.index];
+  const filledMsg = state.messageTemplate.replace(/\{name\}/g, (cur.name || "").split(" ")[0] || cur.name || "");
+  const waUrl = `https://wa.me/${encodeURIComponent(String(cur.phone || "").replace(/[^\d+]/g, ""))}?text=${encodeURIComponent(filledMsg)}`;
+
+  const card = el("div", { class: "card" });
+  card.append(
+    el("div", { style: "display:flex;justify-content:space-between;align-items:baseline;gap:.5rem" },
+      el("h3", { class: "section", style: "margin:0" }, cur.name),
+      el("span", { class: "hint" }, `${cur.phone}`),
+    ),
+    el("h4", { class: "section", style: "margin:.6rem 0 .3rem;font-size:.85rem;color:var(--muted)" }, "Message that will be sent:"),
+    el("div", { style: "background:var(--tint-followed,#f6f2ea);padding:.6rem;border-radius:6px;border:1px solid var(--line);white-space:pre-wrap;font-size:.9rem" }, filledMsg),
+    el("p", { style: "margin-top:1rem" },
+      el("a", { class: "primary", href: waUrl, target: "_blank", id: "bc-send",
+        style: "display:inline-block;text-decoration:none;padding:.7rem 1.2rem;border-radius:8px;font-size:1rem;font-weight:600" },
+        "✉ SEND VIA WHATSAPP →"),
+    ),
+    el("p", { style: "margin-top:.7rem" },
+      el("button", { class: "btn", id: "bc-skip", type: "button" }, "Skip this chanter"),
+      " ",
+      el("span", { class: "hint" }, "After you tap Send in WhatsApp, come back here and tap Next."),
+    ),
+    el("p", { style: "margin-top:.7rem" },
+      el("button", { class: "primary", id: "bc-next", type: "button",
+        style: "background:var(--peacock-deep,#0e4f52)" }, "✓ Sent — Next chanter →"),
+    ),
+  );
+  view.append(card);
+
+  $("bc-send").addEventListener("click", () => {
+    // Only records the intent — actual send is the coord tapping WA's Send
+    cur._opened = true;
+  });
+  $("bc-next").addEventListener("click", () => {
+    cur.sent = true;
+    state.index += 1;
+    const v = $("view"); v.innerHTML = "";
+    renderBroadcastQueue(v);
+  });
+  $("bc-skip").addEventListener("click", () => {
+    cur.skipped = true;
+    state.index += 1;
+    const v = $("view"); v.innerHTML = "";
+    renderBroadcastQueue(v);
+  });
 }
 
 // Small legend explaining what the bead colors mean, shown above the
