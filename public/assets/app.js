@@ -2163,12 +2163,39 @@ async function renderLeaderboard(kind, rest) {
 
   const hint = isLeadersBoard
     ? (actualKind === "daily"
-        ? "NJY Leaders ranked by sum of their coords' today points. Only HK Leader and NJY Leaders see this board."
-        : "NJY Leaders ranked by sum of their coords' Phase-1+2 points. Only HK Leader and NJY Leaders see this board.")
+        ? "NJY Leaders ranked by their coords' today performance. Sort by total points OR per-coord average (fair when leaders have different team sizes)."
+        : "NJY Leaders ranked by their coords' Phase-1+2 performance. Sort by total OR per-coord average.")
     : (actualKind === "daily"
         ? "Coords ranked by today's points — resets every midnight IST. Chant a chanter = +10 · Follow up = +5 · NJY attendance = +50 · Perfect day = +50."
         : "Coords ranked cumulatively (Phase 1 + Phase 2). Adds Janmashtami entry/commit tier bonuses and milestone bonuses. Tap the rules link for the full matrix.");
   view.append(el("p", { class: "hint" }, hint));
+
+  // Sort toggle — only on Leaders board. Persist choice in localStorage
+  // so HK Leader's preference sticks across reloads.
+  let sortMode = "total";
+  if (isLeadersBoard) {
+    try { sortMode = localStorage.getItem("njy-leaders-sort") || "total"; } catch {}
+    const sortRow = el("div", { class: "row", style: "gap:.4rem;margin:.4rem 0" });
+    const mkSortBtn = (mode, label) => {
+      const btn = el("button", {
+        class: sortMode === mode ? "pill on" : "pill",
+        type: "button",
+        style: "cursor:pointer",
+      }, label);
+      btn.addEventListener("click", () => {
+        sortMode = mode;
+        try { localStorage.setItem("njy-leaders-sort", mode); } catch {}
+        renderLeaderboard(kind, rest);   // re-render with new sort
+      });
+      return btn;
+    };
+    sortRow.append(
+      el("span", { class: "hint", style: "align-self:center" }, "Sort by:"),
+      mkSortBtn("total", "Total pts"),
+      mkSortBtn("avg", "Per-coord avg (prorated)"),
+    );
+    view.append(sortRow);
+  }
 
   const loader = el("p", { class: "hint" }, "Loading…");
   view.append(loader);
@@ -2178,23 +2205,31 @@ async function renderLeaderboard(kind, rest) {
     : `/api/leaderboard/${actualKind}`;
 
   try {
-    const { rows } = await api(url);
+    const { rows: rawRows } = await api(url);
     if (myGen !== leaderboardGen) return;
     loader.remove();
 
+    // Re-sort leaders board client-side per user's chosen sort mode.
+    let rows = rawRows;
+    if (isLeadersBoard && sortMode === "avg") {
+      rows = [...rawRows].sort((a, b) => (b.pts_per_coord || 0) - (a.pts_per_coord || 0));
+    }
+
     // HK's own summary row on top of the LEADERS board — sum-of-all so
-    // HK Leader sees the whole-org total in one line.
+    // HK Leader sees the whole-org total in one line. Also shows the
+    // whole-org per-coord average when prorated sort is active.
     if (isLeadersBoard && ME.role === "hk_leader" && rows.length) {
       const orgTotal = rows.reduce((s, r) => s + (r.pts || 0), 0);
       const orgCoords = rows.reduce((s, r) => {
         const c = (r.breakdown || []).find(b => b.k === "coords_in_team");
         return s + (c ? c.n : 0);
       }, 0);
+      const orgAvg = orgCoords ? Math.round(orgTotal / orgCoords) : 0;
       const summary = el("div", { class: "card", style: "margin-bottom:.7rem;background:linear-gradient(180deg,var(--tint-responded),var(--tint-followed));border-color:var(--mark-responded)" },
         el("div", { class: "spread" },
           el("div", {}, el("strong", {}, "🏛 HK Leader · Whole org"),
             el("div", { class: "hint" }, `${rows.length} NJY Leaders · ${orgCoords} coords`)),
-          el("span", { class: "score" }, `${orgTotal} pts`),
+          el("span", { class: "score" }, sortMode === "avg" ? `${orgAvg} avg` : `${orgTotal} pts`),
         ),
       );
       view.append(summary);
@@ -2217,10 +2252,15 @@ async function renderLeaderboard(kind, rest) {
       const openHref = isLeadersBoard
         ? `#/leader/${r.user_id}`
         : `#/profile/${r.user_id}`;
+      // Leaders board: score column shows the metric currently being
+      // sorted on. Total = raw sum. Avg = pts / coord_count (prorated).
+      const scoreText = (isLeadersBoard && sortMode === "avg")
+        ? `${r.pts_per_coord || 0} avg · ${r.pts} total`
+        : (isLeadersBoard ? `${r.pts} · ${r.pts_per_coord || 0} avg` : `${r.pts} pts`);
       const li = el("li", {},
         el("div", {}, el("strong", {}, `${label}  ${r.name}`),
           el("div", { class: "hint", style: "margin-top:.15rem" }, breakdownText || "—")),
-        el("span", { class: "score" }, `${r.pts} pts`),
+        el("span", { class: "score" }, scoreText),
         r.user_id === ME.id
           ? el("a", { class: "pill on", href: openHref, style: "text-decoration:none" }, "you — open")
           : el("a", { class: "btn", href: openHref }, "Open"),
