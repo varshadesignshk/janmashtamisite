@@ -582,55 +582,43 @@ function renderCareMomentPanel(container, cm) {
   container.innerHTML = "";
   const total = (cm.counts.missed_3_plus || 0) + (cm.counts.missed_2 || 0) + (cm.counts.milestones || 0);
   if (!total) {
-    // Positive reinforcement when everyone's on track
-    container.append(el("div", { class: "card",
-      style: "background:linear-gradient(180deg,var(--tint-responded,#d9f0e5),var(--tint-followed,#f4ead4));border-color:var(--mark-responded,#0e8f5d);margin:.6rem 0" },
-      el("p", { style: "margin:0;font-weight:500" }, "🌸 Your team is on track today. Hare Krsna 🙏"),
+    container.append(el("div", { class: "care-empty" },
+      el("span", { style: "font-size:1.05rem" }, "🌸 Your team is on track today."),
+      el("span", { class: "hint", style: "margin-left:.4rem;font-size:.85rem" }, "Hare Krsna 🙏"),
     ));
     return;
   }
-  const wrap = el("div", { class: "card", style: "margin:.6rem 0" });
-  wrap.append(el("h3", { class: "section", style: "margin-top:0;display:flex;align-items:center;gap:.4rem" },
-    el("span", {}, "🎯 Needs your attention"),
-    el("span", { class: "hint", style: "font-weight:400;font-size:.8rem" }, `(${total})`),
+  const wrap = el("div", { class: "care-panel" });
+  wrap.append(el("h3", {},
+    el("span", {}, "🎯"),
+    el("span", {}, "Needs your attention"),
+    el("span", { class: "hint", style: "font-weight:400;font-size:.78rem;margin-left:auto" }, `${total} chanter${total === 1 ? "" : "s"}`),
   ));
 
-  const buildRow = (item, icon, subtitle, priority) => {
-    const row = el("div", {
-      style: "display:grid;grid-template-columns:auto 1fr auto;gap:.5rem;align-items:center;padding:.4rem 0;border-bottom:1px dashed var(--line)",
-    });
+  const buildRow = (item, icon, subtitle) => {
+    const row = el("div", { class: "care-row" });
     row.append(
-      el("span", { style: "font-size:1.2rem;line-height:1" }, icon),
+      el("span", { class: "care-icon" }, icon),
       el("div", {},
-        el("strong", { style: "font-size:.9rem" }, item.name),
-        el("div", { class: "hint", style: "font-size:.75rem" }, subtitle),
+        el("div", { class: "care-name" }, item.name),
+        el("div", { class: "care-sub" }, subtitle),
       ),
-      el("a", {
-        class: priority === "high" ? "primary" : "btn",
-        href: item.wa_url, target: "_blank",
-        style: "text-decoration:none;padding:.35rem .7rem;border-radius:6px;font-size:.8rem;white-space:nowrap",
-      }, "Send 💬"),
+      el("a", { class: "care-send", href: item.wa_url, target: "_blank" }, "Send 💬"),
     );
     return row;
   };
 
-  // Missed 3+ days — highest priority, red icon
   for (const item of (cm.missed_3_plus || [])) {
-    wrap.append(buildRow(item, "🔴",
-      `Missed ${item.days_missed}+ days — needs personal check-in`, "high"));
+    wrap.append(buildRow(item, "🔴", `Missed ${item.days_missed}+ days — needs personal check-in`));
   }
-  // Missed 2 days — amber
   for (const item of (cm.missed_2 || [])) {
-    wrap.append(buildRow(item, "🟠",
-      "Missed yesterday — gentle nudge", "medium"));
+    wrap.append(buildRow(item, "🟠", "Missed yesterday — gentle nudge"));
   }
-  // Streak milestones — celebrate
   for (const item of (cm.milestones || [])) {
-    wrap.append(buildRow(item, "🎉",
-      `${item.streak_days}-day chanting streak — celebrate!`, "medium"));
+    wrap.append(buildRow(item, "🎉", `${item.streak_days}-day streak — celebrate!`));
   }
 
-  wrap.append(el("p", { class: "hint", style: "margin:.5rem 0 0;font-size:.75rem" },
+  wrap.append(el("p", { class: "hint", style: "margin:.6rem 0 0;font-size:.72rem" },
     "Tapping Send opens WhatsApp with a suggested message. Edit or send as-is."));
   container.append(wrap);
 }
@@ -675,15 +663,13 @@ async function renderBroadcastSetup(view) {
     // Message editor — defaults to coord's saved daily template.
     const defaultMsg = ME.wa_template_daily
       || "Hare Krsna {name}! 🌸\n\nDid you complete your daily rounds today?\nEven one round makes the day meaningful. 🙏";
-    const msgTa = el("textarea", { id: "bc-msg", rows: 5,
-      style: "width:100%;font-family:inherit;padding:.5rem;border:1px solid var(--line);border-radius:6px" });
+    const msgTa = el("textarea", { id: "bc-msg", rows: 5 });
     msgTa.value = defaultMsg;
 
     const skipChanted = el("input", { type: "checkbox", id: "bc-skip-chanted", checked: true });
     const skipRed = el("input", { type: "checkbox", id: "bc-skip-red", checked: false });
 
-    // Live count of who'll receive it based on filter toggles.
-    const countLine = el("p", { class: "hint", style: "margin-top:.5rem" });
+    const countLine = el("div", { class: "bc-count-line" });
     function recount() {
       const filtered = roll.filter(r => {
         if (skipChanted.checked && r.chanted_today) return false;
@@ -691,27 +677,45 @@ async function renderBroadcastSetup(view) {
         return true;
       });
       countLine.innerHTML = "";
-      countLine.append(el("strong", {}, `${filtered.length}`), ` of ${roll.length} chanters will receive this.`);
+      countLine.append(
+        el("strong", {}, `${filtered.length}`),
+        ` of ${roll.length} chanters will receive this message.`,
+      );
     }
     skipChanted.addEventListener("change", recount);
     skipRed.addEventListener("change", recount);
     recount();
 
-    const card = el("div", { class: "card" },
-      el("h3", { class: "section", style: "margin-top:0" }, "Message"),
-      el("p", { class: "hint" }, "Use ", el("code", {}, "{name}"), " anywhere in the text — it gets replaced with each chanter's actual name at send time."),
+    // Message card
+    const msgCard = el("div", { class: "bc-card" });
+    msgCard.append(
+      el("h3", {}, "Message"),
+      el("p", { class: "bc-hint" },
+        "Use ", el("code", { style: "background:var(--tint-followed);padding:.05rem .3rem;border-radius:3px" }, "{name}"),
+        " anywhere in your message — it gets replaced with each chanter's actual name at send time."),
       msgTa,
-      el("h3", { class: "section" }, "Who receives"),
-      el("label", { style: "display:flex;gap:.4rem;align-items:center;margin:.3rem 0" },
-        skipChanted, el("span", {}, "Skip chanters who already chanted today")),
-      el("label", { style: "display:flex;gap:.4rem;align-items:center;margin:.3rem 0" },
-        skipRed, el("span", {}, "Skip disqualified chanters (bead red — missed 3+ days)")),
+    );
+    view.append(msgCard);
+
+    // Filters card
+    const filterCard = el("div", { class: "bc-card" });
+    filterCard.append(
+      el("h3", {}, "Who receives"),
+      el("label", { class: "bc-check-row" }, skipChanted,
+        el("span", { class: "bc-check-label" },
+          el("strong", {}, "Skip chanters who already chanted today"),
+          el("span", { class: "bc-check-sub" }, "No need to remind them — save this message for those who haven't chanted yet"))),
+      el("label", { class: "bc-check-row" }, skipRed,
+        el("span", { class: "bc-check-label" },
+          el("strong", {}, "Skip disqualified chanters"),
+          el("span", { class: "bc-check-sub" }, "Chanters who've missed 3+ consecutive days (red bead) — they need a personal check-in, not a bulk reminder"))),
       countLine,
-      el("p", { style: "margin-top:1rem" },
-        el("button", { class: "primary", id: "bc-start" }, "Start Broadcast →"),
+      el("p", { style: "margin-top:1rem;text-align:right" },
+        el("button", { class: "primary", id: "bc-start", style: "font-size:1rem;padding:.7rem 1.4rem" },
+          "Start Broadcast  →"),
       ),
     );
-    view.append(card);
+    view.append(filterCard);
 
     $("bc-start").addEventListener("click", () => {
       const messageTemplate = msgTa.value.trim();
@@ -751,7 +755,7 @@ function renderBroadcastQueue(view) {
   const done = state.index >= total;
 
   view.append(el("div", { class: "spread" },
-    el("h2", { class: "section" }, done ? "✅ Broadcast complete" : `📢 Broadcast · ${state.index + 1} of ${total}`),
+    el("h2", { class: "section" }, done ? "✅ Broadcast complete" : "📢 Broadcast"),
     el("button", { class: "btn", id: "bc-cancel", type: "button" }, done ? "Close" : "Pause & exit"),
   ));
 
@@ -762,22 +766,39 @@ function renderBroadcastQueue(view) {
     }
   });
 
-  // Progress bar
+  // Progress card
   const pct = Math.min(100, Math.round(100 * (sentCount + skipCount) / total));
-  view.append(el("div", { class: "pbar", "data-mid": "0",
-    style: `--pct:${pct}%;height:10px;border-radius:5px;margin-bottom:.9rem` }));
-  view.append(el("p", { class: "hint" },
-    `Sent: ${sentCount} · Skipped: ${skipCount} · Remaining: ${Math.max(0, total - sentCount - skipCount)}`));
+  const progressCard = el("div", { class: "bc-card", style: "padding:.9rem 1.2rem;margin-top:.5rem" });
+  progressCard.append(
+    el("div", { class: "spread", style: "margin-bottom:.4rem" },
+      el("strong", { style: "color:var(--peacock-deep);font-size:.9rem" },
+        done ? `Finished — ${total} chanters` : `${state.index + 1} of ${total}`),
+      el("span", { class: "hint", style: "font-size:.8rem" }, `${pct}%`),
+    ),
+    el("div", { class: "pbar", "data-mid": "0",
+      style: `--pct:${pct}%;height:8px;border-radius:4px` }),
+    el("div", { class: "hint", style: "margin-top:.4rem;font-size:.75rem;display:flex;gap:1rem" },
+      el("span", {}, "✅ Sent: ", el("strong", { style: "color:var(--peacock-deep)" }, sentCount)),
+      el("span", {}, "⤵ Skipped: ", el("strong", {}, skipCount)),
+      el("span", {}, "⏳ Remaining: ", el("strong", {}, Math.max(0, total - sentCount - skipCount))),
+    ),
+  );
+  view.append(progressCard);
 
   if (done) {
-    view.append(el("div", { class: "card" },
-      el("h3", { class: "section", style: "margin-top:0" }, "Session summary"),
-      el("p", {}, `Started: ${new Date(state.startedAt).toLocaleTimeString()}`),
-      el("p", {}, `Completed: ${new Date().toLocaleTimeString()}`),
-      el("p", {}, `Sent to ${sentCount} chanter(s). Skipped ${skipCount}.`),
-      el("p", { style: "margin-top:1rem" },
-        el("a", { class: "primary", href: "#/", style: "text-decoration:none;padding:.5rem 1rem;border-radius:6px" }, "Return to Roll")),
-    ));
+    const summary = el("div", { class: "care-empty" },
+      el("h3", { style: "margin:0 0 .3rem" }, "🌸 Broadcast complete"),
+      el("p", { style: "margin:0;font-size:.9rem" },
+        `Sent to `, el("strong", {}, sentCount), ` chanter${sentCount === 1 ? "" : "s"}. `,
+        skipCount ? `Skipped ${skipCount}. ` : "",
+        `Started ${new Date(state.startedAt).toLocaleTimeString()}, finished ${new Date().toLocaleTimeString()}.`),
+      el("p", { style: "margin-top:.9rem" },
+        el("a", { class: "bc-big-btn", href: "#/",
+          style: "background:var(--peacock-deep);box-shadow:0 2px 6px rgba(14,79,82,.3)" },
+          "Return to My Roll"),
+      ),
+    );
+    view.append(summary);
     return;
   }
 
@@ -786,27 +807,31 @@ function renderBroadcastQueue(view) {
   const filledMsg = state.messageTemplate.replace(/\{name\}/g, (cur.name || "").split(" ")[0] || cur.name || "");
   const waUrl = `https://wa.me/${encodeURIComponent(String(cur.phone || "").replace(/[^\d+]/g, ""))}?text=${encodeURIComponent(filledMsg)}`;
 
-  const card = el("div", { class: "card" });
+  const card = el("div", { class: "bc-card" });
   card.append(
-    el("div", { style: "display:flex;justify-content:space-between;align-items:baseline;gap:.5rem" },
-      el("h3", { class: "section", style: "margin:0" }, cur.name),
-      el("span", { class: "hint" }, `${cur.phone}`),
+    el("div", { style: "display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;margin-bottom:.7rem;padding-bottom:.7rem;border-bottom:1px solid var(--line)" },
+      el("div", {},
+        el("h3", { style: "margin:0;font-size:1.15rem;color:var(--ink)" }, cur.name),
+        el("span", { class: "hint", style: "font-family:var(--font-mono);font-size:.8rem" }, cur.phone),
+      ),
+      el("span", { style: "font-size:.75rem;color:var(--muted);align-self:flex-start" }, `#${state.index + 1}`),
     ),
-    el("h4", { class: "section", style: "margin:.6rem 0 .3rem;font-size:.85rem;color:var(--muted)" }, "Message that will be sent:"),
-    el("div", { style: "background:var(--tint-followed,#f6f2ea);padding:.6rem;border-radius:6px;border:1px solid var(--line);white-space:pre-wrap;font-size:.9rem" }, filledMsg),
-    el("p", { style: "margin-top:1rem" },
-      el("a", { class: "primary", href: waUrl, target: "_blank", id: "bc-send",
-        style: "display:inline-block;text-decoration:none;padding:.7rem 1.2rem;border-radius:8px;font-size:1rem;font-weight:600" },
-        "✉ SEND VIA WHATSAPP →"),
+    el("div", { class: "bc-hint", style: "margin-bottom:.4rem" }, "Message that will be sent:"),
+    el("div", {
+      style: "background:var(--tint-followed,#f6f2ea);padding:.75rem .9rem;border-radius:6px;border-left:3px solid var(--peacock-deep);white-space:pre-wrap;font-size:.88rem;line-height:1.45;color:var(--ink-2);margin-bottom:1rem",
+    }, filledMsg),
+    el("div", { style: "display:flex;flex-wrap:wrap;gap:.6rem;align-items:center" },
+      el("a", { class: "bc-big-btn", href: waUrl, target: "_blank", id: "bc-send" },
+        "✉ SEND VIA WHATSAPP  →"),
+      el("button", { class: "btn", id: "bc-skip", type: "button",
+        style: "padding:.55rem .9rem" }, "Skip"),
     ),
-    el("p", { style: "margin-top:.7rem" },
-      el("button", { class: "btn", id: "bc-skip", type: "button" }, "Skip this chanter"),
-      " ",
-      el("span", { class: "hint" }, "After you tap Send in WhatsApp, come back here and tap Next."),
-    ),
-    el("p", { style: "margin-top:.7rem" },
+    el("p", { class: "bc-hint", style: "margin:.9rem 0 .3rem;font-size:.78rem" },
+      "After tapping Send in WhatsApp, come back to this tab and tap the button below to move on."),
+    el("p", { style: "margin:0" },
       el("button", { class: "primary", id: "bc-next", type: "button",
-        style: "background:var(--peacock-deep,#0e4f52)" }, "✓ Sent — Next chanter →"),
+        style: "background:var(--peacock-deep,#0e4f52);padding:.7rem 1.2rem;font-size:.95rem" },
+        "✓ Sent — Next chanter  →"),
     ),
   );
   view.append(card);
@@ -931,28 +956,30 @@ async function renderWaGroup(view) {
     invite.append(inviteMsg);
 
     // Chanter multi-select list
-    const listHead = el("div", { class: "spread", style: "margin-top:.7rem" });
+    const listHead = el("div", { class: "spread", style: "margin-top:1rem;padding:.5rem .1rem;border-bottom:1px solid var(--line)" });
     const selectAll = el("input", { type: "checkbox", id: "wg-select-all" });
     listHead.append(
-      el("label", { style: "display:flex;gap:.3rem;align-items:center" }, selectAll, el("span", {}, "Select all")),
-      el("span", { class: "hint", id: "wg-count" }, "0 selected"),
+      el("label", { style: "display:flex;gap:.5rem;align-items:center;cursor:pointer;font-weight:500;margin:0" },
+        selectAll, el("span", {}, "Select all")),
+      el("span", { class: "hint", id: "wg-count", style: "font-size:.85rem" }, "0 selected"),
     );
     invite.append(listHead);
 
-    const ul = el("ul", { class: "list", style: "max-height:300px;overflow-y:auto;margin-top:.4rem" });
+    const ul = el("div", { style: "max-height:280px;overflow-y:auto;margin-top:0;border:1px solid var(--line);border-radius:6px;background:var(--surface)" });
     const rowChecks = [];
     roll.forEach((r) => {
       const cb = el("input", { type: "checkbox", value: r.id, "data-name": r.name, "data-phone": r.phone });
       rowChecks.push(cb);
       cb.addEventListener("change", updateCount);
-      const li = el("li", {},
-        el("label", { style: "display:flex;gap:.6rem;align-items:center;cursor:pointer" },
-          cb,
-          el("span", { style: "flex:1" }, el("strong", {}, r.name), " ",
-            el("span", { class: "hint", style: "font-size:.75rem" }, r.phone)),
-        ),
+      const row = el("label", {
+        style: "display:flex;gap:.7rem;align-items:center;cursor:pointer;padding:.5rem .7rem;border-bottom:1px solid var(--line);margin:0",
+      },
+        cb,
+        el("span", { style: "flex:1;min-width:0" },
+          el("div", { style: "font-weight:500;font-size:.9rem;color:var(--ink-2);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" }, r.name),
+          el("div", { class: "hint", style: "font-size:.72rem;font-family:var(--font-mono)" }, r.phone)),
       );
-      ul.append(li);
+      ul.append(row);
     });
     invite.append(ul);
     function updateCount() {
