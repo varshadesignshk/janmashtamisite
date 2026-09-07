@@ -3267,6 +3267,28 @@ async function renderSettings(view) {
 // ---------------------------------------------------------- admin ---
 async function renderAdmin(tab) {
   const view = $("view");
+  // Each sub-tab is individually gate-able. HK Leader always sees
+  // everything (can() short-circuits). For any other role, only the
+  // sub-tabs their gate allows show up here — and route access is
+  // guarded below in case they hit the URL directly.
+  const subGates = [
+    { key: "gates",       gate: "admin_gates",           label: "Feature gates",      render: renderAdminGates },
+    { key: "users",       gate: "admin_users",           label: "Users",              render: renderAdminUsers },
+    { key: "users-bulk",  gate: "admin_users_bulk",      label: "Bulk create users",  render: renderAdminUsersBulk },
+    { key: "import",      gate: "admin_import_chanters", label: "Bulk import chanters", render: renderAdminImport },
+    { key: "events",      gate: "admin_events",          label: "Events",             render: renderAdminEvents },
+  ];
+  const visible = subGates.filter(s => can(s.gate));
+  const target = subGates.find(s => s.key === tab) || subGates[0];
+  // BUG 5: if the caller can't access ANY admin sub-tab (nor the target
+  // sub-tab specifically), render ONLY the friendly access-denied
+  // message. Do NOT paint the "Admin" h2 or the "HK Leader only" banner
+  // first — that made non-HK users think they were allowed in and just
+  // rendered "no access" as a footer.
+  if (!visible.length || !can(target.gate)) {
+    view.append(el("p", { class: "hint" }, "You don't have access to Admin. This section is restricted to HK Leader."));
+    return;
+  }
   view.append(el("h2", { class: "section" }, "Admin"));
   view.append(helpBanner(
     "Administrative controls — HK Leader only. Feature gates toggle " +
@@ -3276,25 +3298,9 @@ async function renderAdmin(tab) {
     "BG sessions with their real dates."
   ));
   const tabs = el("div", { class: "nav", style: "border:none" });
-  // Each sub-tab is now individually gate-able. HK Leader always sees
-  // everything (can() short-circuits). For any other role, only the
-  // sub-tabs their gate allows show up here — and route access is guarded
-  // below in case they hit the URL directly.
-  const subGates = [
-    { key: "gates",       gate: "admin_gates",           label: "Feature gates",      render: renderAdminGates },
-    { key: "users",       gate: "admin_users",           label: "Users",              render: renderAdminUsers },
-    { key: "users-bulk",  gate: "admin_users_bulk",      label: "Bulk create users",  render: renderAdminUsersBulk },
-    { key: "import",      gate: "admin_import_chanters", label: "Bulk import chanters", render: renderAdminImport },
-    { key: "events",      gate: "admin_events",          label: "Events",             render: renderAdminEvents },
-  ];
-  const visible = subGates.filter(s => can(s.gate));
   const mkTab = (key, label) => el("a", { class: tab === key ? "active" : "", href: `#/admin/${key}` }, label);
   for (const s of visible) tabs.append(mkTab(s.key, s.label));
   view.append(tabs);
-  const target = subGates.find(s => s.key === tab) || subGates[0];
-  if (!can(target.gate)) {
-    return view.append(el("p", { class: "hint" }, "You don't have access to this admin section."));
-  }
   return target.render(view);
 }
 
