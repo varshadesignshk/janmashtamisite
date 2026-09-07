@@ -526,9 +526,16 @@ function renderRoute() {
 // ============================================================ views
 
 // ---------------------------------------------- coordinator roll ---
+// Generation token so a stale in-flight /api/roll fetch doesn't append
+// its rows into a view that has already been re-rendered (same class of
+// bug as the leaderboard duplicate). Explains the "2 or 3 boxes come
+// up" wobble users reported.
+let coordRollGen = 0;
 async function renderCoordRoll(view) {
+  const myGen = ++coordRollGen;
   try {
     const { roll, tally } = await api("/api/roll");
+    if (myGen !== coordRollGen) return;
     // Coord banner: show who their NJY Leader is (or a nudge if unassigned)
     if (ME.role === "njy_coordinator") {
       const line = ME.manager_display_name
