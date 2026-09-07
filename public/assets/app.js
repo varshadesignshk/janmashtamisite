@@ -2674,8 +2674,21 @@ async function renderLeaderboard(kind, rest) {
   //   suffix "/leaders" flips to the NJY-Leader board
   // Router passes `kind` as the entire arg after "leaderboard/", which
   // can be "daily/leaders" — split it here so both halves work.
-  const [actualKind, ...suffixParts] = String(kind || "daily").split("/");
-  const suffix = suffixParts.join("/") || (rest || "");
+  let [actualKind, ...suffixParts] = String(kind || "daily").split("/");
+  let suffix = suffixParts.join("/") || (rest || "");
+  // BUG 4: normalize bookmark URLs that put "leaders" in front (or on
+  // its own). #/leaderboard/leaders → land on daily/leaders (the
+  // natural leaders board). #/leaderboard/leaders/daily and
+  // #/leaderboard/leaders/overall → the same kind + leaders board.
+  // Unknown kind → fall through to "daily". Prevents the old shape
+  // fetching /api/leaderboard/leaders/leaders and hanging on 404.
+  if (actualKind === "leaders") {
+    const next = suffixParts[0];
+    actualKind = (next === "daily" || next === "overall") ? next : "daily";
+    suffix = "leaders";
+  } else if (!["daily", "overall"].includes(actualKind)) {
+    actualKind = "daily";
+  }
   const canSeeLeadersBoard = ["hk_leader", "njy_leader"].includes(ME.role);
   const isLeadersBoard = suffix === "leaders" && canSeeLeadersBoard;
 
