@@ -1084,12 +1084,21 @@ function tallyStrip(tally, keys) {
   };
   const row = el("div", { class: "tally" });
   for (const k of keys) {
-    row.append(el("div", { class: "cell" },
+    row.append(el("div", { class: "cell", "data-key": k },
       el("div", { class: "n" }, String(tally[k] ?? 0)),
       el("div", { class: "k" }, map[k] || k),
     ));
   }
   return row;
+}
+
+// Adjust a live tally cell's number by delta (e.g. +1 / -1). Silently
+// no-ops if the cell isn't present (some views don't include it).
+function bumpTallyCell(key, delta) {
+  const n = document.querySelector(`.tally .cell[data-key="${key}"] .n`);
+  if (!n) return;
+  const cur = parseInt(n.textContent, 10) || 0;
+  n.textContent = String(Math.max(0, cur + delta));
 }
 
 // Human-readable label for a bead color — used in tooltips.
@@ -1107,7 +1116,12 @@ function beadColorLabel(c) {
 // clickable dot — grey for "not chanted", green for "chanted", ringed
 // for today. Tap any dot to toggle that day. Backfilling past dates
 // covers the "they forgot to mark yesterday" case.
-async function buildHistoryStrip(personId) {
+async function buildHistoryStrip(personId, opts = {}) {
+  // opts.row     — the row object from rollList; toggled today-cell syncs
+  //                r.chanted_today + r.bead_color so the row's chant chip,
+  //                row bead, garland bead, and tally counter stay live.
+  // opts.chantBtn — the .chant-tag button for this row (kept in sync).
+  const { row, chantBtn } = opts;
   const strip = el("div", { class: "history-strip" });
   strip.append(el("div", { class: "hint", style: "grid-column:1/-1;font-size:.7rem" }, "Loading history…"));
   try {
@@ -1133,6 +1147,23 @@ async function buildHistoryStrip(personId) {
           }) });
           d.chanted = next;
           cell.classList.toggle("chanted", next);
+          cell.title = `${d.date} — ${next ? "chanted" : "not chanted"}${d.is_today ? " (today)" : ""}. Tap to toggle.`;
+          // When the toggled day IS today, the person's row-level state
+          // (chant chip, bead color, and tally counter) is derived from
+          // "chanted today" — sync those so the UI matches the DB without
+          // a page reload. Past-date toggles only affect history + the
+          // 3-day-miss red state, which is refreshed on next full load.
+          if (d.is_today && row) {
+            row.chanted_today = next;
+            row.bead_color = recomputeBead(row);
+            document.querySelectorAll(`.bead[data-person="${row.id}"]`)
+              .forEach(x => x.dataset.color = row.bead_color);
+            if (chantBtn) {
+              chantBtn.className = "chant-tag" + (next ? " on" : "");
+              chantBtn.textContent = next ? t("btn.chanted") : t("btn.chant_q");
+            }
+            bumpTallyCell("chanted_today", next ? 1 : -1);
+          }
         } catch (err) { alert(err.message || "Could not update"); }
       });
       strip.append(cell);
@@ -1235,7 +1266,7 @@ function rollList(roll, editable) {
     historyBtn.addEventListener("click", async () => {
       const existing = li.querySelector(".history-strip");
       if (existing) { existing.remove(); return; }
-      const strip = await buildHistoryStrip(r.id);
+      const strip = await buildHistoryStrip(r.id, { row: r, chantBtn: chant });
       li.append(strip);
     });
 
@@ -1651,7 +1682,7 @@ function rollListManageable(roll, currentOwnerUserId) {
     historyBtn.addEventListener("click", async () => {
       const existing = li.querySelector(".history-strip");
       if (existing) { existing.remove(); return; }
-      const strip = await buildHistoryStrip(r.id);
+      const strip = await buildHistoryStrip(r.id, { row: r, chantBtn: chant });
       li.append(strip);
     });
 
