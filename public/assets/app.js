@@ -2859,18 +2859,32 @@ async function renderProfile(userId) {
   const loader = el("p", { class: "hint" }, "Loading…");
   view.append(loader);
   try {
-    // Fetch both boards; find this user's row.
-    const [dailyRes, overallRes] = await Promise.all([
+    // BUG 6: use allSettled so a 403 on either leaderboard (e.g. member
+    // role gated out) doesn't nuke the whole profile page. Treat any
+    // rejected/malformed board as an empty { rows: [] } and show the
+    // rest of the profile.
+    const [dailySettled, overallSettled] = await Promise.allSettled([
       api("/api/leaderboard/daily"),
       api("/api/leaderboard/overall"),
     ]);
     if (myToken !== routeToken) return;
+    const dailyRes = (dailySettled.status === "fulfilled" && dailySettled.value && Array.isArray(dailySettled.value.rows))
+      ? dailySettled.value : { rows: [] };
+    const overallRes = (overallSettled.status === "fulfilled" && overallSettled.value && Array.isArray(overallSettled.value.rows))
+      ? overallSettled.value : { rows: [] };
+    const boardsUnavailable = dailySettled.status !== "fulfilled" && overallSettled.status !== "fulfilled";
     loader.remove();
     const daily = dailyRes.rows.find(r => r.user_id === target);
     const overall = overallRes.rows.find(r => r.user_id === target);
-    const name = daily?.name || overall?.name || "Coordinator";
-    const dailyRank = dailyRes.rows.findIndex(r => r.user_id === target) + 1;
-    const overallRank = overallRes.rows.findIndex(r => r.user_id === target) + 1;
+    const name = daily?.name || overall?.name || ME.display_name || "Coordinator";
+    const dailyRankIdx = dailyRes.rows.findIndex(r => r.user_id === target);
+    const overallRankIdx = overallRes.rows.findIndex(r => r.user_id === target);
+    const dailyRank = dailyRankIdx >= 0 ? dailyRankIdx + 1 : 0;
+    const overallRank = overallRankIdx >= 0 ? overallRankIdx + 1 : 0;
+    if (boardsUnavailable) {
+      view.append(el("p", { class: "hint" },
+        "Leaderboards aren't available for your role — showing the rest of your profile."));
+    }
 
     view.append(el("div", { class: "spread" },
       el("h3", { class: "section", style: "margin:0" }, name),
