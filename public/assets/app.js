@@ -2612,6 +2612,7 @@ let leaderboardGen = 0;
 async function renderLeaderboard(kind, rest) {
   const myGen = ++leaderboardGen;
   const view = $("view");
+  view.innerHTML = "";
   view.append(el("h2", { class: "section" }, "Leaderboard"));
 
   // Route shape: #/leaderboard/<kind>[/leaders]
