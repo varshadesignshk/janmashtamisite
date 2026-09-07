@@ -166,6 +166,18 @@ const humanRole = (r) => t("role." + r) !== "role." + r ? t("role." + r) : r;
 
 let ME = null, GATES = {};
 
+// -------------------------------------- route token (BUG 1+2) ------
+// Global monotonic token bumped by every hashchange-driven renderRoute().
+// Any render function that does `await api(...)` before painting should
+// capture `const myToken = routeToken;` at the top and, after each await,
+// bail with `if (myToken !== routeToken) return;`. This prevents an
+// earlier route's stale fetch from appending its UI onto whatever
+// screen the user has since navigated to. NOTE: the sort toggle inside
+// renderLeaderboard re-invokes renderLeaderboard(kind, rest) directly —
+// that path does NOT bump the token (only renderRoute does), so
+// intra-page re-renders still work correctly.
+let routeToken = 0;
+
 // ------------------------------------------------------------ boot ---
 let deferredInstall = null;
 window.addEventListener("beforeinstallprompt", (e) => {
@@ -479,6 +491,7 @@ function renderNav() {
 
 // ------------------------------------------------------ router ---
 function renderRoute() {
+  routeToken++;  // BUG 1+2: invalidate any in-flight fetches from the prior route
   renderNav();
   const view = $("view"); view.innerHTML = "";
   const h = location.hash || "#/";
@@ -526,16 +539,13 @@ function renderRoute() {
 // ============================================================ views
 
 // ---------------------------------------------- coordinator roll ---
-// Generation token so a stale in-flight /api/roll fetch doesn't append
-// its rows into a view that has already been re-rendered (same class of
-// bug as the leaderboard duplicate). Explains the "2 or 3 boxes come
-// up" wobble users reported.
-let coordRollGen = 0;
+// See "route token (BUG 1+2)" above — captures the current routeToken
+// on entry and bails after every await if the user has since navigated.
 async function renderCoordRoll(view) {
-  const myGen = ++coordRollGen;
+  const myToken = routeToken;
   try {
     const { roll, tally } = await api("/api/roll");
-    if (myGen !== coordRollGen) return;
+    if (myToken !== routeToken) return;
     // Coord banner: show who their NJY Leader is (or a nudge if unassigned)
     if (ME.role === "njy_coordinator") {
       const line = ME.manager_display_name
@@ -562,9 +572,11 @@ async function renderCoordRoll(view) {
       const carePlaceholder = el("div", {});
       view.append(carePlaceholder);
       // Fetch care moments async so the roll UI renders immediately.
+      // BUG 1+2 guard — bail if the user navigated away while fetching.
       (async () => {
         try {
           const cm = await api("/api/roll/care-moments");
+          if (myToken !== routeToken) return;
           renderCareMomentPanel(carePlaceholder, cm);
         } catch { /* silent — nice-to-have, not blocking */ }
       })();
@@ -649,6 +661,7 @@ async function renderBroadcast(view) {
 }
 
 async function renderBroadcastSetup(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(el("div", { class: "spread" },
     el("h2", { class: "section" }, "📢 Broadcast today's message"),
     el("a", { class: "btn", href: "#/" }, t("btn.back")),
@@ -662,6 +675,7 @@ async function renderBroadcastSetup(view) {
   view.append(loader);
   try {
     const { roll } = await api("/api/roll");
+    if (myToken !== routeToken) return;
     loader.remove();
     if (!roll.length) {
       view.append(el("p", { class: "hint" }, "No chanters in your roll yet."));
@@ -868,6 +882,7 @@ function renderBroadcastQueue(view) {
 // group-adds from personal accounts, so the flow is always
 // "chanter taps the link → WhatsApp shows Join Group screen".
 async function renderWaGroup(view) {
+  const myToken = routeToken;  // BUG 1+2
   if (ME.role !== "njy_coordinator") {
     view.append(el("h2", { class: "section" }, "WhatsApp Group"));
     view.append(el("p", { class: "hint" }, "This screen is for NJY Coordinators managing their own group."));
@@ -945,6 +960,7 @@ async function renderWaGroup(view) {
 
   try {
     const { roll } = await api("/api/roll");
+    if (myToken !== routeToken) return;
     loader.remove();
     if (!roll.length) {
       invite.append(el("p", { class: "hint" }, "No chanters in your roll yet."));
@@ -1231,6 +1247,7 @@ function rollList(roll, editable) {
 
 // ------------------------------------------------- leader dashboard ---
 async function renderLeaderDashboard(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, t("nav.team")));
   // HK Leader: hierarchical view — NJY Leaders first, drill to their coords.
   if (ME.role === "hk_leader") return renderHkLeadersList(view);
@@ -1239,6 +1256,7 @@ async function renderLeaderDashboard(view) {
   view.append(loader);
   try {
     const { coordinators } = await api("/api/leader/coordinators");
+    if (myToken !== routeToken) return;
     loader.remove();
     if (!coordinators.length) {
       return view.append(el("p", { class: "hint" }, t("msg.no_coords_leader")));
@@ -1258,6 +1276,7 @@ async function renderLeaderDashboard(view) {
 // HK Leader home — the leaders list with per-leader aggregates. Each row
 // drills into a leader-detail page showing that leader's coords.
 async function renderHkLeadersList(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(helpBanner(t("help.hk_leaders_list")));
   const loader = loadingLine("Loading leaders…");
   view.append(loader);
@@ -1265,6 +1284,7 @@ async function renderHkLeadersList(view) {
     // KPI tiles first (fast — single query behind the scenes)
     try {
       const s = await api("/api/hk/summary");
+      if (myToken !== routeToken) return;
       const grid = el("div", { class: "tally" });
       grid.append(
         el("div", { class: "cell" }, el("div", { class: "n" }, String(s.total_people)), el("div", { class: "k" }, t("hd.people"))),
@@ -1275,6 +1295,7 @@ async function renderHkLeadersList(view) {
       view.append(grid);
     } catch (_) {}
     const { leaders } = await api("/api/hk/leaders");
+    if (myToken !== routeToken) return;
     loader.remove();
     view.append(el("h3", { class: "section" }, t("hd.hk_leaders_list")));
     if (!leaders.length) return view.append(el("p", { class: "hint" }, t("msg.no_coords_hk")));
@@ -1317,17 +1338,20 @@ function leaderRowCard(l) {
 // the same coordCard used elsewhere, PLUS an assign button that opens
 // a picker to move coords under this leader.
 async function renderLeaderDrill(leaderId) {
+  const myToken = routeToken;  // BUG 1+2
   const view = $("view");
   const backHref = ME.role === "hk_leader" ? "#/leader" : "#/";
   const loader = loadingLine("Loading…");
   view.append(loader);
   try {
     const target = await api(`/api/user/${encodeURIComponent(leaderId)}`).catch(() => null);
+    if (myToken !== routeToken) return;
     // Fall back to enumerating leaders if the single-user endpoint isn't there.
     const [{ leaders }, { users }] = await Promise.all([
       api("/api/hk/leaders").catch(() => ({ leaders: [] })),
       api("/api/admin/users").catch(() => ({ users: [] })),
     ]);
+    if (myToken !== routeToken) return;
     const leader = leaders.find(l => l.user_id === leaderId) || {};
     const leaderUser = users.find(u => u.id === leaderId);
     const name = leader.name || leaderUser?.display_name || leaderUser?.username || "Leader";
@@ -1366,15 +1390,18 @@ async function renderLeaderDrill(leaderId) {
     // reuse /api/leader/coordinators (HK sees all) and filter.
     try {
       const { coordinators } = await api("/api/leader/coordinators");
+      if (myToken !== routeToken) return;
       const wanted = new Set(myCoords.map(c => c.id));
       const rows = coordinators.filter(c => wanted.has(c.user_id));
       const ul = el("ul", { class: "list" });
       for (const c of rows) ul.append(el("li", {}, coordCard(c)));
       view.append(ul);
     } catch (err) {
+      if (myToken !== routeToken) return;
       view.append(el("p", { class: "error" }, err.message));
     }
   } catch (err) {
+    if (myToken !== routeToken) return;
     loader.remove();
     view.append(el("p", { class: "error" }, err.message));
   }
@@ -1504,12 +1531,14 @@ function coordCard(c) {
 
 // -------------------------------------------------------- HK dashboard ---
 async function renderHkDashboard(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, t("hd.hk_dashboard")));
   view.append(helpBanner(t("help.hk_dashboard")));
   const loader = loadingLine("Loading dashboard numbers…");
   view.append(loader);
   try {
     const s = await api("/api/hk/summary");
+    if (myToken !== routeToken) return;
     loader.remove();
     const grid = el("div", { class: "tally" });
     grid.append(
@@ -1521,6 +1550,7 @@ async function renderHkDashboard(view) {
     view.append(grid);
     view.append(el("h2", { class: "section" }, "All coordinators"));
     const { coordinators } = await api("/api/leader/coordinators");
+    if (myToken !== routeToken) return;
     if (!coordinators.length) return view.append(el("p", { class: "hint" }, "No coordinators yet. Create some in Admin → Users."));
     const ul = el("ul", { class: "list" });
     for (const c of coordinators) {
@@ -1545,9 +1575,11 @@ async function loadAllUsers() {
 }
 
 async function renderUserDrill(userId) {
+  const myToken = routeToken;  // BUG 1+2
   const view = $("view");
   try {
     const { target, roll, tally } = await api(`/api/user/${encodeURIComponent(userId)}/roll`);
+    if (myToken !== routeToken) return;
     view.append(el("div", { class: "spread" },
       el("h2", { class: "section" }, `${target.name} · ${humanRole(target.role)}`),
       el("a", { class: "btn", href: ME.role === "hk_leader" ? "#/hk" : "#/leader" }, "← Back"),
@@ -1720,10 +1752,12 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
 
 // -------------------------------------------------------- duties ---
 async function renderDuties(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, t("nav.duties")));
   view.append(helpBanner(t("help.duties")));
   try {
     const { duties } = await api("/api/duties");
+    if (myToken !== routeToken) return;
     if (!duties.length) return view.append(el("p", { class: "hint" }, "No pending duties. Duties are auto-generated from the BV Action Timeline as roles get assigned. (Auto-generator not yet built — HK Leader can add duties manually via SQL for now.)"));
     const ul = el("ul", { class: "list" });
     for (const d of duties) {
@@ -1760,11 +1794,13 @@ async function renderDuties(view) {
 // -------------------------------------------- events list clickable ---
 // Each row links to its per-event attendance page.
 async function renderEvents(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.innerHTML = "";
   view.append(el("h2", { class: "section" }, t("hd.events")));
   view.append(helpBanner(t("help.events")));
   try {
     const { events } = await api("/api/events");
+    if (myToken !== routeToken) return;
     if (!events.length) return view.append(el("p", { class: "hint" }, "No events yet. HK Leader can create them in Admin → Events."));
     const ul = el("ul", { class: "list" });
     for (const ev of events) {
@@ -1783,9 +1819,11 @@ async function renderEvents(view) {
 
 // ----------------------------------------- per-event attendance ---
 async function renderEventAttendance(eventId) {
+  const myToken = routeToken;  // BUG 1+2
   const view = $("view");
   try {
     const { event, attended_ids, attended_count } = await api(`/api/events/${encodeURIComponent(eventId)}`);
+    if (myToken !== routeToken) return;
     view.append(el("div", { class: "spread" },
       el("div", {}, el("h2", { class: "section" }, event.name),
         el("div", { class: "hint" }, `${event.kind} · ${event.event_date}${event.venue ? " · " + esc(event.venue) : ""}`)),
@@ -1808,6 +1846,7 @@ async function renderEventAttendance(eventId) {
     // checklist. Coordinators can only expand their own row (server
     // enforces via /api/user/:userId/roll access rules).
     const breakdown = (arguments && (await api(`/api/events/${encodeURIComponent(eventId)}`)).breakdown) || [];
+    if (myToken !== routeToken) return;
     if (breakdown.length) {
       const card = el("div", { class: "card" });
       card.append(el("h3", { class: "section" }, "Attendance by coordinator"));
@@ -2293,6 +2332,7 @@ function passwordFieldWithEye(id, labelText) {
 
 // -------------------------------------------- sadhana browse mode ---
 async function renderSadhanaBrowse(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, "Sadhana Chart · browse"));
   view.append(el("p", { class: "hint" }, "Review recent entries filled by BV members and their Servant Leaders. Click any row to see that member's full history."));
 
@@ -2323,6 +2363,7 @@ async function renderSadhanaBrowse(view) {
   view.append(el("h3", { class: "section" }, "Recent entries"));
   try {
     const { entries } = await api("/api/sadhana?limit=20");
+    if (myToken !== routeToken) return;
     if (!entries.length) return view.append(el("p", { class: "hint" }, "No entries yet. Once BV members start filling their charts, they show up here newest-first."));
     const ul = el("ul", { class: "list" });
     for (const e of entries) {
@@ -2353,6 +2394,7 @@ async function renderSadhanaBrowse(view) {
 
 // -------------------------------------------------- BV structure ---
 async function renderBvStructure(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, "Bhakti-Vrksa structure"));
   view.append(helpBanner(
     "The Circle → Sector → BV Group hierarchy for Phase 4 (Feb 2027 " +
@@ -2363,6 +2405,7 @@ async function renderBvStructure(view) {
   view.append(el("p", { class: "hint" }, "Six named circles from the docs: Krsna, Balarama, Gauranga, Nityananda, Nrsimha, Laksmi. Under Plan 2 (updated): 4 sectors of 3 BV groups each = 72 groups at Week 1, expected to drop to ~50 groups by Week 64. Create/edit groups here."));
   try {
     const { circles, sectors, bv_groups } = await api("/api/bv/structure");
+    if (myToken !== routeToken) return;
     view.append(el("h3", { class: "section" }, `Circles (${circles.length})`));
     view.append(structureList(circles));
     view.append(el("h3", { class: "section" }, `Sectors (${sectors.length})`));
@@ -2464,11 +2507,13 @@ function newGroupForm() {
 
 // -------------------------------------------------- member details ---
 async function renderMemberDetails(personId) {
+  const myToken = routeToken;  // BUG 1+2
   const view = $("view");
   view.append(el("h2", { class: "section" }, "Member details"));
   if (!personId) return view.append(el("p", { class: "hint" }, "Open via a person row (feature comes online with BV phase)."));
   try {
     const { person } = await api(`/api/member/${encodeURIComponent(personId)}`);
+    if (myToken !== routeToken) return;
     const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
     const F = (id, label, val, extra = {}) =>
       formField(label, el("input", { id, value: val || "", ...extra }));
@@ -2613,11 +2658,13 @@ async function renderGroupReport(groupId) {
 }
 
 // ---------------------------------------------------- Leaderboard ---
-// Generation token so a stale in-flight fetch doesn't append rows into
-// a view that has already been re-rendered for a different tab.
-let leaderboardGen = 0;
+// See "route token (BUG 1+2)" above — global guard against a stale
+// in-flight fetch appending rows into a view that has since been
+// re-rendered for a different tab. The sort toggle re-invokes this
+// function directly (without going through renderRoute), so it does
+// NOT bump routeToken — that's how intra-page re-renders still work.
 async function renderLeaderboard(kind, rest) {
-  const myGen = ++leaderboardGen;
+  const myToken = routeToken;
   const view = $("view");
   view.innerHTML = "";
   view.append(el("h2", { class: "section" }, "Leaderboard"));
@@ -2693,7 +2740,7 @@ async function renderLeaderboard(kind, rest) {
 
   try {
     const { rows: rawRows } = await api(url);
-    if (myGen !== leaderboardGen) return;
+    if (myToken !== routeToken) return;
     loader.remove();
 
     // Re-sort leaders board client-side per user's chosen sort mode.
@@ -2756,7 +2803,7 @@ async function renderLeaderboard(kind, rest) {
     });
     view.append(ul);
   } catch (err) {
-    if (myGen !== leaderboardGen) return;
+    if (myToken !== routeToken) return;
     loader.remove();
     if (err.status === 403) {
       view.append(el("p", { class: "hint" }, "Leaders leaderboard is only visible to HK Leader and NJY Leaders."));
@@ -2792,6 +2839,7 @@ function prettyPointKind(k) {
 // A coord's own "how am I doing" page. LeetCode-style transaction view
 // showing every point-earning bucket with its count and total.
 async function renderProfile(userId) {
+  const myToken = routeToken;  // BUG 1+2
   const view = $("view");
   const target = userId || ME.id;
   view.append(el("h2", { class: "section" }, "Profile"));
@@ -2803,6 +2851,7 @@ async function renderProfile(userId) {
       api("/api/leaderboard/daily"),
       api("/api/leaderboard/overall"),
     ]);
+    if (myToken !== routeToken) return;
     loader.remove();
     const daily = dailyRes.rows.find(r => r.user_id === target);
     const overall = overallRes.rows.find(r => r.user_id === target);
@@ -2950,6 +2999,7 @@ function pointRow(label, points) {
 //      Excel copies as tab-separated by default, so paste-from-Excel
 //      just works. Google Sheets / CSV also work.
 async function renderJanmashtami(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, "Janmashtami rapid entry"));
 
   const progressWrap = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem" });
@@ -2958,6 +3008,7 @@ async function renderJanmashtami(view) {
   async function refreshProgress() {
     try {
       const p = await api("/api/me/janmashtami-progress");
+      if (myToken !== routeToken) return;
       progressWrap.innerHTML = "";
       const b1 = el("span", { class: "tier-badge" },
         el("span", { class: "num" }, String(p.entries_today)),
@@ -3094,6 +3145,7 @@ async function renderJanmashtami(view) {
   async function loadTodayEntries() {
     try {
       const { entries } = await api("/api/me/janmashtami-entries");
+      if (myToken !== routeToken) return;
       recentUl.innerHTML = "";
       if (!entries.length) {
         recentUl.append(el("li", {}, el("span", { class: "hint" }, t("msg.no_entries_today"))));
@@ -3299,7 +3351,9 @@ async function renderAdminUsersBulk(view) {
 }
 
 async function renderAdminGates(view) {
+  const myToken = routeToken;  // BUG 1+2
   const { gates } = await api("/api/me");
+  if (myToken !== routeToken) return;
   const ROLES = ["hk_leader","njy_leader","njy_coordinator","circle_servant","sector_servant","servant_leader","member"];
   const card = el("div", { class: "card" });
   card.append(el("h3", { class: "section" }, "Feature visibility"));
@@ -3328,9 +3382,11 @@ async function renderAdminGates(view) {
 }
 
 async function renderAdminUsers(view) {
+  const myToken = routeToken;  // BUG 1+2
   ALL_USERS_CACHE = null;
   try {
     const { users } = await api("/api/admin/users");
+    if (myToken !== routeToken) return;
     const ROLES = ["hk_leader","njy_leader","njy_coordinator","circle_servant","sector_servant","servant_leader","member"];
     const ul = el("ul", { class: "list" });
     for (const u of users) {
@@ -3470,6 +3526,7 @@ async function renderAdminUsers(view) {
 }
 
 async function renderAdminImport(view) {
+  const myToken = routeToken;  // BUG 1+2
   view.append(helpBanner(t("help.admin_bulk_chanters")));
 
   // Coord list for the dropdown (data-entry team picks which coord to
@@ -3478,6 +3535,7 @@ async function renderAdminImport(view) {
   let coordUsers = [];
   try {
     const { users } = await api("/api/admin/users");
+    if (myToken !== routeToken) return;
     coordUsers = users.filter(u => u.role === "njy_coordinator" && u.active);
   } catch { /* ok — leave empty */ }
 
@@ -3602,8 +3660,10 @@ async function renderAdminImport(view) {
 }
 
 async function renderAdminEvents(view) {
+  const myToken = routeToken;  // BUG 1+2
   try {
     const { events } = await api("/api/events");
+    if (myToken !== routeToken) return;
     if (events.length) {
       const ul = el("ul", { class: "list" });
       for (const e of events) {
