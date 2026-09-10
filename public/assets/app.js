@@ -807,12 +807,17 @@ function renderBroadcastQueue(view) {
   view.append(progressCard);
 
   if (done) {
+    // Tally the auto-contacted upgrades from the Sent taps.
+    const upgradedCount = state.queue.filter(x => x.contact_changed).length;
     const summary = el("div", { class: "care-empty" },
       el("h3", { style: "margin:0 0 .3rem" }, "🌸 Broadcast complete"),
       el("p", { style: "margin:0;font-size:.9rem" },
         `Sent to `, el("strong", {}, sentCount), ` chanter${sentCount === 1 ? "" : "s"}. `,
         skipCount ? `Skipped ${skipCount}. ` : "",
         `Started ${new Date(state.startedAt).toLocaleTimeString()}, finished ${new Date().toLocaleTimeString()}.`),
+      upgradedCount ? el("p", { class: "hint", style: "margin:.4rem 0 0;font-size:.85rem" },
+        el("strong", { style: "color:var(--peacock-deep)" }, `${upgradedCount}`),
+        ` marked → contacted (already-responded chanters unchanged).`) : null,
       el("p", { style: "margin-top:.9rem" },
         el("a", { class: "bc-big-btn", href: "#/",
           style: "background:var(--peacock-deep);box-shadow:0 2px 6px rgba(14,79,82,.3)" },
@@ -868,8 +873,21 @@ function renderBroadcastQueue(view) {
     // Only records the intent — actual send is the coord tapping WA's Send
     cur._opened = true;
   });
-  $("bc-next").addEventListener("click", () => {
+  $("bc-next").addEventListener("click", async () => {
     cur.sent = true;
+    // Anti-false-positive: only the explicit Sent tap upgrades status,
+    // not the mere wa.me open (which the coord may have abandoned). If
+    // the person is already at 2 (responded) or higher, the server will
+    // not downgrade — the endpoint's guard is "only 0 → 1".
+    if (cur.id) {
+      try {
+        const r = await api("/api/roll/mark-contacted", {
+          method: "POST", body: JSON.stringify({ person_id: cur.id }),
+        });
+        cur.contact_state_after = r.contact_state;
+        cur.contact_changed = r.changed;
+      } catch { /* non-blocking — don't stall the queue on an API blip */ }
+    }
     state.index += 1;
     const v = $("view"); v.innerHTML = "";
     renderBroadcastQueue(v);
