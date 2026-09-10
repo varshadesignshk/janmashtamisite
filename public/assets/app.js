@@ -546,11 +546,23 @@ async function renderCoordRoll(view) {
   try {
     const { roll, tally } = await api("/api/roll");
     if (myToken !== routeToken) return;
-    // Coord banner: show who their NJY Leader is (or a nudge if unassigned)
+    // Coord banner: show who their NJY Leader is (or a nudge if unassigned).
+    // CHANGE 5 — bold the leader's name (label stays regular weight),
+    // and render a small WhatsApp button next to it when the leader
+    // has a phone. Same for the "Contact HK" full-mesh link.
     if (ME.role === "njy_coordinator") {
-      const line = ME.manager_display_name
-        ? el("p", { class: "hint" }, t("hd.your_leader"), ": ", el("strong", {}, ME.manager_display_name))
-        : el("p", { class: "hint" }, t("msg.no_leader"));
+      const line = el("p", { class: "hint",
+        style: "display:flex;flex-wrap:wrap;gap:.4rem;align-items:center" });
+      if (ME.manager_display_name) {
+        line.append(
+          el("span", {}, t("hd.your_leader"), ": "),
+          el("strong", { style: "font-weight:700;color:var(--ink-2)" }, ME.manager_display_name),
+        );
+        if (ME.manager_phone) line.append(wame(ME.manager_phone, "Contact leader"));
+      } else {
+        line.append(el("span", {}, t("msg.no_leader")));
+      }
+      if (ME.hk_phone) line.append(wame(ME.hk_phone, "Contact HK"));
       view.append(line);
     }
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
@@ -677,6 +689,23 @@ function renderWaGroupPickerCard() {
     msg.textContent = "Opened. Pick your group in WhatsApp.";
   });
   return card;
+}
+
+// CHANGE 5 — canonical wa.me anchor helper. Strips "+" and non-digits
+// (matches server-side waDeepLink so the fix in CHANGE 1 applies
+// everywhere), and returns an inline "💬 <label>" pill. Returns an
+// empty placeholder if the phone is missing so callers don't need to
+// null-check.
+function wame(phone, label) {
+  const digits = String(phone || "").replace(/[^\d]/g, "");
+  if (!digits) return el("span", { hidden: true });
+  return el("a", {
+    class: "btn",
+    href: `https://wa.me/${digits}`,
+    target: "_blank", rel: "noopener",
+    title: `WhatsApp: ${phone}`,
+    style: "text-decoration:none;padding:.15rem .55rem;border-radius:6px;font-size:.78rem;font-weight:500;background:#25D366;color:#fff;border:none",
+  }, "💬 ", label || "WhatsApp");
 }
 
 // Renders the two nav buttons (Broadcast + WA Group) shown on the
@@ -1440,6 +1469,13 @@ async function renderLeaderDashboard(view) {
   // HK Leader: hierarchical view — NJY Leaders first, drill to their coords.
   if (ME.role === "hk_leader") return renderHkLeadersList(view);
   view.append(helpBanner(t("help.team")));
+  // CHANGE 5 — leader → HK full-mesh contact link.
+  if (ME.hk_phone) {
+    view.append(el("p", { class: "hint", style: "display:flex;gap:.4rem;align-items:center;margin:.4rem 0" },
+      "HK Leader: ", el("strong", { style: "font-weight:700;color:var(--ink-2)" }, ME.hk_display_name || "HK"),
+      wame(ME.hk_phone, "Contact HK"),
+    ));
+  }
   // CHANGE 3 — leader gets Broadcast + WA Group over their coords.
   view.append(broadcastAndWaGroupNav());
   const loader = loadingLine("Loading your coordinators…");
@@ -1503,11 +1539,15 @@ async function renderHkLeadersList(view) {
 function leaderRowCard(l) {
   const activePct = l.coord_count ? Math.round(100 * l.active_coords_today / l.coord_count) : 0;
   const chantedPct = l.assigned ? Math.round(100 * l.chanted_today / l.assigned) : 0;
+  // CHANGE 5 — HK → leader full-mesh: WhatsApp pill next to Open.
+  const rightBtns = el("div", { style: "display:flex;gap:.35rem;align-items:center" });
+  if (l.phone) rightBtns.append(wame(l.phone, "WA"));
+  rightBtns.append(el("a", { class: "btn", href: `#/leader/${l.user_id}` }, t("btn.open")));
   return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
     el("div", {},
       el("div", { class: "spread" },
         el("strong", {}, l.name),
-        el("a", { class: "btn", href: `#/leader/${l.user_id}` }, t("btn.open")),
+        rightBtns,
       ),
       el("div", { class: "hint", style: "margin-top:.2rem" },
         `${l.coord_count} ${t("hd.coordinators").toLowerCase()} · ${l.assigned} ${t("hd.people").toLowerCase()}`,
@@ -1698,11 +1738,15 @@ function coordCard(c) {
   const pctConsistent = Math.min(100, Math.round(100 * consistent / denom));
   const midToday = pctToday >= 60 ? 0 : (pctToday >= 30 ? 1 : 2);
   const midConsistent = pctConsistent >= 60 ? 0 : (pctConsistent >= 30 ? 1 : 2);
+  // CHANGE 5 — leader → coord + HK → coord full-mesh: WhatsApp pill next to Open.
+  const coordBtns = el("div", { style: "display:flex;gap:.35rem;align-items:center" });
+  if (c.phone) coordBtns.append(wame(c.phone, "WA"));
+  coordBtns.append(el("a", { class: "btn", href: `#/user/${c.user_id}` }, "Open"));
   return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
     el("div", {},
       el("div", { class: "spread" },
         el("strong", {}, c.name),
-        el("a", { class: "btn", href: `#/user/${c.user_id}` }, "Open"),
+        coordBtns,
       ),
       el("div", { class: "hint", style: "margin-top:.2rem" },
         `${dailyTotal} SKJ daily-committed · ${c.assigned || 0} in whole roll`,
