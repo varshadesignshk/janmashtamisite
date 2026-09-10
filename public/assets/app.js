@@ -642,15 +642,34 @@ function renderCareMomentPanel(container, cm) {
   container.append(wrap);
 }
 
+// Renders the two nav buttons (Broadcast + WA Group) shown on the
+// coord's My Roll, the leader's Team page, and the HK Leader's leaders
+// list. Recipient list is derived from the role — see
+// loadBroadcastRecipients().
+function broadcastAndWaGroupNav() {
+  const row = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0" });
+  row.append(
+    el("a", { class: "primary", href: "#/broadcast",
+      style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
+      "📢 Broadcast today's message"),
+    el("a", { class: "btn", href: "#/wa-group",
+      style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
+      ME.wa_group_link ? "💬 My WhatsApp group" : "💬 Set up my WhatsApp group"),
+  );
+  return row;
+}
+
 // -------------------------------------------------- Broadcast queue ---
-// A coord-only screen that walks through the roll one chanter at a
+// Steps a coord/leader/hk_leader through their recipients one at a
 // time, opening wa.me with a pre-personalised message each time. The
-// coord physically taps WhatsApp's Send button — no automation, zero
+// caller physically taps WhatsApp's Send button — no automation, zero
 // ban risk. See docs/BROADCAST.md for the full rationale.
 async function renderBroadcast(view) {
-  if (ME.role !== "njy_coordinator") {
+  // CHANGE 3: coord/leader/hk all get broadcast. Recipient list is
+  // scoped per role — see loadBroadcastRecipients() below.
+  if (!["njy_coordinator", "njy_leader", "hk_leader"].includes(ME.role)) {
     view.append(el("h2", { class: "section" }, "Broadcast"));
-    view.append(el("p", { class: "hint" }, "Broadcast mode is available only to NJY Coordinators for their own roll."));
+    view.append(el("p", { class: "hint" }, "Broadcast mode is available to NJY Coordinators, NJY Leaders, and HK Leader."));
     return;
   }
   // Split: setup screen if no queue in-progress; queue mode if there is.
@@ -660,39 +679,89 @@ async function renderBroadcast(view) {
   return renderBroadcastSetup(view);
 }
 
+// Load the broadcast recipient list, normalised to
+// [{ id, name, phone, chanted_today?, bead_color? }]. Scoped by the
+// caller's role:
+//   njy_coordinator → their assigned members  (~50-100)   /api/roll
+//   njy_leader      → their assigned coords   (~10)       /api/leader/coordinators
+//   hk_leader       → all NJY leaders         (~30)       /api/hk/leaders
+async function loadBroadcastRecipients() {
+  if (ME.role === "njy_coordinator") {
+    const { roll } = await api("/api/roll");
+    return {
+      kind: "members",
+      label: "chanters",
+      recipients: (roll || []).map(r => ({
+        id: r.id, name: r.name, phone: r.phone,
+        chanted_today: !!r.chanted_today, bead_color: r.bead_color,
+      })),
+    };
+  }
+  if (ME.role === "njy_leader") {
+    const { coordinators } = await api("/api/leader/coordinators");
+    return {
+      kind: "coords",
+      label: "coordinators",
+      recipients: (coordinators || []).map(c => ({
+        id: c.user_id, name: c.name, phone: c.phone,
+      })),
+    };
+  }
+  if (ME.role === "hk_leader") {
+    const { leaders } = await api("/api/hk/leaders");
+    return {
+      kind: "leaders",
+      label: "NJY leaders",
+      recipients: (leaders || []).map(l => ({
+        id: l.user_id, name: l.name, phone: l.phone,
+      })),
+    };
+  }
+  return { kind: "none", label: "recipients", recipients: [] };
+}
+
 async function renderBroadcastSetup(view) {
   const myToken = routeToken;  // BUG 1+2
   view.append(el("div", { class: "spread" },
     el("h2", { class: "section" }, "📢 Broadcast today's message"),
     el("a", { class: "btn", href: "#/" }, t("btn.back")),
   ));
+  const roleHelp = ME.role === "njy_coordinator"
+    ? "Send the same WhatsApp message to every chanter in your roll — one tap per person. "
+    : ME.role === "njy_leader"
+    ? "Send the same WhatsApp message to every coordinator on your team — one tap per person. "
+    : "Send the same WhatsApp message to every NJY Leader — one tap per person. ";
   view.append(helpBanner(
-    "Send the same WhatsApp message to every chanter in your roll — one tap per person. " +
-    "Each send opens WhatsApp with the message ready; you tap Send, and the app queues the next chanter. " +
-    "Takes ~5-8 minutes for 100 chanters. Every message goes from YOUR personal WhatsApp."
+    roleHelp +
+    "Each send opens WhatsApp with the message ready; you tap Send, and the app queues the next recipient. " +
+    "Every message goes from YOUR personal WhatsApp."
   ));
-  const loader = loadingLine("Loading your roll…");
+  const loader = loadingLine("Loading recipients…");
   view.append(loader);
   try {
-    const { roll } = await api("/api/roll");
+    const { kind, label, recipients } = await loadBroadcastRecipients();
     if (myToken !== routeToken) return;
     loader.remove();
-    if (!roll.length) {
-      view.append(el("p", { class: "hint" }, "No chanters in your roll yet."));
+    if (!recipients.length) {
+      view.append(el("p", { class: "hint" }, `No ${label} yet.`));
       return;
     }
-    // Message editor — defaults to coord's saved daily template.
+    // Message editor — defaults to caller's saved daily template.
     const defaultMsg = ME.wa_template_daily
       || "Hare Krsna {name}! 🌸\n\nDid you complete your daily rounds today?\nEven one round makes the day meaningful. 🙏";
     const msgTa = el("textarea", { id: "bc-msg", rows: 5 });
     msgTa.value = defaultMsg;
 
+    // Skip-filters only make sense for the coord flow (they operate on
+    // per-chanter chant/bead state that leader/hk recipients don't have).
+    const isMembers = kind === "members";
     const skipChanted = el("input", { type: "checkbox", id: "bc-skip-chanted", checked: true });
     const skipRed = el("input", { type: "checkbox", id: "bc-skip-red", checked: false });
 
     const countLine = el("div", { class: "bc-count-line" });
     function recount() {
-      const filtered = roll.filter(r => {
+      const filtered = recipients.filter(r => {
+        if (!isMembers) return true;
         if (skipChanted.checked && r.chanted_today) return false;
         if (skipRed.checked && r.bead_color === "red") return false;
         return true;
@@ -700,11 +769,13 @@ async function renderBroadcastSetup(view) {
       countLine.innerHTML = "";
       countLine.append(
         el("strong", {}, `${filtered.length}`),
-        ` of ${roll.length} chanters will receive this message.`,
+        ` of ${recipients.length} ${label} will receive this message.`,
       );
     }
-    skipChanted.addEventListener("change", recount);
-    skipRed.addEventListener("change", recount);
+    if (isMembers) {
+      skipChanted.addEventListener("change", recount);
+      skipRed.addEventListener("change", recount);
+    }
     recount();
 
     // Message card
@@ -713,24 +784,30 @@ async function renderBroadcastSetup(view) {
       el("h3", {}, "Message"),
       el("p", { class: "bc-hint" },
         "Use ", el("code", { style: "background:var(--tint-followed);padding:.05rem .3rem;border-radius:3px" }, "{name}"),
-        " anywhere in your message — it gets replaced with each chanter's actual name at send time."),
+        ` anywhere in your message — it gets replaced with each ${isMembers ? "chanter's" : "recipient's"} actual name at send time.`),
       msgTa,
     );
     view.append(msgCard);
 
-    // Filters card
+    // Filters card — only for the coord/members flow.
     const filterCard = el("div", { class: "bc-card" });
+    if (isMembers) {
+      filterCard.append(
+        el("h3", {}, "Who receives"),
+        el("label", { class: "bc-check-row" }, skipChanted,
+          el("span", { class: "bc-check-label" },
+            el("strong", {}, "Skip chanters who already chanted today"),
+            el("span", { class: "bc-check-sub" }, "No need to remind them — save this message for those who haven't chanted yet"))),
+        el("label", { class: "bc-check-row" }, skipRed,
+          el("span", { class: "bc-check-label" },
+            el("strong", {}, "Skip disqualified chanters"),
+            el("span", { class: "bc-check-sub" }, "Chanters who've missed 3+ consecutive days (red bead) — they need a personal check-in, not a bulk reminder"))),
+        countLine,
+      );
+    } else {
+      filterCard.append(el("h3", {}, "Who receives"), countLine);
+    }
     filterCard.append(
-      el("h3", {}, "Who receives"),
-      el("label", { class: "bc-check-row" }, skipChanted,
-        el("span", { class: "bc-check-label" },
-          el("strong", {}, "Skip chanters who already chanted today"),
-          el("span", { class: "bc-check-sub" }, "No need to remind them — save this message for those who haven't chanted yet"))),
-      el("label", { class: "bc-check-row" }, skipRed,
-        el("span", { class: "bc-check-label" },
-          el("strong", {}, "Skip disqualified chanters"),
-          el("span", { class: "bc-check-sub" }, "Chanters who've missed 3+ consecutive days (red bead) — they need a personal check-in, not a bulk reminder"))),
-      countLine,
       el("p", { style: "margin-top:1rem;text-align:right" },
         el("button", { class: "primary", id: "bc-start", style: "font-size:1rem;padding:.7rem 1.4rem" },
           "Start Broadcast  →"),
@@ -741,13 +818,16 @@ async function renderBroadcastSetup(view) {
     $("bc-start").addEventListener("click", () => {
       const messageTemplate = msgTa.value.trim();
       if (!messageTemplate) { alert("Type a message first."); return; }
-      const filtered = roll.filter(r => {
+      const filtered = recipients.filter(r => {
+        if (!isMembers) return true;
         if (skipChanted.checked && r.chanted_today) return false;
         if (skipRed.checked && r.bead_color === "red") return false;
         return true;
       });
-      if (!filtered.length) { alert("No chanters match your filters."); return; }
-      // Init session state
+      if (!filtered.length) { alert(`No ${label} match your filters.`); return; }
+      // Init session state — note `kind` gates whether the Sent-tap
+      // fires mark-contacted (only for members/chanters — coords and
+      // leaders are staff, not on any coord's roll).
       window._njyBroadcast = {
         queue: filtered.map(r => ({
           id: r.id, name: r.name, phone: r.phone,
@@ -756,6 +836,7 @@ async function renderBroadcastSetup(view) {
         index: 0,
         messageTemplate,
         startedAt: new Date().toISOString(),
+        kind,
       };
       // Re-render into queue mode.
       const v = $("view"); v.innerHTML = "";
@@ -763,7 +844,7 @@ async function renderBroadcastSetup(view) {
     });
   } catch (err) {
     loader.remove();
-    view.append(el("p", { class: "error" }, "Could not load roll: " + err.message));
+    view.append(el("p", { class: "error" }, "Could not load recipients: " + err.message));
   }
 }
 
@@ -879,7 +960,11 @@ function renderBroadcastQueue(view) {
     // not the mere wa.me open (which the coord may have abandoned). If
     // the person is already at 2 (responded) or higher, the server will
     // not downgrade — the endpoint's guard is "only 0 → 1".
-    if (cur.id) {
+    // Only fire mark-contacted when the queue is over MEMBERS (people
+    // on a coord's roll). For leader→coord and hk→leader broadcasts,
+    // the "recipient" is a staff user with no person_id and no
+    // contact_state — the endpoint would 404.
+    if (cur.id && state.kind === "members") {
       try {
         const r = await api("/api/roll/mark-contacted", {
           method: "POST", body: JSON.stringify({ person_id: cur.id }),
@@ -908,19 +993,24 @@ function renderBroadcastQueue(view) {
 // "chanter taps the link → WhatsApp shows Join Group screen".
 async function renderWaGroup(view) {
   const myToken = routeToken;  // BUG 1+2
-  if (ME.role !== "njy_coordinator") {
+  // CHANGE 3: coord/leader/hk all get WhatsApp Group Helper. The
+  // recipient list is scoped by role — see loadBroadcastRecipients().
+  if (!["njy_coordinator", "njy_leader", "hk_leader"].includes(ME.role)) {
     view.append(el("h2", { class: "section" }, "WhatsApp Group"));
-    view.append(el("p", { class: "hint" }, "This screen is for NJY Coordinators managing their own group."));
+    view.append(el("p", { class: "hint" }, "This screen is for NJY Coordinators, NJY Leaders, and HK Leader."));
     return;
   }
+  const inviteeWord = ME.role === "njy_coordinator" ? "chanters"
+    : ME.role === "njy_leader" ? "coordinators"
+    : "NJY leaders";
   view.append(el("div", { class: "spread" },
     el("h2", { class: "section" }, "💬 My WhatsApp Group"),
     el("a", { class: "btn", href: "#/" }, t("btn.back")),
   ));
   view.append(helpBanner(
     "One-time setup: create a WhatsApp group in WhatsApp app, copy its invite link, and paste below. " +
-    "Then you can send personal invite messages to your chanters so they can join. " +
-    "WhatsApp does NOT allow apps to add chanters directly — they must tap the invite link themselves."
+    `Then you can send personal invite messages to your ${inviteeWord} so they can join. ` +
+    `WhatsApp does NOT allow apps to add ${inviteeWord} directly — they must tap the invite link themselves.`
   ));
 
   // --- Setup card ---
@@ -974,36 +1064,36 @@ async function renderWaGroup(view) {
   });
   view.append(setup);
 
-  // --- Invite chanters card ---
+  // --- Invite recipients card ---
   const linkNow = () => (linkI.value || "").trim();
   const invite = el("div", { class: "card" });
-  invite.append(el("h3", { class: "section", style: "margin-top:0" }, "Invite chanters to this group"));
+  invite.append(el("h3", { class: "section", style: "margin-top:0" }, `Invite ${inviteeWord} to this group`));
 
-  const loader = loadingLine("Loading your roll…");
+  const loader = loadingLine("Loading recipients…");
   invite.append(loader);
   view.append(invite);
 
   try {
-    const { roll } = await api("/api/roll");
+    const { kind, label, recipients } = await loadBroadcastRecipients();
     if (myToken !== routeToken) return;
     loader.remove();
-    if (!roll.length) {
-      invite.append(el("p", { class: "hint" }, "No chanters in your roll yet."));
+    if (!recipients.length) {
+      invite.append(el("p", { class: "hint" }, `No ${label} yet.`));
       return;
     }
 
     invite.append(el("p", { class: "hint" },
-      "Select chanters below. Tap the button to walk through sending each an invite message via your personal WhatsApp. " +
-      "The message includes your group's invite link — chanter taps it → WhatsApp opens Join Group prompt."));
+      `Select ${label} below. Tap the button to walk through sending each an invite message via your personal WhatsApp. ` +
+      `The message includes your group's invite link — the recipient taps it → WhatsApp opens Join Group prompt.`));
 
     // Message template for invites
     const inviteMsg = el("textarea", { id: "wg-inv-msg", rows: 4,
       style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px" });
     inviteMsg.value = "Hare Krsna {name}! 🌸\n\nI'm inviting you to join our chanting group on WhatsApp. Tap here to join 🙏\n\n{link}";
-    invite.append(el("p", { class: "hint" }, "Invite message. Use ", el("code", {}, "{name}"), " for chanter's name and ", el("code", {}, "{link}"), " for the group link."));
+    invite.append(el("p", { class: "hint" }, "Invite message. Use ", el("code", {}, "{name}"), " for the recipient's name and ", el("code", {}, "{link}"), " for the group link."));
     invite.append(inviteMsg);
 
-    // Chanter multi-select list
+    // Recipients multi-select list
     const listHead = el("div", { class: "spread", style: "margin-top:1rem;padding:.5rem .1rem;border-bottom:1px solid var(--line)" });
     const selectAll = el("input", { type: "checkbox", id: "wg-select-all" });
     listHead.append(
@@ -1015,8 +1105,8 @@ async function renderWaGroup(view) {
 
     const ul = el("div", { style: "max-height:280px;overflow-y:auto;margin-top:0;border:1px solid var(--line);border-radius:6px;background:var(--surface)" });
     const rowChecks = [];
-    roll.forEach((r) => {
-      const cb = el("input", { type: "checkbox", value: r.id, "data-name": r.name, "data-phone": r.phone });
+    recipients.forEach((r) => {
+      const cb = el("input", { type: "checkbox", value: r.id, "data-name": r.name, "data-phone": r.phone || "" });
       rowChecks.push(cb);
       cb.addEventListener("change", updateCount);
       const row = el("label", {
@@ -1025,7 +1115,7 @@ async function renderWaGroup(view) {
         cb,
         el("span", { style: "flex:1;min-width:0" },
           el("div", { style: "font-weight:500;font-size:.9rem;color:var(--ink-2);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" }, r.name),
-          el("div", { class: "hint", style: "font-size:.72rem;font-family:var(--font-mono)" }, r.phone)),
+          el("div", { class: "hint", style: "font-size:.72rem;font-family:var(--font-mono)" }, r.phone || "(no phone)")),
       );
       ul.append(row);
     });
@@ -1048,10 +1138,10 @@ async function renderWaGroup(view) {
       const link = linkNow();
       if (!link) { alert("Paste and Save your group invite link first (top of this page)."); return; }
       const selected = rowChecks.filter(c => c.checked);
-      if (!selected.length) { alert("Select at least one chanter."); return; }
+      if (!selected.length) { alert(`Select at least one ${label.replace(/s$/, "")}.`); return; }
       const template = inviteMsg.value.trim();
       if (!template.includes("{link}")) {
-        if (!confirm("Your message doesn't include {link}. Chanters won't get the join link. Continue anyway?")) return;
+        if (!confirm("Your message doesn't include {link}. Recipients won't get the join link. Continue anyway?")) return;
       }
       const compiled = template.replace(/\{link\}/g, link);
       // Reuse the broadcast queue infrastructure with this invite message.
@@ -1065,14 +1155,16 @@ async function renderWaGroup(view) {
         index: 0,
         messageTemplate: compiled,
         startedAt: new Date().toISOString(),
+        kind,
       };
       location.hash = "#/broadcast";
     });
   } catch (err) {
     loader.remove();
-    invite.append(el("p", { class: "error" }, "Could not load roll: " + err.message));
+    invite.append(el("p", { class: "error" }, "Could not load recipients: " + err.message));
   }
 }
+
 
 // Small legend explaining what the bead colors mean, shown above the
 // garland on any roll view. Compact — fits on one line most screens.
@@ -1308,6 +1400,8 @@ async function renderLeaderDashboard(view) {
   // HK Leader: hierarchical view — NJY Leaders first, drill to their coords.
   if (ME.role === "hk_leader") return renderHkLeadersList(view);
   view.append(helpBanner(t("help.team")));
+  // CHANGE 3 — leader gets Broadcast + WA Group over their coords.
+  view.append(broadcastAndWaGroupNav());
   const loader = loadingLine("Loading your coordinators…");
   view.append(loader);
   try {
@@ -1334,6 +1428,8 @@ async function renderLeaderDashboard(view) {
 async function renderHkLeadersList(view) {
   const myToken = routeToken;  // BUG 1+2
   view.append(helpBanner(t("help.hk_leaders_list")));
+  // CHANGE 3 — HK gets Broadcast + WA Group over all NJY leaders.
+  view.append(broadcastAndWaGroupNav());
   const loader = loadingLine("Loading leaders…");
   view.append(loader);
   try {
