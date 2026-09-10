@@ -329,22 +329,57 @@ window.replayTour = () => {
   maybeShowOnboardingTour();
 };
 
-// Header points chip — small oval showing today's and overall points
-// for the signed-in coordinator. Silently ignored for other roles.
+// Header points chip — small oval showing today's and overall points.
+// Coord:   own points (existing /api/me/points).
+// Leader:  their team roll-up from /api/leaderboard/leaders/*, own row.
+// HK:      sum across every leader row (whole-install total).
 async function refreshPointsChip() {
   const chip = $("pts-chip");
   if (!chip) return;
-  if (ME.role !== "njy_coordinator") { chip.hidden = true; return; }
-  try {
-    const p = await api("/api/me/points");
-    if (!p.applicable) { chip.hidden = true; return; }
+
+  const render = (todayN, overallN, href) => {
     chip.innerHTML = "";
+    if (href) chip.setAttribute("href", href);
     chip.append(
-      t("chip.today") + " ", el("span", { class: "pts-num" }, String(p.daily || 0)),
+      t("chip.today") + " ", el("span", { class: "pts-num" }, String(todayN || 0)),
       el("span", { class: "pts-sep" }, " · "),
-      t("chip.overall") + " ", el("span", { class: "pts-num" }, String(p.overall || 0)),
+      t("chip.overall") + " ", el("span", { class: "pts-num" }, String(overallN || 0)),
     );
     chip.hidden = false;
+  };
+
+  try {
+    if (ME.role === "njy_coordinator") {
+      const p = await api("/api/me/points");
+      if (!p.applicable) { chip.hidden = true; return; }
+      render(p.daily, p.overall, "#/profile");
+      return;
+    }
+
+    if (ME.role === "njy_leader") {
+      // Own leader row on daily + overall leader boards.
+      const [daily, overall] = await Promise.all([
+        api("/api/leaderboard/leaders/daily").catch(() => ({ rows: [] })),
+        api("/api/leaderboard/leaders/overall").catch(() => ({ rows: [] })),
+      ]);
+      const dRow = (daily.rows || []).find(r => r.user_id === ME.id) || {};
+      const oRow = (overall.rows || []).find(r => r.user_id === ME.id) || {};
+      render(dRow.pts, oRow.pts, "#/leaderboard/leaders");
+      return;
+    }
+
+    if (ME.role === "hk_leader") {
+      // Roll-up: sum every leader's team on both scopes.
+      const [daily, overall] = await Promise.all([
+        api("/api/leaderboard/leaders/daily").catch(() => ({ rows: [] })),
+        api("/api/leaderboard/leaders/overall").catch(() => ({ rows: [] })),
+      ]);
+      const sum = (rows) => (rows || []).reduce((s, r) => s + (r.pts || 0), 0);
+      render(sum(daily.rows), sum(overall.rows), "#/leaderboard/leaders");
+      return;
+    }
+
+    chip.hidden = true;
   } catch (_) { chip.hidden = true; }
 }
 window.refreshPointsChip = refreshPointsChip;
