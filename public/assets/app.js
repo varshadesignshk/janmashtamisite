@@ -682,9 +682,11 @@ function renderWaGroupPickerCard() {
   openBtn.addEventListener("click", () => {
     const text = (ta.value || "").trim();
     if (!text) { msg.textContent = "Type a message first."; return; }
-    // wa.me with no phone opens the contact/group picker with the text
-    // pre-filled. Standard UTF-8 percent-encoding (same fix as CHANGE 1).
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    // api.whatsapp.com/send/ with no phone opens the contact/group
+    // picker with the text pre-filled. Used instead of wa.me because
+    // wa.me's redirect ASCII-fies 4-byte emoji codepoints — see the
+    // waUrl comment in renderBroadcastQueue.
+    const url = `https://api.whatsapp.com/send/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank", "noopener");
     msg.textContent = "Opened. Pick your group in WhatsApp.";
   });
@@ -701,7 +703,7 @@ function wame(phone, label) {
   if (!digits) return el("span", { hidden: true });
   return el("a", {
     class: "btn",
-    href: `https://wa.me/${digits}`,
+    href: `https://api.whatsapp.com/send/?phone=${digits}`,
     target: "_blank", rel: "noopener",
     title: `WhatsApp: ${phone}`,
     style: "text-decoration:none;padding:.15rem .55rem;border-radius:6px;font-size:.78rem;font-weight:500;background:#25D366;color:#fff;border:none",
@@ -984,8 +986,18 @@ function renderBroadcastQueue(view) {
   // codec on some Android/iOS builds → emojis land as U+FFFD (�).
   // Strip the "+" first so the URL is canonical wa.me/<digits>?text=...
   // (matches what the server-side waDeepLink() emits for care-moments).
+  // api.whatsapp.com/send/ is used instead of wa.me because wa.me's
+  // 302 → api.whatsapp.com redirect ASCII-fies any 4-byte UTF-8 codepoint
+  // (emoji, U+1F338 🌸, U+1F64F 🙏, …) in the ?text= param to U+FFFD, which
+  // WhatsApp Web then renders as "?". Reproduce with:
+  //   curl -sI 'https://wa.me/9999?text=%F0%9F%8C%B8' | grep Location
+  // → Location: …&text=%EF%BF%BD…  (the replacement character)
+  // api.whatsapp.com/send/ is the endpoint wa.me redirects to and it
+  // preserves the codepoints intact. Works on WA mobile app + Web + Desktop.
   const waPhone = String(cur.phone || "").replace(/[^\d]/g, "");
-  const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(filledMsg)}`;
+  const waUrl = waPhone
+    ? `https://api.whatsapp.com/send/?phone=${waPhone}&text=${encodeURIComponent(filledMsg)}`
+    : `https://api.whatsapp.com/send/?text=${encodeURIComponent(filledMsg)}`;
 
   const card = el("div", { class: "bc-card" });
   card.append(
