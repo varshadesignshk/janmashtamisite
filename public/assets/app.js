@@ -642,6 +642,43 @@ function renderCareMomentPanel(container, cm) {
   container.append(wrap);
 }
 
+// CHANGE 4 — a small card that lets the caller send a pre-filled text
+// message INTO their WhatsApp group. WhatsApp doesn't support
+// pre-filled messages to a group via URL, so we use the "no-phone"
+// wa.me picker (`https://wa.me/?text=...`) — WhatsApp opens the
+// contact/group picker with the text pre-filled, the caller taps
+// their group, then Send. Draft persists in localStorage (per browser).
+function renderWaGroupPickerCard() {
+  const STORAGE_KEY = "njy_wa_group_pick_msg";
+  const card = el("div", { class: "card" });
+  card.append(
+    el("h3", { class: "section", style: "margin-top:0" }, "Send a message to your group"),
+    el("p", { class: "hint" }, "WhatsApp will let you pick which group to send to."),
+  );
+  const ta = el("textarea", { id: "wg-pick-msg", rows: 4,
+    placeholder: "Hare Krsna! Reminder: Janmashtami practice tonight at 7 PM 🌸",
+    style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px" });
+  try { ta.value = localStorage.getItem(STORAGE_KEY) || ""; } catch { /* private mode */ }
+  ta.addEventListener("input", () => {
+    try { localStorage.setItem(STORAGE_KEY, ta.value); } catch { /* private mode */ }
+  });
+  card.append(ta);
+  const msg = el("span", { class: "hint", style: "margin-left:.5rem" });
+  const openBtn = el("button", { class: "primary", type: "button", id: "wg-pick-open",
+    style: "font-size:1rem;padding:.6rem 1.1rem" }, "📱 Open WhatsApp picker");
+  card.append(el("p", { style: "margin-top:.7rem" }, openBtn, msg));
+  openBtn.addEventListener("click", () => {
+    const text = (ta.value || "").trim();
+    if (!text) { msg.textContent = "Type a message first."; return; }
+    // wa.me with no phone opens the contact/group picker with the text
+    // pre-filled. Standard UTF-8 percent-encoding (same fix as CHANGE 1).
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank", "noopener");
+    msg.textContent = "Opened. Pick your group in WhatsApp.";
+  });
+  return card;
+}
+
 // Renders the two nav buttons (Broadcast + WA Group) shown on the
 // coord's My Roll, the leader's Team page, and the HK Leader's leaders
 // list. Recipient list is derived from the role — see
@@ -1063,6 +1100,9 @@ async function renderWaGroup(view) {
     } catch (err) { msg.textContent = "Failed: " + err.message; }
   });
   view.append(setup);
+
+  // --- CHANGE 4: Send-to-group message picker ---
+  view.append(renderWaGroupPickerCard());
 
   // --- Invite recipients card ---
   const linkNow = () => (linkI.value || "").trim();
