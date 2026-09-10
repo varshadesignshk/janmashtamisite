@@ -280,6 +280,23 @@ textarea { min-height: 4rem; resize: vertical; }
 .topbar .who strong { color: var(--ink-2); font-weight: 500; }
 .topbar .who a { margin-left: .3rem; }
 
+/* Persistent contact pill in top-right header. Always visible; opens
+   api.whatsapp.com/send/?phone=<digits> for the coord's leader or the
+   leader/coord's HK. Kept compact so the header doesn't wrap on mobile. */
+.topbar .who a.hdr-contact {
+  background: #25D366;
+  color: #fff;
+  padding: .15rem .5rem;
+  border-radius: 6px;
+  font-size: .72rem;
+  font-weight: 500;
+  text-decoration: none;
+  line-height: 1.4;
+  margin-left: .3rem;
+  white-space: nowrap;
+}
+.topbar .who a.hdr-contact:hover { background: #1eb257; }
+
 /* --------- floating leaderboard sidebar (desktop only) --------- */
 /* A slim always-visible panel on the right edge showing today's top
  * three coordinators + the signed-in coord's own rank. Hidden on

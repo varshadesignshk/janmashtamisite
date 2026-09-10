@@ -239,6 +239,7 @@ async function showApp() {
   $("who-role").textContent = " · " + humanRole(ME.role);
   $("logout").textContent = t("nav.sign_out");
   $("logout").onclick = async (e) => { e.preventDefault(); await api("/api/logout", { method: "POST" }); location.hash = ""; location.reload(); };
+  renderHeaderContactPills();
   // Language quick-toggle in header
   const langBtn = $("lang-toggle");
   if (langBtn) {
@@ -383,6 +384,42 @@ async function refreshPointsChip() {
   } catch (_) { chip.hidden = true; }
 }
 window.refreshPointsChip = refreshPointsChip;
+
+// Persistent header Contact pills — always visible in the top-right so
+// the user can WhatsApp their upstream contact from any page.
+//   njy_coordinator → "💬 Leader" + "💬 HK"
+//   njy_leader      → "💬 HK"
+//   hk_leader       → omitted (no upstream)
+// Reuses ME.manager_phone / ME.hk_phone (already returned by /api/me);
+// no new endpoint. Pills open api.whatsapp.com/send/?phone=<digits>
+// (same fix as CHANGE 1 — no wa.me redirect that mangles emoji).
+function renderHeaderContactPills() {
+  // Remove any previous pass (re-render on language change / role switch).
+  document.querySelectorAll(".hdr-contact").forEach(n => n.remove());
+  const line = document.querySelector(".who-line");
+  if (!line) return;
+  const logout = $("logout");
+  const pill = (label, phone) => {
+    const digits = String(phone || "").replace(/[^\d]/g, "");
+    if (!digits) return null;
+    return el("a", {
+      class: "hdr-contact",
+      href: `https://api.whatsapp.com/send/?phone=${digits}`,
+      target: "_blank", rel: "noopener",
+      title: `WhatsApp ${label}: ${phone}`,
+    }, "💬 ", label);
+  };
+  const pills = [];
+  if (ME.role === "njy_coordinator") {
+    const p1 = pill("Leader", ME.manager_phone); if (p1) pills.push(p1);
+    const p2 = pill("HK", ME.hk_phone); if (p2) pills.push(p2);
+  } else if (ME.role === "njy_leader") {
+    const p = pill("HK", ME.hk_phone); if (p) pills.push(p);
+  }
+  // Insert before logout so the order reads: name · role | contact... | Sign out | lang
+  for (const p of pills) line.insertBefore(p, logout);
+}
+window.renderHeaderContactPills = renderHeaderContactPills;
 
 // Floating leaderboard sidebar — desktop-only, always visible while
 // scrolling. Shows today's top 3 coords + your own rank if you're
