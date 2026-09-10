@@ -826,7 +826,14 @@ function renderBroadcastQueue(view) {
   // Current chanter card
   const cur = state.queue[state.index];
   const filledMsg = state.messageTemplate.replace(/\{name\}/g, (cur.name || "").split(" ")[0] || cur.name || "");
-  const waUrl = `https://wa.me/${encodeURIComponent(String(cur.phone || "").replace(/[^\d+]/g, ""))}?text=${encodeURIComponent(filledMsg)}`;
+  // wa.me wants phone digits only — leaving "+" in (encoded as %2B) breaks
+  // recipient matching on some WhatsApp clients and falls back to the
+  // compose picker, which re-parses the ?text= param under a non-UTF-8
+  // codec on some Android/iOS builds → emojis land as U+FFFD (�).
+  // Strip the "+" first so the URL is canonical wa.me/<digits>?text=...
+  // (matches what the server-side waDeepLink() emits for care-moments).
+  const waPhone = String(cur.phone || "").replace(/[^\d]/g, "");
+  const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(filledMsg)}`;
 
   const card = el("div", { class: "bc-card" });
   card.append(
