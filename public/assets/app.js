@@ -444,7 +444,7 @@ async function refreshLbSide() {
       const top3s = rows.slice(0, 3);
       const medalsS = ["🥇","🥈","🥉"];
       if (!top3s.length) {
-        inner.append(el("span", { class: "lb-strip-empty" }, "No points yet today"));
+        inner.append(el("span", { class: "lb-strip-empty" }, t("hd.no_points_yet_today")));
       } else {
         top3s.forEach((r, i) => {
           inner.append(el("span", { class: "lb-strip-slot" + (r.user_id === ME.id ? " me" : "") },
@@ -2777,7 +2777,7 @@ function structureList(groups) {
         formField("Meeting venue", el("input", { id: `ge-venue-${g.id}`, value: g.meeting_venue || "" })),
         formField("Target strength", el("input", { id: `ge-str-${g.id}`, type: "number", value: g.target_strength || "" })),
       );
-      const save = el("button", { class: "primary" }, "Save");
+      const save = el("button", { class: "primary" }, t("btn.save"));
       save.addEventListener("click", async () => {
         try {
           await api("/api/bv/group", { method: "POST", body: JSON.stringify({
@@ -3080,7 +3080,7 @@ async function renderLeaderboard(kind, rest) {
     view.append(sortRow);
   }
 
-  const loader = el("p", { class: "hint" }, "Loading…");
+  const loader = el("p", { class: "hint" }, t("msg.loading"));
   view.append(loader);
 
   const url = isLeadersBoard
@@ -3217,7 +3217,7 @@ async function renderProfile(userId) {
   const view = $("view");
   const target = userId || ME.id;
   view.append(el("h2", { class: "section" }, t("hd.profile")));
-  const loader = el("p", { class: "hint" }, "Loading…");
+  const loader = el("p", { class: "hint" }, t("msg.loading"));
   view.append(loader);
   try {
     // BUG 6: use allSettled so a 403 on either leaderboard (e.g. member
@@ -3297,7 +3297,7 @@ function pointsBreakdownCard(title, breakdown) {
   const card = el("div", { class: "card", style: "margin:0" });
   card.append(el("h3", { class: "section", style: "margin-top:0" }, title));
   if (!breakdown || !breakdown.length) {
-    card.append(el("p", { class: "hint" }, "No points yet in this scope."));
+    card.append(el("p", { class: "hint" }, t("hd.no_points_scope")));
     return card;
   }
   const total = breakdown.reduce((s, b) => s + (b.pts || 0), 0);
@@ -3517,7 +3517,7 @@ async function renderJanmashtami(view) {
   const cardC = el("div", { class: "card" });
   cardC.append(
     el("h3", { class: "section" }, t("hd.paste_excel")),
-    el("p", { class: "hint" }, "Ctrl-C rows in Excel (copies as tab-separated), then paste here. One person per line: name, mobile, pincode."),
+    el("p", { class: "hint" }, t("help.paste_excel")),
     formField("Paste here", el("textarea", { id: "jm-paste", rows: "6",
       placeholder: "1\tRavi\t9876543210\t625001\tyes\n2\tPriya\t9876543211\t625002\tno" })),
     el("p", {},
@@ -3530,7 +3530,7 @@ async function renderJanmashtami(view) {
   // --- Path D: today's entries (gated: janmashtami_today_entries)
   const cardD = el("div", { class: "card" });
   cardD.append(el("h3", { class: "section" }, t("hd.today_entries")));
-  cardD.append(el("p", { class: "hint" }, "Everything you've added today lands here. Scroll down to double-check before the day ends."));
+  cardD.append(el("p", { class: "hint" }, t("help.today_entries")));
   cardD.append(recentUl);
   if (can("janmashtami_today_entries")) view.append(cardD);
 
@@ -4070,7 +4070,7 @@ async function renderAdminUsers(view) {
         el("div", {}, el("strong", {}, u.display_name || u.username),
           el("div", { class: "hint" }, `${u.username}${rangeText}${mgrText}${u.active ? "" : " · (inactive)"}`)),
         el("span", { class: "pill" }, humanRole(u.role)),
-        el("button", { class: "mini-btn" }, "Edit"),
+        el("button", { class: "mini-btn" }, t("btn.edit_short")),
       );
       const editBtn = li.lastChild;
       editBtn.addEventListener("click", () => {
@@ -4094,7 +4094,7 @@ async function renderAdminUsers(view) {
             rs.value = r.start; re.value = r.end;
           } catch (err) { alert(err.message); }
         });
-        const save = el("button", { class: "primary" }, "Save");
+        const save = el("button", { class: "primary" }, t("btn.save"));
         save.addEventListener("click", async () => {
           try {
             const body = {
@@ -4116,13 +4116,13 @@ async function renderAdminUsers(view) {
           }, l.display_name || l.username)),
         );
         p.append(
-          el("div", {}, el("label", {}, "Display name"), nm),
-          el("div", {}, el("label", {}, "Role"), rl),
-          el("div", {}, el("label", {}, "Reset password"), pw),
-          el("div", {}, el("label", {}, "Status"), act),
-          el("div", {}, el("label", {}, "SL range start"), rs),
-          el("div", {}, el("label", {}, "SL range end"), re),
-          el("div", { class: "full" }, el("label", {}, "Manager (NJY Leader — only for coordinators)"), mgrSel),
+          el("div", {}, el("label", {}, t("field.display_name")), nm),
+          el("div", {}, el("label", {}, t("field.role")), rl),
+          el("div", {}, el("label", {}, t("field.reset_password")), pw),
+          el("div", {}, el("label", {}, t("field.status")), act),
+          el("div", {}, el("label", {}, t("field.sl_range_start")), rs),
+          el("div", {}, el("label", {}, t("field.sl_range_end")), re),
+          el("div", { class: "full" }, el("label", {}, t("field.manager")), mgrSel),
           el("div", { class: "full" }, autoBtn, " ", save),
         );
         li.append(p);
@@ -4155,7 +4155,7 @@ async function renderAdminUsers(view) {
     roleSel.addEventListener("change", updateMgrVisibility);
     form.append(
       el("h3", { class: "section" }, "New user"),
-      el("p", { class: "hint" }, "Add a single leader or coordinator. Use Bulk create users when you have many at once."),
+      el("p", { class: "hint" }, t("help.new_user")),
       el("div", { class: "grid2" },
         formField("Username", el("input", { id: "u-name", required: true, autocapitalize: "none", autocomplete: "off" })),
         formField("Display name", el("input", { id: "u-display", required: true })),
@@ -4168,7 +4168,7 @@ async function renderAdminUsers(view) {
         formField("Role", roleSel),
         mgrRow,
       ),
-      el("p", {}, el("button", { class: "primary", type: "submit" }, "Create user"),
+      el("p", {}, el("button", { class: "primary", type: "submit" }, t("btn.create_user")),
         " ", el("span", { class: "hint", id: "u-msg" })),
     );
     updateMgrVisibility();
@@ -4267,7 +4267,7 @@ async function renderAdminImport(view) {
   );
   card.append(
     el("h3", { class: "section" }, t("hd.paste_rows")),
-    el("p", { class: "hint" }, "Paste rows from Excel (Ctrl-C copies as tab-separated) OR as CSV. Header row first. Minimum columns: legal_name/name, phone/mobile. Optional: pincode, coupon_no, is_daily, coord_username."),
+    el("p", { class: "hint" }, t("help.admin_paste_chanters")),
     formField("Paste here", el("textarea", { id: "imp-csv", rows: "12", placeholder: "coupon_no\tname\tmobile\tpincode\tis_daily\tcoord_username\n1001\tRavi\t9999000001\t625001\tyes\tcoord01" })),
     el("div", { style: "margin:.4rem 0" },
       el("label", { style: "display:block;font-size:.85rem;color:var(--muted);margin-bottom:.2rem" },
