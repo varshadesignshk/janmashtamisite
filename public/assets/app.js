@@ -534,7 +534,7 @@ function renderNav() {
     // by feature-gate) still see it.
     { href: "#/hk",        label: t("nav.hk"),       when: () => can("hk_dashboard") && ME.role !== "hk_leader" },
     { href: "#/duties",    label: t("nav.duties"),   when: () => true },
-    { href: "#/events",    label: t("nav.events"),   when: () => can("event_attendance") },
+    { href: "#/events",    label: t("nav.events"),   when: () => can("event_attendance") || can("events_view_list") },
     { href: "#/sadhana",   label: t("nav.sadhana"),  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
     { href: "#/bv",        label: t("nav.bv"),       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
     { href: "#/janmashtami", label: t("nav.janmashtami"), when: () => can("janmashtami_view_page") && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
@@ -638,21 +638,24 @@ async function renderCoordRoll(view) {
       view.append(line);
     }
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
-    // Broadcast + WA group buttons — coords only.
+    // Broadcast + WA group buttons — coords only, each gate-controlled.
     if (roll.length > 0 && ME.role === "njy_coordinator") {
       const broadcastRow = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0" });
-      broadcastRow.append(
-        el("a", { class: "primary", href: "#/broadcast",
+      if (can("myroll_broadcast_button")) {
+        broadcastRow.append(el("a", { class: "primary", href: "#/broadcast",
           style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
-          "📢 Broadcast today's message"),
-        el("a", { class: "btn", href: "#/wa-group",
+          "📢 Broadcast today's message"));
+      }
+      if (can("myroll_wa_group_button")) {
+        broadcastRow.append(el("a", { class: "btn", href: "#/wa-group",
           style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
-          ME.wa_group_link ? "💬 My WhatsApp group" : "💬 Set up my WhatsApp group"),
-      );
-      view.append(broadcastRow);
+          ME.wa_group_link ? "💬 My WhatsApp group" : "💬 Set up my WhatsApp group"));
+      }
+      if (broadcastRow.children.length) view.append(broadcastRow);
     }
-    // Care-moment surfacing — coords only, shown right below the tally
-    if (roll.length > 0 && ME.role === "njy_coordinator") {
+    // Care-moment surfacing — coords only, shown right below the tally.
+    // Also gated on myroll_care_moments_panel so HK can hide it per role.
+    if (roll.length > 0 && ME.role === "njy_coordinator" && can("myroll_care_moments_panel")) {
       const carePlaceholder = el("div", {});
       view.append(carePlaceholder);
       // Fetch care moments async so the roll UI renders immediately.
@@ -2123,6 +2126,10 @@ async function renderEvents(view) {
   view.innerHTML = "";
   view.append(el("h2", { class: "section" }, t("hd.events")));
   view.append(helpBanner(t("help.events")));
+  if (!can("events_view_list")) {
+    view.append(el("p", { class: "hint" }, "You don't have access to the events list."));
+    return;
+  }
   try {
     const { events } = await api("/api/events");
     if (myToken !== routeToken) return;
@@ -3540,7 +3547,7 @@ async function renderSettings(view) {
   view.append(el("h2", { class: "section" }, t("hd.settings_title")));
   view.append(helpBanner(t("help.settings")));
 
-  // --- Change my password
+  // --- Change my password (gated: settings_change_password)
   const pwCard = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   pwCard.append(el("h3", { class: "section", style: "margin-top:0" }, t("hd.change_pw")));
   pwCard.append(el("p", { class: "hint" }, t("help.change_pw")));
@@ -3564,9 +3571,9 @@ async function renderSettings(view) {
         : (err.message || "Could not update.");
     }
   };
-  view.append(pwCard);
+  if (can("settings_change_password")) view.append(pwCard);
 
-  // --- Language picker
+  // --- Language picker (gated: header_language_toggle)
   const langCard = el("div", { class: "card" });
   langCard.append(el("h3", { class: "section", style: "margin-top:0" }, t("hd.language")));
   langCard.append(el("p", { class: "hint" }, t("msg.pick_lang")));
@@ -3579,8 +3586,9 @@ async function renderSettings(view) {
     langBtns.append(btn);
   }
   langCard.append(langBtns);
-  view.append(langCard);
-  view.append(el("p", { class: "hint" }, t("help.wa_templates")));
+  if (can("header_language_toggle")) view.append(langCard);
+  // WA templates section (gated: settings_wa_templates)
+  if (can("settings_wa_templates")) view.append(el("p", { class: "hint" }, t("help.wa_templates")));
 
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   const daily = el("textarea", { id: "wa-daily", rows: "5",
@@ -3612,7 +3620,7 @@ async function renderSettings(view) {
       $("wa-msg").textContent = err.message || "Save failed";
     }
   };
-  view.append(card);
+  if (can("settings_wa_templates")) view.append(card);
 }
 
 // ---------------------------------------------------------- admin ---
