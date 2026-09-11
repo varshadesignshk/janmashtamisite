@@ -537,8 +537,8 @@ function renderNav() {
     { href: "#/events",    label: t("nav.events"),   when: () => can("event_attendance") },
     { href: "#/sadhana",   label: t("nav.sadhana"),  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
     { href: "#/bv",        label: t("nav.bv"),       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
-    { href: "#/janmashtami", label: t("nav.janmashtami"), when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
-    { href: "#/leaderboard", label: t("nav.leaderboard"), when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
+    { href: "#/janmashtami", label: t("nav.janmashtami"), when: () => can("janmashtami_view_page") && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
+    { href: "#/leaderboard", label: t("nav.leaderboard"), when: () => (can("leaderboard_coord_daily") || can("leaderboard_coord_overall") || can("leaderboard_leaders_daily") || can("leaderboard_leaders_overall")) && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/profile",     label: t("nav.profile"), when: () => ME.role === "njy_coordinator" },
     { href: "#/settings",  label: t("nav.settings"), when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
     { href: "#/admin",     label: t("nav.admin"),    when: () => can("feature_admin") },
@@ -2385,10 +2385,13 @@ async function readSpreadsheetFile(file) {
 //
 // mapRow(rowObj) → { name, mobile, pincode, ... } (or whatever the API
 // expects). onCommit(mappedRows) does the actual API call.
-function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, templateLabel, previewCols, isValidRow, emptyMessage, previewRow }) {
+function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, templateLabel, previewCols, isValidRow, emptyMessage, previewRow, templateGateKey, commitGateKey }) {
   const wrap = el("div", {});
   const tplLabel = templateLabel || t("btn.download_template");
   const tplBtn = el("button", { type: "button", class: "ghost" }, tplLabel);
+  // Hide template-download button if caller wired a gate that this role
+  // can't access. Same for the commit button below.
+  if (templateGateKey && !can(templateGateKey)) tplBtn.hidden = true;
   tplBtn.addEventListener("click", async () => {
     tplBtn.disabled = true;
     tplBtn.textContent = "Generating…";
@@ -2410,6 +2413,7 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
   const fileInput = el("input", { type: "file", accept: ".xlsx,.xls,.csv" });
   const previewBox = el("div", { style: "margin-top:.7rem" });
   const commitBtn = el("button", { class: "primary", type: "button", disabled: true }, "Confirm import");
+  if (commitGateKey && !can(commitGateKey)) commitBtn.hidden = true;
   const msg = el("span", { class: "hint", style: "margin-left:.6rem" });
 
   let parsedRows = [];
@@ -3347,12 +3351,18 @@ function pointRow(label, points) {
 //      just works. Google Sheets / CSV also work.
 async function renderJanmashtami(view) {
   const myToken = routeToken;  // BUG 1+2
+  if (!can("janmashtami_view_page")) {
+    view.append(el("h2", { class: "section" }, "Janmashtami rapid entry"));
+    view.append(el("p", { class: "hint" }, "You don't have access to the Janmashtami rapid entry."));
+    return;
+  }
   view.append(el("h2", { class: "section" }, "Janmashtami rapid entry"));
 
   const progressWrap = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem" });
-  view.append(progressWrap);
+  if (can("janmashtami_progress_counters")) view.append(progressWrap);
 
   async function refreshProgress() {
+    if (!can("janmashtami_progress_counters")) return;
     try {
       const p = await api("/api/me/janmashtami-progress");
       if (myToken !== routeToken) return;
@@ -3370,7 +3380,7 @@ async function renderJanmashtami(view) {
   }
   await refreshProgress();
 
-  // --- Path A: single-row rapid form
+  // --- Path A: single-row rapid form (gated: janmashtami_quick_add)
   const cardA = el("div", { class: "card" });
   cardA.append(el("h3", { class: "section" }, t("hd.quick_add")));
   cardA.append(el("p", { class: "hint" }, t("help.quick_add")));
@@ -3416,12 +3426,14 @@ async function renderJanmashtami(view) {
       submitBtn.disabled = false;
     }
   };
-  view.append(cardA);
+  if (can("janmashtami_quick_add")) view.append(cardA);
 
-  // --- Path B: Excel/CSV file upload with preview
+  // --- Path B: Excel/CSV file upload with preview (gated: janmashtami_upload_csv)
   const cardB = el("div", { class: "card" });
   cardB.append(el("h3", { class: "section" }, t("hd.upload_excel")));
   cardB.append(excelUploadWidget({
+    templateGateKey: "janmashtami_download_template",
+    commitGateKey:   "janmashtami_commit_import",
     helperText: "Attach a .xlsx or .csv file. Columns: coupon_no, name, mobile, pincode, is_daily (optional 'yes'/'no'). Preview → confirm.",
     mapRow: (row) => ({
       coupon_no: String(row.coupon_no || row.coupon || row.Coupon || row["Coupon #"] || row["Coupon No"] || "").trim(),
@@ -3437,9 +3449,9 @@ async function renderJanmashtami(view) {
       return r;
     },
   }));
-  view.append(cardB);
+  if (can("janmashtami_upload_csv")) view.append(cardB);
 
-  // --- Path C: paste-many (kept as a fallback)
+  // --- Path C: paste-many (kept as a fallback) — gated: janmashtami_paste_rows
   const cardC = el("div", { class: "card" });
   cardC.append(
     el("h3", { class: "section" }, t("hd.paste_excel")),
@@ -3451,17 +3463,17 @@ async function renderJanmashtami(view) {
       " ", el("span", { class: "hint", id: "jm-paste-msg" }),
     ),
   );
-  view.append(cardC);
+  if (can("janmashtami_paste_rows")) view.append(cardC);
 
-  // --- Path D: today's entries — moved to bottom so the upload options
-  // are what you see first when the tab loads.
+  // --- Path D: today's entries (gated: janmashtami_today_entries)
   const cardD = el("div", { class: "card" });
   cardD.append(el("h3", { class: "section" }, t("hd.today_entries")));
   cardD.append(el("p", { class: "hint" }, "Everything you've added today lands here. Scroll down to double-check before the day ends."));
   cardD.append(recentUl);
-  view.append(cardD);
+  if (can("janmashtami_today_entries")) view.append(cardD);
 
-  $("jm-paste-go").addEventListener("click", async () => {
+  const jmPasteGoEl = $("jm-paste-go");
+  if (jmPasteGoEl) jmPasteGoEl.addEventListener("click", async () => {
     const raw = $("jm-paste").value.trim();
     if (!raw) return;
     // Column order for paste: coupon_no, name, mobile, pincode, is_daily
