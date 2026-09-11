@@ -2075,6 +2075,10 @@ async function renderDuties(view) {
   const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, t("nav.duties")));
   view.append(helpBanner(t("help.duties")));
+  if (!can("duties_view_list")) {
+    view.append(el("p", { class: "hint" }, "You don't have access to duties."));
+    return;
+  }
   try {
     const { duties } = await api("/api/duties");
     if (myToken !== routeToken) return;
@@ -2082,6 +2086,7 @@ async function renderDuties(view) {
     const ul = el("ul", { class: "list" });
     for (const d of duties) {
       const done = el("button", { class: "primary" }, "Done");
+      if (!can("duties_mark_done")) done.hidden = true;
       done.addEventListener("click", async () => {
         await api(`/api/duties/${d.id}/done`, { method: "POST" });
         renderRoute();
@@ -2091,8 +2096,8 @@ async function renderDuties(view) {
           el("div", { class: "hint" }, `due ${d.due_date}${d.notes ? " · " + esc(d.notes) : ""}`)),
         el("div", {}), done,
       );
-      // HK Leader also gets a delete option (mis-generated duty cleanup)
-      if (ME.role === "hk_leader") {
+      // Delete option (gated: duties_delete — HK-only by default)
+      if (can("duties_delete")) {
         const del = el("button", { class: "danger", style: "margin-left:.4rem" }, "Delete");
         del.addEventListener("click", async () => {
           if (!confirm("Delete this duty?")) return;
