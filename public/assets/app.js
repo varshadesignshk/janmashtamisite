@@ -1149,15 +1149,15 @@ async function renderWaGroup(view) {
   // CHANGE 3: coord/leader/hk all get WhatsApp Group Helper. The
   // recipient list is scoped by role — see loadBroadcastRecipients().
   if (!["njy_coordinator", "njy_leader", "hk_leader"].includes(ME.role)) {
-    view.append(el("h2", { class: "section" }, "WhatsApp Group"));
-    view.append(el("p", { class: "hint" }, "This screen is for NJY Coordinators, NJY Leaders, and HK Leader."));
+    view.append(el("h2", { class: "section" }, t("hd.wa_group_page")));
+    view.append(el("p", { class: "hint" }, t("msg.wa_group_access")));
     return;
   }
   const inviteeWord = ME.role === "njy_coordinator" ? "chanters"
     : ME.role === "njy_leader" ? "coordinators"
     : "NJY leaders";
   view.append(el("div", { class: "spread" },
-    el("h2", { class: "section" }, "💬 My WhatsApp Group"),
+    el("h2", { class: "section" }, t("hd.my_wa_group")),
     el("a", { class: "btn", href: "#/" }, t("btn.back")),
   ));
   view.append(helpBanner(
@@ -1168,16 +1168,16 @@ async function renderWaGroup(view) {
 
   // --- Setup card ---
   const setup = el("div", { class: "card" });
-  setup.append(el("h3", { class: "section", style: "margin-top:0" }, "Group settings"));
+  setup.append(el("h3", { class: "section", style: "margin-top:0" }, t("hd.group_settings")));
 
   const nameI = el("input", { id: "wg-name", placeholder: "e.g. SKJ Chanters — Sri Krsna Coord" });
   nameI.value = ME.wa_group_name || "";
   const linkI = el("input", { id: "wg-link", placeholder: "https://chat.whatsapp.com/xxxxxxx" });
   linkI.value = ME.wa_group_link || "";
   const msg = el("span", { class: "hint", style: "margin-left:.5rem" });
-  const saveBtn = el("button", { class: "primary", id: "wg-save" }, "Save");
-  const testBtn = el("button", { class: "btn", id: "wg-test", style: "margin-left:.4rem" }, "Test link");
-  const clearBtn = el("button", { class: "btn", id: "wg-clear", style: "margin-left:.4rem" }, "Clear");
+  const saveBtn = el("button", { class: "primary", id: "wg-save" }, t("btn.save"));
+  const testBtn = el("button", { class: "btn", id: "wg-test", style: "margin-left:.4rem" }, t("btn.test_link"));
+  const clearBtn = el("button", { class: "btn", id: "wg-clear", style: "margin-left:.4rem" }, t("btn.clear"));
 
   setup.append(
     formField("Group name (optional)", nameI),
@@ -1196,24 +1196,24 @@ async function renderWaGroup(view) {
         body: JSON.stringify({ wa_group_link: link, wa_group_name: nameI.value.trim() }) });
       ME.wa_group_link = link || null;
       ME.wa_group_name = nameI.value.trim() || null;
-      msg.textContent = "Saved.";
-    } catch (err) { msg.textContent = "Failed: " + err.message; }
+      msg.textContent = t("msg.saved_short");
+    } catch (err) { msg.textContent = t("msg.error_prefix") + err.message; }
     finally { saveBtn.disabled = false; }
   });
   testBtn.addEventListener("click", () => {
     const link = linkI.value.trim();
-    if (!link) { msg.textContent = "Paste a link first."; return; }
+    if (!link) { msg.textContent = t("msg.paste_link_first"); return; }
     window.open(link, "_blank");
   });
   clearBtn.addEventListener("click", async () => {
-    if (!confirm("Clear the saved group link and name?")) return;
+    if (!confirm(t("confirm.clear_group"))) return;
     nameI.value = ""; linkI.value = "";
     try {
       await api("/api/me/wa-group", { method: "POST",
         body: JSON.stringify({ wa_group_link: "", wa_group_name: "" }) });
       ME.wa_group_link = null; ME.wa_group_name = null;
-      msg.textContent = "Cleared.";
-    } catch (err) { msg.textContent = "Failed: " + err.message; }
+      msg.textContent = t("msg.cleared");
+    } catch (err) { msg.textContent = t("msg.error_prefix") + err.message; }
   });
   view.append(setup);
 
@@ -1246,7 +1246,7 @@ async function renderWaGroup(view) {
     const inviteMsg = el("textarea", { id: "wg-inv-msg", rows: 4,
       style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px" });
     inviteMsg.value = "Hare Krsna {name}! 🌸\n\nI'm inviting you to join our chanting group on WhatsApp. Tap here to join 🙏\n\n{link}";
-    invite.append(el("p", { class: "hint" }, "Invite message. Use ", el("code", {}, "{name}"), " for the recipient's name and ", el("code", {}, "{link}"), " for the group link."));
+    invite.append(el("p", { class: "hint" }, t("help.invite_message")));
     invite.append(inviteMsg);
 
     // Recipients multi-select list
@@ -1292,12 +1292,12 @@ async function renderWaGroup(view) {
 
     sendBtn.addEventListener("click", () => {
       const link = linkNow();
-      if (!link) { alert("Paste and Save your group invite link first (top of this page)."); return; }
+      if (!link) { alert(t("msg.saved_link_first")); return; }
       const selected = rowChecks.filter(c => c.checked);
-      if (!selected.length) { alert(`Select at least one ${label.replace(/s$/, "")}.`); return; }
+      if (!selected.length) { alert(t("msg.select_at_least_one")); return; }
       const template = inviteMsg.value.trim();
       if (!template.includes("{link}")) {
-        if (!confirm("Your message doesn't include {link}. Recipients won't get the join link. Continue anyway?")) return;
+        if (!confirm(t("confirm.no_link_placeholder"))) return;
       }
       const compiled = template.replace(/\{link\}/g, link);
       // Reuse the broadcast queue infrastructure with this invite message.
@@ -1317,7 +1317,7 @@ async function renderWaGroup(view) {
     });
   } catch (err) {
     loader.remove();
-    invite.append(el("p", { class: "error" }, "Could not load recipients: " + err.message));
+    invite.append(el("p", { class: "error" }, t("msg.could_not_load_recipients") + err.message));
   }
 }
 
@@ -2079,16 +2079,16 @@ async function renderDuties(view) {
   view.append(el("h2", { class: "section" }, t("nav.duties")));
   view.append(helpBanner(t("help.duties")));
   if (!can("duties_view_list")) {
-    view.append(el("p", { class: "hint" }, "You don't have access to duties."));
+    view.append(el("p", { class: "hint" }, t("msg.no_access_duties")));
     return;
   }
   try {
     const { duties } = await api("/api/duties");
     if (myToken !== routeToken) return;
-    if (!duties.length) return view.append(el("p", { class: "hint" }, "No pending duties. Duties are auto-generated from the BV Action Timeline as roles get assigned. (Auto-generator not yet built — HK Leader can add duties manually via SQL for now.)"));
+    if (!duties.length) return view.append(el("p", { class: "hint" }, t("msg.no_pending_duties")));
     const ul = el("ul", { class: "list" });
     for (const d of duties) {
-      const done = el("button", { class: "primary" }, "Done");
+      const done = el("button", { class: "primary" }, t("btn.done_short"));
       if (!can("duties_mark_done")) done.hidden = true;
       done.addEventListener("click", async () => {
         await api(`/api/duties/${d.id}/done`, { method: "POST" });
@@ -2101,9 +2101,9 @@ async function renderDuties(view) {
       );
       // Delete option (gated: duties_delete — HK-only by default)
       if (can("duties_delete")) {
-        const del = el("button", { class: "danger", style: "margin-left:.4rem" }, "Delete");
+        const del = el("button", { class: "danger", style: "margin-left:.4rem" }, t("btn.delete_short"));
         del.addEventListener("click", async () => {
-          if (!confirm("Delete this duty?")) return;
+          if (!confirm(t("confirm.delete_duty"))) return;
           try {
             await api(`/api/duties/${d.id}`, { method: "DELETE" });
             renderRoute();
@@ -2127,13 +2127,13 @@ async function renderEvents(view) {
   view.append(el("h2", { class: "section" }, t("hd.events")));
   view.append(helpBanner(t("help.events")));
   if (!can("events_view_list")) {
-    view.append(el("p", { class: "hint" }, "You don't have access to the events list."));
+    view.append(el("p", { class: "hint" }, t("msg.no_access_events")));
     return;
   }
   try {
     const { events } = await api("/api/events");
     if (myToken !== routeToken) return;
-    if (!events.length) return view.append(el("p", { class: "hint" }, "No events yet. HK Leader can create them in Admin → Events."));
+    if (!events.length) return view.append(el("p", { class: "hint" }, t("msg.no_events")));
     const ul = el("ul", { class: "list" });
     for (const ev of events) {
       ul.append(el("li", {},
@@ -2181,7 +2181,7 @@ async function renderEventAttendance(eventId) {
     if (myToken !== routeToken) return;
     if (breakdown.length) {
       const card = el("div", { class: "card" });
-      card.append(el("h3", { class: "section" }, "Attendance by coordinator"));
+      card.append(el("h3", { class: "section" }, t("hd.attendance_by_coord")));
       card.append(el("p", { class: "hint" }, ME.role === "njy_coordinator"
         ? "Tap your row to expand and mark your chanters present."
         : "Tap any coordinator's row to expand and mark their chanters. You can also use the search fallback below."));
@@ -2263,8 +2263,8 @@ async function renderEventAttendance(eventId) {
 
     const searchCard = el("div", { class: "card" });
     searchCard.append(
-      el("h3", { class: "section" }, "Search & mark (alternative)"),
-      el("p", { class: "hint" }, "For walk-in attendees whose coordinator you don't know. Type at least 2 characters — matches name or phone digits."),
+      el("h3", { class: "section" }, t("hd.search_mark")),
+      el("p", { class: "hint" }, t("help.search_mark")),
       formField("Search", el("input", { id: "att-q", placeholder: "Ravi   or   9999000001", autocapitalize: "none", autocorrect: "off" })),
     );
     const results = el("ul", { class: "roll", id: "att-results" });
@@ -2584,10 +2584,10 @@ async function renderSadhana(personId) {
   const view = $("view");
   if (!personId) return renderSadhanaBrowse(view);
   view.append(el("div", { class: "spread" },
-    el("h2", { class: "section" }, "Sadhana Chart · daily entry"),
+    el("h2", { class: "section" }, t("hd.sadhana_daily_entry")),
     el("a", { class: "btn", href: "#/sadhana" }, "← Browse"),
   ));
-  view.append(el("p", { class: "hint" }, "The 124-pt/day chart from the Bhakti-Vrksa manual. Chanting points auto-compute from time-of-day round buckets: ×4 before 7am, ×3 7–8am, ×2 8–10am, ×1 after 10am."));
+  view.append(el("p", { class: "hint" }, t("help.sadhana_daily")));
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   const today = new Date().toISOString().slice(0, 10);
   card.append(
@@ -2598,14 +2598,14 @@ async function renderSadhana(personId) {
       formField("Wake-up pts", el("input", { id: "sd-wake-pts", type: "number", min: "0", max: "10", value: "0" })),
     ),
     formField("Mangala-arati pts (0 or 10)", el("input", { id: "sd-mangala", type: "number", value: "0", min: "0", max: "10" })),
-    el("h3", { class: "section" }, "Rounds chanted"),
+    el("h3", { class: "section" }, t("hd.rounds_chanted")),
     el("div", { class: "grid2" },
       formField("Before 7am (×4)", el("input", { id: "sd-r-1", type: "number", value: "0", min: "0" })),
       formField("7–8am (×3)", el("input", { id: "sd-r-2", type: "number", value: "0", min: "0" })),
       formField("8–10am (×2)", el("input", { id: "sd-r-3", type: "number", value: "0", min: "0" })),
       formField("After 10am (×1)", el("input", { id: "sd-r-4", type: "number", value: "0", min: "0" })),
     ),
-    el("h3", { class: "section" }, "Sravanam & other seva"),
+    el("h3", { class: "section" }, t("hd.sravanam_seva")),
     el("div", { class: "grid2" },
       formField("Reading mins", el("input", { id: "sd-read-min", type: "number", value: "0" })),
       formField("Reading pts", el("input", { id: "sd-read-pts", type: "number", value: "0" })),
@@ -2615,7 +2615,7 @@ async function renderSadhana(personId) {
       formField("Preaching pts", el("input", { id: "sd-preach", type: "number", value: "0", max: "10" })),
     ),
     el("p", { style: "margin-top:1rem" },
-      el("button", { type: "submit", class: "primary" }, "Save entry"),
+      el("button", { type: "submit", class: "primary" }, t("btn.save_entry")),
       " ", el("span", { class: "hint", id: "sd-msg" }),
     ),
   );
@@ -2669,12 +2669,12 @@ function passwordFieldWithEye(id, labelText) {
 // -------------------------------------------- sadhana browse mode ---
 async function renderSadhanaBrowse(view) {
   const myToken = routeToken;  // BUG 1+2
-  view.append(el("h2", { class: "section" }, "Sadhana Chart · browse"));
-  view.append(el("p", { class: "hint" }, "Review recent entries filled by BV members and their Servant Leaders. Click any row to see that member's full history."));
+  view.append(el("h2", { class: "section" }, t("hd.sadhana_browse")));
+  view.append(el("p", { class: "hint" }, t("help.sadhana_browse")));
 
   const search = el("div", { class: "card" });
   search.append(
-    el("h3", { class: "section" }, "Find a member"),
+    el("h3", { class: "section" }, t("hd.find_member")),
     formField("Search", el("input", { id: "sd-q", placeholder: "name or phone digits", autocapitalize: "none" })),
     el("ul", { class: "roll", id: "sd-results" }),
   );
@@ -2696,11 +2696,11 @@ async function renderSadhanaBrowse(view) {
   }, 250);
   search.querySelector("#sd-q").addEventListener("input", doSearch);
 
-  view.append(el("h3", { class: "section" }, "Recent entries"));
+  view.append(el("h3", { class: "section" }, t("hd.recent_entries")));
   try {
     const { entries } = await api("/api/sadhana?limit=20");
     if (myToken !== routeToken) return;
-    if (!entries.length) return view.append(el("p", { class: "hint" }, "No entries yet. Once BV members start filling their charts, they show up here newest-first."));
+    if (!entries.length) return view.append(el("p", { class: "hint" }, t("msg.no_sadhana_entries")));
     const ul = el("ul", { class: "list" });
     for (const e of entries) {
       const li = el("li", {},
@@ -3003,7 +3003,7 @@ async function renderLeaderboard(kind, rest) {
   const myToken = routeToken;
   const view = $("view");
   view.innerHTML = "";
-  view.append(el("h2", { class: "section" }, "Leaderboard"));
+  view.append(el("h2", { class: "section" }, t("hd.leaderboard")));
 
   // Route shape: #/leaderboard/<kind>[/leaders]
   //   kind = "daily" | "overall"
@@ -3110,7 +3110,7 @@ async function renderLeaderboard(kind, rest) {
       const orgAvg = orgCoords ? Math.round(orgTotal / orgCoords) : 0;
       const summary = el("div", { class: "card", style: "margin-bottom:.7rem;background:linear-gradient(180deg,var(--tint-responded),var(--tint-followed));border-color:var(--mark-responded)" },
         el("div", { class: "spread" },
-          el("div", {}, el("strong", {}, "🏛 HK Leader · Whole org"),
+          el("div", {}, el("strong", {}, t("hd.hk_whole_org")),
             el("div", { class: "hint" }, `${rows.length} NJY Leaders · ${orgCoords} coords`)),
           el("span", { class: "score" }, sortMode === "avg" ? `${orgAvg} avg` : `${orgTotal} pts`),
         ),
@@ -3119,7 +3119,7 @@ async function renderLeaderboard(kind, rest) {
     }
 
     if (!rows.length) {
-      return view.append(el("p", { class: "hint" }, isLeadersBoard ? "No NJY Leaders yet." : "No coordinators yet."));
+      return view.append(el("p", { class: "hint" }, isLeadersBoard ? t("msg.no_leaders_yet") : t("msg.no_coords_yet")));
     }
     const ul = el("ul", { class: "list" });
     const medals = ["🥇", "🥈", "🥉"];
@@ -3180,7 +3180,7 @@ async function renderLeaderboard(kind, rest) {
     if (myToken !== routeToken) return;
     loader.remove();
     if (err.status === 403) {
-      view.append(el("p", { class: "hint" }, "Leaders leaderboard is only visible to HK Leader and NJY Leaders."));
+      view.append(el("p", { class: "hint" }, t("msg.leaders_lb_restricted")));
     } else {
       view.append(el("p", { class: "error" }, err.message));
     }
@@ -3216,7 +3216,7 @@ async function renderProfile(userId) {
   const myToken = routeToken;  // BUG 1+2
   const view = $("view");
   const target = userId || ME.id;
-  view.append(el("h2", { class: "section" }, "Profile"));
+  view.append(el("h2", { class: "section" }, t("hd.profile")));
   const loader = el("p", { class: "hint" }, "Loading…");
   view.append(loader);
   try {
@@ -3312,7 +3312,7 @@ function pointsBreakdownCard(title, breakdown) {
   }
   card.append(ul);
   card.append(el("p", { style: "text-align:right;font-family:var(--font-mono);color:var(--peacock-deep);margin-top:.4rem" },
-    "Total ", el("strong", {}, `${total} pts`)));
+    t("lb.total") + " ", el("strong", {}, `${total} pts`)));
   return card;
 }
 
@@ -3320,8 +3320,8 @@ function pointsBreakdownCard(title, breakdown) {
 // A static reference — the full "how points are earned" table so
 // coordinators know what to do to climb.
 function renderPointsRules(view) {
-  view.append(el("h2", { class: "section" }, "How points are earned"));
-  view.append(el("p", { class: "hint" }, "This is the full point matrix for Phase 1 and Phase 2. Keep an eye on the milestone bonuses — they're the biggest earners."));
+  view.append(el("h2", { class: "section" }, t("hd.how_points")));
+  view.append(el("p", { class: "hint" }, t("help.how_points")));
 
   const daily = el("div", { class: "card" });
   daily.append(
@@ -3414,11 +3414,11 @@ function pointRow(label, points) {
 async function renderJanmashtami(view) {
   const myToken = routeToken;  // BUG 1+2
   if (!can("janmashtami_view_page")) {
-    view.append(el("h2", { class: "section" }, "Janmashtami rapid entry"));
-    view.append(el("p", { class: "hint" }, "You don't have access to the Janmashtami rapid entry."));
+    view.append(el("h2", { class: "section" }, t("hd.janmashtami_rapid")));
+    view.append(el("p", { class: "hint" }, t("msg.no_access_janmashtami")));
     return;
   }
-  view.append(el("h2", { class: "section" }, "Janmashtami rapid entry"));
+  view.append(el("h2", { class: "section" }, t("hd.janmashtami_rapid")));
 
   const progressWrap = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem" });
   if (can("janmashtami_progress_counters")) view.append(progressWrap);
@@ -3453,7 +3453,7 @@ async function renderJanmashtami(view) {
   const pinI  = el("input", { placeholder: t("field.pincode"), inputmode: "numeric" });
   const submitBtn = el("button", { class: "primary", type: "submit" }, t("btn.add"));
   form.append(
-    el("div", {}, el("label", {}, "Coupon #"), couponI),
+    el("div", {}, el("label", {}, t("field.coupon")), couponI),
     el("div", {}, el("label", {}, t("field.name")), nameI),
     el("div", {}, el("label", {}, t("field.mobile")), mobI),
     el("div", {}, el("label", {}, t("field.pincode")), pinI),
@@ -3645,6 +3645,15 @@ async function renderSettings(view) {
     placeholder: "Hare Krsna {name}, did you complete your daily japa today? 🌸" });
   const nondaily = el("textarea", { id: "wa-nondaily", rows: "5",
     placeholder: "Hare Krsna {name}! Are you interested in daily chanting? Reply YES and we'll share the mantra card." });
+  // Emoji-corruption guard. U+FFFD (REPLACEMENT CHARACTER, "�") shows
+  // up when a legacy save mangled 4-byte UTF-8 before the charset
+  // response-header fix landed. Silently drop the corrupted template
+  // and warn the coord so they can re-save; otherwise the mangled "?"
+  // characters get sent to every chanter every day.
+  const isCorrupt = (s) => typeof s === "string" && s.indexOf("�") >= 0;
+  let wasCorrupt = false;
+  if (isCorrupt(ME.wa_template_daily))    { ME.wa_template_daily = "";    wasCorrupt = true; }
+  if (isCorrupt(ME.wa_template_nondaily)) { ME.wa_template_nondaily = ""; wasCorrupt = true; }
   daily.value = ME.wa_template_daily || "";
   nondaily.value = ME.wa_template_nondaily || "";
   card.append(
@@ -3654,11 +3663,30 @@ async function renderSettings(view) {
     nondaily,
     el("p", { style: "margin-top:1rem" },
       el("button", { type: "submit", class: "primary" }, t("btn.save")),
+      " ",
+      // "Test emoji" opens api.whatsapp.com/send/ with a canary text so
+      // the coord can verify on THEIR device whether 4-byte emojis
+      // survive the round trip through WhatsApp Web / mobile. On some
+      // devices they do; on others they don't — the button lets the
+      // coord decide for themselves rather than us guessing.
+      el("button", { type: "button", class: "btn", id: "wa-test-emoji" },
+        t("btn.test_emoji") || "Test emoji"),
       " ", el("span", { class: "hint", id: "wa-msg" }),
     ),
+    el("p", { class: "hint", style: "margin-top:.4rem" },
+      t("hint.emoji_test") ||
+      "Tap Test emoji to open WhatsApp with 🌸 🙏 pre-filled. If those show as ? on your phone, WhatsApp on your device doesn't render 4-byte emojis — keep templates emoji-free."),
   );
   card.onsubmit = async (e) => {
     e.preventDefault();
+    // Refuse to persist a value that already contains U+FFFD — that
+    // means the input never round-tripped the browser's encoding
+    // correctly to begin with, and saving would re-poison the row.
+    if (isCorrupt(daily.value) || isCorrupt(nondaily.value)) {
+      $("wa-msg").textContent =
+        "Template contains encoding-corrupted characters (�) — remove them or clear the box and re-type before saving.";
+      return;
+    }
     try {
       await api("/api/me/wa-templates", { method: "POST", body: JSON.stringify({
         wa_template_daily: daily.value, wa_template_nondaily: nondaily.value,
@@ -3670,7 +3698,32 @@ async function renderSettings(view) {
       $("wa-msg").textContent = err.message || "Save failed";
     }
   };
-  if (can("settings_wa_templates")) view.append(card);
+  if (can("settings_wa_templates")) {
+    // Corruption warning banner, only when we actually detected it in
+    // the fetched-back templates. Above the card so it's the first
+    // thing the coord sees on Settings.
+    if (wasCorrupt) {
+      view.append(el("div", { class: "card",
+        style: "border-color:var(--mark-attention);background:var(--tint-attention);margin-bottom:.5rem" },
+        el("strong", {}, "Your saved WhatsApp template had encoding issues and was reset."),
+        el("p", { class: "hint", style: "margin:.3rem 0 0" },
+          "Please retype your message below and hit Save. Emojis (🌸 🙏) render correctly now that the server preserves UTF-8."),
+      ));
+    }
+    view.append(card);
+    // Wire the test-emoji button after the card is attached.
+    setTimeout(() => {
+      const btn = $("wa-test-emoji");
+      if (!btn) return;
+      btn.addEventListener("click", () => {
+        // api.whatsapp.com/send/ (not wa.me) preserves 4-byte UTF-8 —
+        // wa.me's 302 mangles emoji to U+FFFD. See lib/notify.js.
+        const url = "https://api.whatsapp.com/send/?text="
+          + encodeURIComponent("Emoji test: 🌸 🙏 🕉 🌺 — do you see the flowers/hands?");
+        window.open(url, "_blank", "noopener");
+      });
+    }, 0);
+  }
 }
 
 // ---------------------------------------------------------- admin ---
@@ -4294,9 +4347,9 @@ async function renderAdminEvents(view) {
         );
         const actions = li.lastChild;
         const attendance = el("a", { class: "mini-btn", href: `#/events/${e.id}` }, "Attendance");
-        const del = el("button", { class: "danger", style: "margin-left:.4rem" }, "Delete");
+        const del = el("button", { class: "danger", style: "margin-left:.4rem" }, t("btn.delete_short"));
         del.addEventListener("click", async () => {
-          if (!confirm(`Delete event "${e.name}"? Attendance rows are kept for audit.`)) return;
+          if (!confirm(`${t("confirm.delete_event_prefix")} "${e.name}"${t("confirm.delete_event_suffix")}`)) return;
           try {
             await api(`/api/events/${e.id}`, { method: "DELETE" });
             renderRoute();
@@ -4309,7 +4362,7 @@ async function renderAdminEvents(view) {
     }
     const form = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
     form.append(
-      el("h3", { class: "section" }, "New event"),
+      el("h3", { class: "section" }, t("hd.new_event")),
       formField("Name", el("input", { id: "ev-name", required: true })),
       el("div", { class: "grid2" },
         formField("Kind", el("select", { id: "ev-kind" },
@@ -4331,7 +4384,7 @@ async function renderAdminEvents(view) {
         formField("Capacity", el("input", { id: "ev-cap", type: "number" })),
         formField("Batch number", el("input", { id: "ev-batch", type: "number" })),
       ),
-      el("p", {}, el("button", { class: "primary", type: "submit" }, "Save event"),
+      el("p", {}, el("button", { class: "primary", type: "submit" }, t("btn.save_event")),
         " ", el("span", { class: "hint", id: "ev-msg" })),
     );
     form.onsubmit = async (e) => {
