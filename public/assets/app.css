@@ -265,6 +265,17 @@ textarea { min-height: 4rem; resize: vertical; }
 }
 .progress-line .fraction { color: var(--ink-2); font-weight: 500; }
 
+/* 3-bucket mini bars for the leader leaderboard row. Compact stack of
+   three .pbar rows with a small caption above each showing the
+   bucket label and raw value. Kept narrow so the row still shows
+   name + score + Open button on phones. */
+.leader-buckets { display: flex; flex-direction: column; gap: .3rem; }
+.leader-bucket-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .5rem; margin-bottom: .1rem;
+}
+.leader-bucket .pbar { margin-top: 0; height: 6px; }
+
 /* -------------------------------------------------- topbar */
 .topbar {
   display: flex; align-items: baseline; justify-content: space-between;

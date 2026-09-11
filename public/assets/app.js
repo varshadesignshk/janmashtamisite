@@ -739,11 +739,11 @@ function renderWaGroupPickerCard() {
   const STORAGE_KEY = "njy_wa_group_pick_msg";
   const card = el("div", { class: "card" });
   card.append(
-    el("h3", { class: "section", style: "margin-top:0" }, "Send a message to your group"),
-    el("p", { class: "hint" }, "WhatsApp will let you pick which group to send to."),
+    el("h3", { class: "section", style: "margin-top:0" }, t("hd.send_msg_group")),
+    el("p", { class: "hint" }, t("help.send_msg_group")),
   );
   const ta = el("textarea", { id: "wg-pick-msg", rows: 4,
-    placeholder: "Hare Krsna! Reminder: Janmashtami practice tonight at 7 PM 🌸",
+    placeholder: t("help.wa_group_placeholder"),
     style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px" });
   try { ta.value = localStorage.getItem(STORAGE_KEY) || ""; } catch { /* private mode */ }
   ta.addEventListener("input", () => {
@@ -756,14 +756,14 @@ function renderWaGroupPickerCard() {
   card.append(el("p", { style: "margin-top:.7rem" }, openBtn, msg));
   openBtn.addEventListener("click", () => {
     const text = (ta.value || "").trim();
-    if (!text) { msg.textContent = "Type a message first."; return; }
+    if (!text) { msg.textContent = t("msg.type_msg_first"); return; }
     // api.whatsapp.com/send/ with no phone opens the contact/group
     // picker with the text pre-filled. Used instead of wa.me because
     // wa.me's redirect ASCII-fies 4-byte emoji codepoints — see the
     // waUrl comment in renderBroadcastQueue.
     const url = `https://api.whatsapp.com/send/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank", "noopener");
-    msg.textContent = "Opened. Pick your group in WhatsApp.";
+    msg.textContent = t("msg.opened_pick_group");
   });
   return card;
 }
@@ -811,8 +811,8 @@ async function renderBroadcast(view) {
   // CHANGE 3: coord/leader/hk all get broadcast. Recipient list is
   // scoped per role — see loadBroadcastRecipients() below.
   if (!["njy_coordinator", "njy_leader", "hk_leader"].includes(ME.role)) {
-    view.append(el("h2", { class: "section" }, "Broadcast"));
-    view.append(el("p", { class: "hint" }, "Broadcast mode is available to NJY Coordinators, NJY Leaders, and HK Leader."));
+    view.append(el("h2", { class: "section" }, t("hd.broadcast")));
+    view.append(el("p", { class: "hint" }, t("msg.broadcast_access")));
     return;
   }
   // Split: setup screen if no queue in-progress; queue mode if there is.
@@ -866,7 +866,7 @@ async function loadBroadcastRecipients() {
 async function renderBroadcastSetup(view) {
   const myToken = routeToken;  // BUG 1+2
   view.append(el("div", { class: "spread" },
-    el("h2", { class: "section" }, "📢 Broadcast today's message"),
+    el("h2", { class: "section" }, t("hd.broadcast_today")),
     el("a", { class: "btn", href: "#/" }, t("btn.back")),
   ));
   const roleHelp = ME.role === "njy_coordinator"
@@ -924,7 +924,7 @@ async function renderBroadcastSetup(view) {
     // Message card
     const msgCard = el("div", { class: "bc-card" });
     msgCard.append(
-      el("h3", {}, "Message"),
+      el("h3", {}, t("hd.message")),
       el("p", { class: "bc-hint" },
         "Use ", el("code", { style: "background:var(--tint-followed);padding:.05rem .3rem;border-radius:3px" }, "{name}"),
         ` anywhere in your message — it gets replaced with each ${isMembers ? "chanter's" : "recipient's"} actual name at send time.`),
@@ -936,14 +936,14 @@ async function renderBroadcastSetup(view) {
     const filterCard = el("div", { class: "bc-card" });
     if (isMembers) {
       filterCard.append(
-        el("h3", {}, "Who receives"),
+        el("h3", {}, t("hd.who_receives")),
         el("label", { class: "bc-check-row" }, skipChanted,
           el("span", { class: "bc-check-label" },
-            el("strong", {}, "Skip chanters who already chanted today"),
+            el("strong", {}, t("hd.skip_chanted")),
             el("span", { class: "bc-check-sub" }, "No need to remind them — save this message for those who haven't chanted yet"))),
         el("label", { class: "bc-check-row" }, skipRed,
           el("span", { class: "bc-check-label" },
-            el("strong", {}, "Skip disqualified chanters"),
+            el("strong", {}, t("hd.skip_disqualified")),
             el("span", { class: "bc-check-sub" }, "Chanters who've missed 3+ consecutive days (red bead) — they need a personal check-in, not a bulk reminder"))),
         countLine,
       );
@@ -960,14 +960,14 @@ async function renderBroadcastSetup(view) {
 
     $("bc-start").addEventListener("click", () => {
       const messageTemplate = msgTa.value.trim();
-      if (!messageTemplate) { alert("Type a message first."); return; }
+      if (!messageTemplate) { alert(t("msg.type_msg_first")); return; }
       const filtered = recipients.filter(r => {
         if (!isMembers) return true;
         if (skipChanted.checked && r.chanted_today) return false;
         if (skipRed.checked && r.bead_color === "red") return false;
         return true;
       });
-      if (!filtered.length) { alert(`No ${label} match your filters.`); return; }
+      if (!filtered.length) { alert(t("msg.no_match_filter")); return; }
       // Init session state — note `kind` gates whether the Sent-tap
       // fires mark-contacted (only for members/chanters — coords and
       // leaders are staff, not on any coord's roll).
@@ -1000,12 +1000,12 @@ function renderBroadcastQueue(view) {
   const done = state.index >= total;
 
   view.append(el("div", { class: "spread" },
-    el("h2", { class: "section" }, done ? "✅ Broadcast complete" : "📢 Broadcast"),
-    el("button", { class: "btn", id: "bc-cancel", type: "button" }, done ? "Close" : "Pause & exit"),
+    el("h2", { class: "section" }, done ? t("hd.broadcast_complete") : t("hd.broadcast_running")),
+    el("button", { class: "btn", id: "bc-cancel", type: "button" }, done ? t("btn.close") : t("btn.pause_exit")),
   ));
 
   $("bc-cancel").addEventListener("click", () => {
-    if (done || confirm(`Pause broadcast? ${sentCount} sent, ${total - sentCount - skipCount} remaining.`)) {
+    if (done || confirm(`${t("confirm.pause_broadcast")} ${sentCount} / ${total - sentCount - skipCount}`)) {
       window._njyBroadcast = null;
       location.hash = "#/";
     }
@@ -1023,9 +1023,9 @@ function renderBroadcastQueue(view) {
     el("div", { class: "pbar", "data-mid": "0",
       style: `--pct:${pct}%;height:8px;border-radius:4px` }),
     el("div", { class: "hint", style: "margin-top:.4rem;font-size:.75rem;display:flex;gap:1rem" },
-      el("span", {}, "✅ Sent: ", el("strong", { style: "color:var(--peacock-deep)" }, sentCount)),
-      el("span", {}, "⤵ Skipped: ", el("strong", {}, skipCount)),
-      el("span", {}, "⏳ Remaining: ", el("strong", {}, Math.max(0, total - sentCount - skipCount))),
+      el("span", {}, t("chip.sent") + " ", el("strong", { style: "color:var(--peacock-deep)" }, sentCount)),
+      el("span", {}, t("chip.skipped") + " ", el("strong", {}, skipCount)),
+      el("span", {}, t("chip.remaining") + " ", el("strong", {}, Math.max(0, total - sentCount - skipCount))),
     ),
   );
   view.append(progressCard);
@@ -1034,7 +1034,7 @@ function renderBroadcastQueue(view) {
     // Tally the auto-contacted upgrades from the Sent taps.
     const upgradedCount = state.queue.filter(x => x.contact_changed).length;
     const summary = el("div", { class: "care-empty" },
-      el("h3", { style: "margin:0 0 .3rem" }, "🌸 Broadcast complete"),
+      el("h3", { style: "margin:0 0 .3rem" }, t("hd.broadcast_complete_card")),
       el("p", { style: "margin:0;font-size:.9rem" },
         `Sent to `, el("strong", {}, sentCount), ` chanter${sentCount === 1 ? "" : "s"}. `,
         skipCount ? `Skipped ${skipCount}. ` : "",
@@ -3135,14 +3135,39 @@ async function renderLeaderboard(kind, rest) {
       const openHref = isLeadersBoard
         ? `#/leader/${r.user_id}`
         : `#/profile/${r.user_id}`;
-      // Leaders board: score column shows the metric currently being
-      // sorted on. Total = raw sum. Avg = pts / coord_count (prorated).
+      // Leaders board: score column shows the composite 3-bucket score
+      // used for ranking. Old "raw pts" available via `raw_team_pts`
+      // when we want to expose it.
       const scoreText = (isLeadersBoard && sortMode === "avg")
-        ? `${r.pts_per_coord || 0} avg · ${r.pts} total`
-        : (isLeadersBoard ? `${r.pts} · ${r.pts_per_coord || 0} avg` : `${r.pts} pts`);
+        ? `${r.pts_per_coord || 0} avg · ${r.total_score || r.pts} score`
+        : (isLeadersBoard ? `${r.total_score || r.pts} score` : `${r.pts} pts`);
+
+      // Build the 3-bucket mini bars for the leaders board only. Each
+      // bar is a .pbar with --pct set from the *_bar (0-100 normalised)
+      // fields the server computed, and a short caption naming the
+      // bucket + raw value so the leader can read the tradeoff at a
+      // glance. Tap the row header to expand the breakdown.
+      let bucketBlock = null;
+      if (isLeadersBoard && (r.total_score != null || r.team_performance != null)) {
+        const barRow = (label, raw, pctBar, suffix) => el("div", { class: "leader-bucket" },
+          el("div", { class: "leader-bucket-hd" },
+            el("span", { class: "hint" }, label),
+            el("span", { class: "hint", style: "font-family:var(--font-mono)" }, `${raw}${suffix || ""}`)),
+          el("div", { class: "pbar", style: `--pct:${Math.max(0, Math.min(100, pctBar || 0))}%` }),
+        );
+        bucketBlock = el("div", { class: "leader-buckets", style: "margin-top:.4rem" },
+          barRow(`Team Performance (60%)`, r.team_performance || 0, r.team_performance_bar || 0, " avg"),
+          barRow(`Team Coverage (25%)`,     r.team_coverage    || 0, r.team_coverage_bar    || 0, "%"),
+          barRow(`Leader Touch (15%)`,      r.leader_touch     || 0, r.leader_touch_bar     || 0, " pts"),
+        );
+      }
+
       const li = el("li", {},
-        el("div", {}, el("strong", {}, `${label}  ${r.name}`),
-          el("div", { class: "hint", style: "margin-top:.15rem" }, breakdownText || "—")),
+        el("div", { style: "flex:1;min-width:0" },
+          el("strong", {}, `${label}  ${r.name}`),
+          el("div", { class: "hint", style: "margin-top:.15rem" }, breakdownText || "—"),
+          bucketBlock,
+        ),
         el("span", { class: "score" }, scoreText),
         r.user_id === ME.id
           ? el("a", { class: "pill on", href: openHref, style: "text-decoration:none" }, "you — open")
@@ -3340,6 +3365,31 @@ function renderPointsRules(view) {
     ),
   );
   view.append(overall);
+
+  // NEW — Leader leaderboard: 3-bucket prorated model. Only relevant
+  // to NJY Leaders (and HK reading over their shoulder), but shown to
+  // everyone on the rules page so coords understand what's driving
+  // their leader's ranking.
+  const leader = el("div", { class: "card" });
+  leader.append(
+    el("h3", { class: "section", style: "margin-top:0" }, "NJY Leader leaderboard (3-bucket prorated)"),
+    el("p", { class: "hint" },
+      "Leaders don't earn chant points directly — their score is a weighted composite of how their team is doing and their own personal touch. Prorated so a leader with 6 coords isn't penalised vs one with 15."),
+    el("h3", { class: "section" }, "Team Performance — 60%"),
+    el("p", { class: "hint" }, "Average points per coord (sum of your coords' points ÷ number of coords). Rewards balanced strong teams."),
+    el("h3", { class: "section" }, "Team Coverage — 25%"),
+    el("p", { class: "hint" }, "Percentage of your coords who did anything today (any chant, follow-up, or event). 8 of your 10 coords active → 80%."),
+    el("h3", { class: "section" }, "Leader Touch — 15%"),
+    el("p", { class: "hint" }, "Your own actions this day:"),
+    el("ul", { class: "list" },
+      pointRow("Fired broadcast to your coords (once/day)", "+5"),
+      pointRow("Updated your coord-group WhatsApp (once/day)", "+5"),
+      pointRow("Contacted a coord via mesh WA — Sent ✓ tap (cap 3/day)", "+3"),
+      pointRow("Attended an event in person (per event)", "+10"),
+      pointRow("Onboarded a new coord (per coord, one-time)", "+5"),
+    ),
+  );
+  view.append(leader);
 
   view.append(el("p", { style: "margin-top:1rem" },
     el("a", { class: "btn", href: "#/leaderboard/overall" }, "← Back to leaderboard"),
