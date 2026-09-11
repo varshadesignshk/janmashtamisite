@@ -308,8 +308,8 @@ function maybeShowOnboardingTour() {
         ...slides.map((_, idx) => el("span", { class: idx === i ? "on" : "" })),
       ),
       el("div", { class: "tour-actions" },
-        el("button", { class: "tour-skip" }, "Skip tour"),
-        el("button", { class: "primary" }, i === slides.length - 1 ? "Got it — start using" : "Next →"),
+        el("button", { class: "tour-skip" }, t("btn.skip_tour")),
+        el("button", { class: "primary" }, i === slides.length - 1 ? t("btn.got_it") : t("btn.tour_next")),
       ),
     );
     card.querySelector(".tour-skip").addEventListener("click", done);
@@ -472,10 +472,10 @@ async function refreshLbSide() {
       return;
     }
     side.innerHTML = "";
-    side.append(el("h4", {}, "Today's leaders", el("span", { style: "font-size:.7rem;color:var(--muted)" }, "🏆")));
+    side.append(el("h4", {}, t("hd.today_leaders"), el("span", { style: "font-size:.7rem;color:var(--muted)" }, "🏆")));
     const top3 = rows.slice(0, 3);
     if (!top3.length) {
-      side.append(el("p", { class: "hint", style: "font-size:.75rem" }, "No points yet today."));
+      side.append(el("p", { class: "hint", style: "font-size:.75rem" }, t("hd.no_points_yet_today")));
       side.hidden = false;
       return;
     }
@@ -672,11 +672,11 @@ async function renderCoordRoll(view) {
     view.append(garlandStrip(roll, /* editable */ true));
     view.append(rollList(roll, /* editable */ true));
     if (!roll.length) {
-      view.append(el("p", { class: "hint" }, "No chanters assigned yet. Ask your NJY Leader to assign your list, or (if you are the HK Leader) use bulk import from Admin."));
+      view.append(el("p", { class: "hint" }, t("msg.no_chanters_assigned")));
     }
   } catch (err) {
-    if (err.status === 403) view.append(el("p", { class: "hint" }, "You don't have a coordinator roll. Try the Team or HK tabs."));
-    else view.append(el("p", { class: "error" }, "Could not load roll: " + err.message));
+    if (err.status === 403) view.append(el("p", { class: "hint" }, t("msg.no_coord_roll")));
+    else view.append(el("p", { class: "error" }, t("msg.could_not_load") + err.message));
   }
 }
 
@@ -948,7 +948,7 @@ async function renderBroadcastSetup(view) {
         countLine,
       );
     } else {
-      filterCard.append(el("h3", {}, "Who receives"), countLine);
+      filterCard.append(el("h3", {}, t("hd.who_receives")), countLine);
     }
     filterCard.append(
       el("p", { style: "margin-top:1rem;text-align:right" },
@@ -987,7 +987,7 @@ async function renderBroadcastSetup(view) {
     });
   } catch (err) {
     loader.remove();
-    view.append(el("p", { class: "error" }, "Could not load recipients: " + err.message));
+    view.append(el("p", { class: "error" }, t("msg.could_not_load_recipients") + err.message));
   }
 }
 
@@ -1443,7 +1443,7 @@ async function buildHistoryStrip(personId, opts = {}) {
     }
   } catch (err) {
     strip.innerHTML = "";
-    strip.append(el("p", { class: "hint", style: "grid-column:1/-1;font-size:.7rem" }, "Could not load: " + err.message));
+    strip.append(el("p", { class: "hint", style: "grid-column:1/-1;font-size:.7rem" }, t("msg.could_not_load") + err.message));
   }
   return strip;
 }
@@ -1535,7 +1535,7 @@ function rollList(roll, editable) {
     const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
 
     // "History" button — expands a 14-day chant strip below the row
-    const historyBtn = el("button", { class: "history-btn", title: "Show 14-day chant history" }, "📅");
+    const historyBtn = el("button", { class: "history-btn", title: t("title.chant_history") }, "📅");
     historyBtn.addEventListener("click", async () => {
       const existing = li.querySelector(".history-strip");
       if (existing) { existing.remove(); return; }
@@ -1702,7 +1702,7 @@ async function renderLeaderDrill(leaderId) {
     const myCoords = users.filter(u => u.role === "njy_coordinator" && u.active && u.manager_user_id === leaderId);
     view.append(el("h3", { class: "section" }, t("hd.currently_assigned")));
     if (!myCoords.length) {
-      view.append(el("p", { class: "hint" }, "No coordinators assigned to this leader yet."));
+      view.append(el("p", { class: "hint" }, t("msg.no_coords_leader_assigned")));
       return;
     }
     // Enrich each with the same shape coordCard expects. Cheapest path:
@@ -1871,10 +1871,10 @@ async function renderHkDashboard(view) {
       el("div", { class: "cell" }, el("div", { class: "n" }, String(s.njy_coordinators)), el("div", { class: "k" }, t("hd.coordinators"))),
     );
     view.append(grid);
-    view.append(el("h2", { class: "section" }, "All coordinators"));
+    view.append(el("h2", { class: "section" }, t("hd.all_coords_title")));
     const { coordinators } = await api("/api/leader/coordinators");
     if (myToken !== routeToken) return;
-    if (!coordinators.length) return view.append(el("p", { class: "hint" }, "No coordinators yet. Create some in Admin → Users."));
+    if (!coordinators.length) return view.append(el("p", { class: "hint" }, t("msg.no_coords_admin")));
     const ul = el("ul", { class: "list" });
     for (const c of coordinators) {
       ul.append(el("li", {}, coordCard(c)));
@@ -1970,7 +1970,7 @@ function rollListManageable(roll, currentOwnerUserId) {
 
     const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
 
-    const historyBtn = el("button", { class: "history-btn", title: "Show 14-day chant history" }, "📅");
+    const historyBtn = el("button", { class: "history-btn", title: t("title.chant_history") }, "📅");
     historyBtn.addEventListener("click", async () => {
       const existing = li.querySelector(".history-strip");
       if (existing) { existing.remove(); return; }
@@ -1982,7 +1982,7 @@ function rollListManageable(roll, currentOwnerUserId) {
     ul.append(li);
 
     if (canManage) {
-      const mgr = el("button", { class: "mini-btn" }, "Manage ▾");
+      const mgr = el("button", { class: "mini-btn" }, t("btn.manage"));
       li.append(mgr);
       mgr.addEventListener("click", async () => {
         const existing = li.querySelector(".manage");
@@ -2023,7 +2023,7 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
   roleSel.addEventListener("change", fillUserSel);
   fillUserSel();
 
-  const assignBtn = el("button", { class: "mini-btn" }, "Move");
+  const assignBtn = el("button", { class: "mini-btn" }, t("btn.move_short"));
   assignBtn.addEventListener("click", async () => {
     if (!userSel.value) return alert("Pick a user to move this person to.");
     try {
@@ -2035,8 +2035,8 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
     } catch (err) { alert(err.message); }
   });
   panel.append(el("div", {},
-    el("label", {}, "Reassign — role"), roleSel,
-    el("label", { style: "margin-top:.4rem" }, "then pick who"), userSel,
+    el("label", {}, t("hd.reassign_role")), roleSel,
+    el("label", { style: "margin-top:.4rem" }, t("hd.then_pick")), userSel,
     el("div", { style: "margin-top:.4rem" }, assignBtn),
   ));
 
@@ -2045,7 +2045,7 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
     ...["chanter","qualified","daily","njy1","njy2","njy3","manjari","bv_member","dropped"]
       .map(s => el("option", { value: s, selected: person.status === s ? true : undefined }, s)),
   );
-  const statusBtn = el("button", { class: "mini-btn" }, "Set status");
+  const statusBtn = el("button", { class: "mini-btn" }, t("btn.set_status_short"));
   statusBtn.addEventListener("click", async () => {
     try {
       await api(`/api/person/${person.id}/status`, {
@@ -2055,12 +2055,12 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
     } catch (err) { alert(err.message); }
   });
   panel.append(el("div", {},
-    el("label", {}, "Lifecycle status"), statusSel,
+    el("label", {}, t("hd.lifecycle_status")), statusSel,
     el("div", { style: "margin-top:.4rem" }, statusBtn),
   ));
 
   // Delete
-  const del = el("button", { class: "danger" }, "Delete this person");
+  const del = el("button", { class: "danger" }, t("btn.delete_person"));
   del.addEventListener("click", async () => {
     if (!confirm(`Delete ${person.name}? This is a soft-delete — history is kept, but they will no longer appear in active lists.`)) return;
     try {
@@ -2424,7 +2424,7 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
   );
   const fileInput = el("input", { type: "file", accept: ".xlsx,.xls,.csv" });
   const previewBox = el("div", { style: "margin-top:.7rem" });
-  const commitBtn = el("button", { class: "primary", type: "button", disabled: true }, "Confirm import");
+  const commitBtn = el("button", { class: "primary", type: "button", disabled: true }, t("btn.confirm"));
   if (commitGateKey && !can(commitGateKey)) commitBtn.hidden = true;
   const msg = el("span", { class: "hint", style: "margin-left:.6rem" });
 
@@ -2557,7 +2557,7 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
       const friendly = humanizeError(err);
       msg.textContent = "Import failed: " + friendly;
       const card = el("div", { class: "card", style: "border-color:#c02020;background:#fff5f5;margin-top:.5rem" });
-      card.append(el("h4", { style: "color:#c02020;margin:0 0 .3rem" }, "Import failed"));
+      card.append(el("h4", { style: "color:#c02020;margin:0 0 .3rem" }, t("msg.error_prefix").replace(":","")));
       card.append(el("p", { style: "margin:0 0 .3rem;font-size:.9rem" }, friendly));
       const detail = err.body?.error || err.message || "unknown";
       card.append(el("p", { class: "hint", style: "margin:0;font-family:var(--font-mono);font-size:.75rem" },
@@ -3748,10 +3748,10 @@ async function renderAdmin(tab) {
   // first — that made non-HK users think they were allowed in and just
   // rendered "no access" as a footer.
   if (!visible.length || !can(target.gate)) {
-    view.append(el("p", { class: "hint" }, "You don't have access to Admin. This section is restricted to HK Leader."));
+    view.append(el("p", { class: "hint" }, t("msg.no_access_admin")));
     return;
   }
-  view.append(el("h2", { class: "section" }, "Admin"));
+  view.append(el("h2", { class: "section" }, t("hd.admin")));
   view.append(helpBanner(
     "Administrative controls — HK Leader only. Feature gates toggle " +
     "which roles see which parts of the app (no redeploy needed). " +
@@ -3801,7 +3801,7 @@ async function renderAdminUsersBulk(view) {
   const paste = el("div", { class: "card" });
   paste.append(
     el("h3", { class: "section", style: "margin-top:0" }, t("hd.paste_rows")),
-    el("p", { class: "hint" }, "One user per line, tab-separated: username, password, display_name, phone, role, manager_username."),
+    el("p", { class: "hint" }, t("help.admin_paste_users")),
     formField("Paste", el("textarea", { id: "ub-paste", rows: "8",
       placeholder: "leader1\tpass123\tRadha Priya\t9876500001\tnjy_leader\t\ncoord01\tpass123\tSri Coord\t9876500002\tnjy_coordinator\tleader1" })),
     el("p", {}, el("button", { class: "primary", type: "button", id: "ub-go" }, t("btn.import")),
@@ -3919,7 +3919,7 @@ async function renderAdminGates(view) {
     sections[s].push(k);
   }
 
-  view.append(el("h3", { class: "section" }, "Feature visibility"));
+  view.append(el("h3", { class: "section" }, t("hd.feature_visibility")));
   view.append(el("p", { class: "hint" },
     "Toggle a role checkbox to grant/revoke access. Click Save section to commit. " +
     "HK Leader implicitly sees every feature regardless of the checkbox."));
@@ -3934,7 +3934,7 @@ async function renderAdminGates(view) {
 
   // Global save-all button
   const globalSaveWrap = el("div", { style: "position:sticky;top:0;background:var(--bg);padding:.4rem 0;z-index:5;border-bottom:1px solid var(--line);margin-bottom:.6rem" });
-  const globalSave = el("button", { class: "primary", type: "button" }, "Save all changes");
+  const globalSave = el("button", { class: "primary", type: "button" }, t("btn.save_all"));
   const globalMsg = el("span", { class: "hint", style: "margin-left:.6rem" });
   globalSaveWrap.append(globalSave, " ", globalMsg);
   view.append(globalSaveWrap);
@@ -3982,7 +3982,7 @@ async function renderAdminGates(view) {
     }
 
     const saveRow = el("div", { style: "margin-top:.6rem;display:flex;gap:.5rem;align-items:center" });
-    const saveBtn = el("button", { class: "primary", type: "button", disabled: true }, "Save section");
+    const saveBtn = el("button", { class: "primary", type: "button", disabled: true }, t("btn.save_section"));
     const msg = el("span", { class: "hint" });
     saveBtn.addEventListener("click", async () => {
       const changes = keys
