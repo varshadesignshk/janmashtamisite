@@ -2731,14 +2731,14 @@ async function renderSadhanaBrowse(view) {
 // -------------------------------------------------- BV structure ---
 async function renderBvStructure(view) {
   const myToken = routeToken;  // BUG 1+2
-  view.append(el("h2", { class: "section" }, "Bhakti-Vrksa structure"));
+  view.append(el("h2", { class: "section" }, t("hd.bv_structure")));
   view.append(helpBanner(
     "The Circle → Sector → BV Group hierarchy for Phase 4 (Feb 2027 " +
     "onward). Six circles, four sectors each, three BV groups per " +
     "sector. Right now HK Leader seeds it here; later, Servant Leaders " +
     "run their own BV groups against it."
   ));
-  view.append(el("p", { class: "hint" }, "Six named circles from the docs: Krsna, Balarama, Gauranga, Nityananda, Nrsimha, Laksmi. Under Plan 2 (updated): 4 sectors of 3 BV groups each = 72 groups at Week 1, expected to drop to ~50 groups by Week 64. Create/edit groups here."));
+  view.append(el("p", { class: "hint" }, t("help.bv_structure")));
   try {
     const { circles, sectors, bv_groups } = await api("/api/bv/structure");
     if (myToken !== routeToken) return;
@@ -2754,7 +2754,7 @@ async function renderBvStructure(view) {
   }
 }
 function structureList(groups) {
-  if (!groups.length) return el("p", { class: "hint" }, "None yet.");
+  if (!groups.length) return el("p", { class: "hint" }, t("msg.none_yet"));
   const ul = el("ul", { class: "list" });
   for (const g of groups) {
     const li = el("li", {},
@@ -2764,8 +2764,8 @@ function structureList(groups) {
       el("div", {}),
     );
     const actions = li.lastChild;
-    const editBtn = el("button", { class: "mini-btn" }, "Edit");
-    const delBtn = el("button", { class: "danger", style: "margin-left:.4rem" }, "Delete");
+    const editBtn = el("button", { class: "mini-btn" }, t("btn.edit_short"));
+    const delBtn = el("button", { class: "danger", style: "margin-left:.4rem" }, t("btn.delete_short"));
     actions.append(editBtn, delBtn);
     editBtn.addEventListener("click", () => {
       const existing = li.querySelector(".manage");
@@ -2807,7 +2807,7 @@ function structureList(groups) {
 function newGroupForm() {
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   card.append(
-    el("h3", { class: "section" }, "New group"),
+    el("h3", { class: "section" }, t("hd.new_group")),
     formField("Name", el("input", { id: "g-name", required: true })),
     formField("Kind", el("select", { id: "g-kind" },
       el("option", { value: "bv_group" }, "BV Group"),
@@ -2822,7 +2822,7 @@ function newGroupForm() {
     ),
     formField("Venue", el("input", { id: "g-venue" })),
     formField("Target strength", el("input", { id: "g-strength", type: "number" })),
-    el("p", {}, el("button", { class: "primary", type: "submit" }, "Save group"),
+    el("p", {}, el("button", { class: "primary", type: "submit" }, t("btn.save_group")),
       " ", el("span", { class: "hint", id: "g-msg" })),
   );
   card.onsubmit = async (e) => {
@@ -2845,8 +2845,8 @@ function newGroupForm() {
 async function renderMemberDetails(personId) {
   const myToken = routeToken;  // BUG 1+2
   const view = $("view");
-  view.append(el("h2", { class: "section" }, "Member details"));
-  if (!personId) return view.append(el("p", { class: "hint" }, "Open via a person row (feature comes online with BV phase)."));
+  view.append(el("h2", { class: "section" }, t("hd.member_details")));
+  if (!personId) return view.append(el("p", { class: "hint" }, t("msg.open_via_row")));
   try {
     const { person } = await api(`/api/member/${encodeURIComponent(personId)}`);
     if (myToken !== routeToken) return;
@@ -2854,7 +2854,7 @@ async function renderMemberDetails(personId) {
     const F = (id, label, val, extra = {}) =>
       formField(label, el("input", { id, value: val || "", ...extra }));
     card.append(
-      el("h3", { class: "section" }, "Personal"),
+      el("h3", { class: "section" }, t("hd.personal")),
       F("m-name", "Legal name", person.legal_name),
       el("div", { class: "grid2" },
         F("m-gender", "Gender", person.gender, { placeholder: "Male/Female" }),
@@ -2875,7 +2875,7 @@ async function renderMemberDetails(personId) {
         F("m-pincode", "Pincode", person.pincode, { placeholder: "e.g. 625001" }),
       ),
       F("m-email", "Email", person.email, { type: "email" }),
-      el("h3", { class: "section" }, "Work"),
+      el("h3", { class: "section" }, t("hd.work")),
       el("div", { class: "grid2" },
         F("m-edu", "Education", person.education),
         F("m-occ", "Occupation", person.occupation),
@@ -2883,7 +2883,7 @@ async function renderMemberDetails(personId) {
         F("m-des", "Designation", person.designation),
       ),
       F("m-lang", "Languages known", person.languages_known),
-      el("h3", { class: "section" }, "Notes"),
+      el("h3", { class: "section" }, t("hd.notes")),
       formField("Notes", el("textarea", { id: "m-notes" }, person.notes || "")),
       el("p", {}, el("button", { class: "primary", type: "submit" }, "Save"),
         " ", el("span", { class: "hint", id: "m-msg" })),
@@ -2919,15 +2919,15 @@ async function renderMemberDetails(personId) {
 // -------------------------------------------------- group report ---
 async function renderGroupReport(groupId) {
   const view = $("view");
-  view.append(el("h2", { class: "section" }, "Group planning sheet"));
-  view.append(el("p", { class: "hint" }, "Periodic report by a Servant Leader (per Bhakti-Vrksa manual). 22 parameters across attendance, shiksha, preaching, temple services."));
-  if (!groupId) return view.append(el("p", { class: "hint" }, "Open with a group id in the URL: #/group-report/<group_id>"));
+  view.append(el("h2", { class: "section" }, t("hd.group_planning")));
+  view.append(el("p", { class: "hint" }, t("help.group_planning")));
+  if (!groupId) return view.append(el("p", { class: "hint" }, t("msg.open_group_id")));
   const num = (id, label) => formField(label, el("input", { id, type: "number", min: "0", value: "0" }));
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   card.append(
     formField("Report date", el("input", { id: "gr-date", type: "date", value: new Date().toISOString().slice(0,10), required: true })),
     formField("Week number", el("input", { id: "gr-wk", type: "number" })),
-    el("h3", { class: "section" }, "A · Member attendance"),
+    el("h3", { class: "section" }, t("hd.member_attendance")),
     el("div", { class: "grid3" },
       num("gr-avg", "Avg attendance"),
       num("gr-high", "Highest"),
