@@ -3703,35 +3703,226 @@ async function renderAdminUsersBulk(view) {
   });
 }
 
+// Grouping map — every known gate_key -> tab section. Anything not
+// listed here falls into "Other" so newly-added gates are still visible
+// (and HK Leader can categorize later by editing this table).
+const GATE_GROUPS = {
+  "Header / Global": [
+    "header_contact_leader_pill", "header_contact_hk_pill",
+    "header_install_pwa", "header_language_toggle", "header_points_chip",
+  ],
+  "My Roll": [
+    "coordinator_roll", "myroll_mark_chanted_today",
+    "myroll_mark_chanted_past_date", "myroll_add_note",
+    "myroll_change_status", "myroll_reassign_member",
+    "myroll_manage_dropdown", "myroll_broadcast_button",
+    "myroll_wa_group_button", "myroll_care_moments_panel",
+    "myroll_history_strip",
+  ],
+  "Team (leader)": [
+    "leader_dashboard", "team_view_coords_list", "team_drill_into_coord",
+    "team_broadcast_to_coords", "team_wa_group_of_coords",
+  ],
+  "HK Dashboard": ["hk_dashboard", "hk_reassign_leader"],
+  "Duties":  ["duties_view_list", "duties_mark_done", "duties_delete"],
+  "Events":  ["event_attendance", "events_view_list", "events_edit", "events_delete"],
+  "BV":      ["bv_structure_editor", "bv_add_group", "bv_delete_group", "bv_edit_group"],
+  "Janmashtami": [
+    "janmashtami_view_page", "janmashtami_quick_add",
+    "janmashtami_upload_csv", "janmashtami_paste_rows",
+    "janmashtami_download_template", "janmashtami_preview",
+    "janmashtami_commit_import", "janmashtami_progress_counters",
+    "janmashtami_today_entries",
+  ],
+  "Leaderboard": [
+    "leaderboard_coord_daily", "leaderboard_coord_overall",
+    "leaderboard_leaders_daily", "leaderboard_leaders_overall",
+    "leaderboard_sort_toggle",
+  ],
+  "Settings": [
+    "settings_change_password", "settings_wa_templates",
+    "web_push", "settings_view_profile", "settings_wa_group_link",
+  ],
+  "Admin": [
+    "feature_admin", "admin_gates", "admin_users", "admin_users_bulk",
+    "admin_import_chanters", "admin_events", "admin_points_rules_edit",
+    "admin_roles_manage", "bulk_import",
+  ],
+  "Sadhana": [
+    "sadhana_chart", "sadhana_entry_submit",
+    "sadhana_delete_entry", "sadhana_browse",
+  ],
+  "Cross-cutting": [
+    "whatsapp_deeplink", "member_details_full", "group_planning_sheet",
+    "action_timeline_duties",
+  ],
+};
+
 async function renderAdminGates(view) {
   const myToken = routeToken;  // BUG 1+2
   const { gates } = await api("/api/me");
   if (myToken !== routeToken) return;
-  const ROLES = ["hk_leader","njy_leader","njy_coordinator","circle_servant","sector_servant","servant_leader","member"];
-  const card = el("div", { class: "card" });
-  card.append(el("h3", { class: "section" }, "Feature visibility"));
-  card.append(el("p", { class: "hint" }, "Widen a feature to more roles without a redeploy. HK Leader implicitly sees all features."));
-  for (const [key, allowed] of Object.entries(gates)) {
-    const row = el("div", { style: "margin:.6rem 0;padding:.5rem 0;border-bottom:1px solid var(--line)" });
-    row.append(el("strong", {}, key));
-    const chips = el("div", { class: "row", style: "flex-wrap:wrap;gap:.3rem;margin-top:.3rem" });
-    ROLES.forEach((r) => {
-      const on = allowed.includes(r);
-      const b = el("button", { class: "pill" + (on ? " on" : ""), style: "cursor:pointer" }, r);
-      b.addEventListener("click", async () => {
-        const next = on ? allowed.filter(x => x !== r) : allowed.concat(r);
-        try {
-          await api("/api/admin/feature-gate", { method: "POST",
-            body: JSON.stringify({ feature_key: key, allowed_roles: next }) });
-          renderRoute();
-        } catch (err) { alert(err.message); }
-      });
-      chips.append(b);
-    });
-    row.append(chips);
-    card.append(row);
+
+  const ROLES = [
+    { key: "hk_leader",       label: "HK" },
+    { key: "njy_leader",      label: "Leader" },
+    { key: "njy_coordinator", label: "Coord" },
+    { key: "servant_leader",  label: "SL" },
+    { key: "circle_servant",  label: "CS" },
+    { key: "sector_servant",  label: "SS" },
+    { key: "manjari_servant_leader", label: "MSL" },
+    { key: "member",          label: "Member" },
+  ];
+
+  // Working copy — user edits this, then hits Save on a section.
+  const state = {};
+  for (const [k, v] of Object.entries(gates)) state[k] = v.slice();
+  const dirty = new Set();
+
+  // Build reverse lookup: which section owns each key. Anything not in
+  // GATE_GROUPS lands in "Other".
+  const owner = {};
+  for (const [section, keys] of Object.entries(GATE_GROUPS)) {
+    for (const k of keys) owner[k] = section;
   }
-  view.append(card);
+  const sections = { ...Object.fromEntries(Object.keys(GATE_GROUPS).map(s => [s, []])), Other: [] };
+  for (const k of Object.keys(gates)) {
+    const s = owner[k] || "Other";
+    sections[s].push(k);
+  }
+
+  view.append(el("h3", { class: "section" }, "Feature visibility"));
+  view.append(el("p", { class: "hint" },
+    "Toggle a role checkbox to grant/revoke access. Click Save section to commit. " +
+    "HK Leader implicitly sees every feature regardless of the checkbox."));
+
+  // Search box (filters section rows by key or description)
+  const search = el("input", {
+    placeholder: "Filter gates (e.g. janmashtami, wa_group, upload)",
+    style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px;margin:.4rem 0 1rem",
+    id: "gate-search",
+  });
+  view.append(search);
+
+  // Global save-all button
+  const globalSaveWrap = el("div", { style: "position:sticky;top:0;background:var(--bg);padding:.4rem 0;z-index:5;border-bottom:1px solid var(--line);margin-bottom:.6rem" });
+  const globalSave = el("button", { class: "primary", type: "button" }, "Save all changes");
+  const globalMsg = el("span", { class: "hint", style: "margin-left:.6rem" });
+  globalSaveWrap.append(globalSave, " ", globalMsg);
+  view.append(globalSaveWrap);
+
+  const renderSection = (title, keys) => {
+    if (!keys.length) return null;
+    const card = el("div", { class: "card", "data-section": title });
+    card.append(el("h3", { class: "section", style: "margin-top:0" }, title,
+      el("span", { class: "hint", style: "margin-left:.5rem;font-weight:400" }, `${keys.length} gate${keys.length === 1 ? "" : "s"}`)));
+
+    for (const key of keys.sort()) {
+      const rowEl = el("div", {
+        class: "gate-row",
+        "data-key": key,
+        style: "display:grid;grid-template-columns:minmax(220px, 1fr) auto;gap:.5rem;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--line)",
+      });
+      rowEl.append(el("div", {},
+        el("strong", { style: "font-family:var(--font-mono);font-size:.85rem" }, key),
+      ));
+      const chips = el("div", { style: "display:flex;flex-wrap:wrap;gap:.3rem" });
+      for (const r of ROLES) {
+        const on = () => state[key].includes(r.key);
+        const chip = el("label", {
+          style: "display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .5rem;border:1px solid var(--line);border-radius:6px;font-size:.78rem;cursor:pointer;user-select:none",
+          title: r.key,
+        });
+        const cb = el("input", { type: "checkbox" });
+        cb.checked = on();
+        cb.addEventListener("change", () => {
+          if (cb.checked) {
+            if (!state[key].includes(r.key)) state[key].push(r.key);
+          } else {
+            state[key] = state[key].filter(x => x !== r.key);
+          }
+          dirty.add(key);
+          rowEl.style.background = "var(--tint-followed, #fff8e1)";
+          saveBtn.disabled = false;
+          globalMsg.textContent = `${dirty.size} unsaved change${dirty.size === 1 ? "" : "s"}`;
+        });
+        chip.append(cb, el("span", {}, r.label));
+        chips.append(chip);
+      }
+      rowEl.append(chips);
+      card.append(rowEl);
+    }
+
+    const saveRow = el("div", { style: "margin-top:.6rem;display:flex;gap:.5rem;align-items:center" });
+    const saveBtn = el("button", { class: "primary", type: "button", disabled: true }, "Save section");
+    const msg = el("span", { class: "hint" });
+    saveBtn.addEventListener("click", async () => {
+      const changes = keys
+        .filter(k => dirty.has(k))
+        .map(k => ({ feature_key: k, allowed_roles: state[k] }));
+      if (!changes.length) return;
+      saveBtn.disabled = true; msg.textContent = "Saving…";
+      try {
+        await api("/api/admin/feature-gates/bulk", {
+          method: "POST", body: JSON.stringify({ changes }),
+        });
+        for (const c of changes) dirty.delete(c.feature_key);
+        msg.textContent = `Saved ${changes.length}.`;
+        // clear highlight on saved rows
+        card.querySelectorAll(".gate-row").forEach(el2 => el2.style.background = "");
+        globalMsg.textContent = dirty.size ? `${dirty.size} unsaved change(s) in other sections` : "";
+      } catch (err) {
+        msg.textContent = "Error: " + err.message;
+        saveBtn.disabled = false;
+      }
+    });
+    saveRow.append(saveBtn, msg);
+    card.append(saveRow);
+    return card;
+  };
+
+  // Global save-all: fire one bulk request for every dirty key
+  globalSave.addEventListener("click", async () => {
+    if (!dirty.size) { globalMsg.textContent = "No changes."; return; }
+    globalSave.disabled = true; globalMsg.textContent = "Saving all…";
+    try {
+      const changes = [...dirty].map(k => ({ feature_key: k, allowed_roles: state[k] }));
+      await api("/api/admin/feature-gates/bulk", {
+        method: "POST", body: JSON.stringify({ changes }),
+      });
+      dirty.clear();
+      globalMsg.textContent = `Saved ${changes.length}.`;
+      view.querySelectorAll(".gate-row").forEach(el2 => el2.style.background = "");
+      view.querySelectorAll('button[type="button"]').forEach(b => { if (b.textContent === "Save section") b.disabled = true; });
+    } catch (err) {
+      globalMsg.textContent = "Error: " + err.message;
+    } finally {
+      globalSave.disabled = false;
+    }
+  });
+
+  // Render each section (order preserved from GATE_GROUPS)
+  const sectionEls = [];
+  const sectionOrder = [...Object.keys(GATE_GROUPS), "Other"];
+  for (const s of sectionOrder) {
+    const c = renderSection(s, sections[s]);
+    if (c) { view.append(c); sectionEls.push(c); }
+  }
+
+  // Search filter
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLowerCase();
+    for (const card of sectionEls) {
+      let anyVisible = false;
+      card.querySelectorAll(".gate-row").forEach(row => {
+        const key = row.getAttribute("data-key") || "";
+        const match = !q || key.toLowerCase().includes(q);
+        row.hidden = !match;
+        if (match) anyVisible = true;
+      });
+      card.hidden = !anyVisible;
+    }
+  });
 }
 
 async function renderAdminUsers(view) {
