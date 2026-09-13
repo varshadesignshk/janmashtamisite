@@ -568,7 +568,9 @@ function renderRoute() {
     let home = null;
     if (ME.role === "hk_leader") home = "#/leader";
     else if (ME.role === "njy_leader") home = "#/leader";
-    else if (ME.role === "njy_coordinator") home = "#/janmashtami";
+    // njy_coordinator: default to "#/" (My Roll). Janmashtami campaign is over,
+    // so we no longer auto-land coords on #/janmashtami. The tab remains
+    // available in the nav for explicit navigation.
     if (home) { location.replace(home); return; }
   } else if (location.hash === "" || location.hash === "#/") {
     // second and later empty-hash renders → treat as "My roll" (or
