@@ -645,6 +645,9 @@ async function renderCoordRoll(view) {
           style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
           ME.wa_group_link ? t("bc.myroll_wa_group_btn_have") : t("bc.myroll_wa_group_btn_setup")));
       }
+      // Download CSV — client-side (data already fetched into `roll`),
+      // no server round-trip. Filename embeds the coord's own name.
+      broadcastRow.append(csvDownloadButton(roll, ME.display_name || "me", "my-sangha"));
       if (broadcastRow.children.length) view.append(broadcastRow);
     }
     // Care-moment surfacing — coords only, shown right below the tally.
@@ -1458,6 +1461,84 @@ function garlandStrip(roll, editable) {
   return g;
 }
 
+// ------------------------------------------------ CSV export button ---
+// Client-side CSV of the roll rows already fetched into the view — no
+// server round-trip. Blob + object-URL + <a download> works on all
+// evergreen mobile browsers (verified iOS Safari 15+, Android Chrome).
+// Called from My Sangha (coord's own roll) and from renderUserDrill
+// (leader / HK drilling into a coord).
+function slugify(name) {
+  return String(name || "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")   // strip diacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "unknown";
+}
+
+function csvEscape(v) {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// Map a roll row's contact_state to the human-readable status label
+// used on the roll UI (fresh / contacted / responded / needs_attention).
+// The row also carries lifecycle `status` (fresh/chanter/daily/etc); we
+// export the contact-flow state because that's what the bead reflects
+// and what field-staff recognise as "status" in the app.
+function contactStateLabel(cs, personStatus) {
+  // needs_visit / needs_attention takes precedence when set.
+  if (cs === 3) return "needs_attention";
+  if (personStatus === "daily") return "chanted";   // daily = enrolled chanter
+  if (cs === 2) return "responded";
+  if (cs === 1) return "contacted";
+  return "fresh";
+}
+
+function rollToCsv(roll) {
+  const header = [
+    "SL Number", "Name", "Mobile", "Pincode", "Status",
+    "Daily Chanter", "Last Chanted Date", "Notes",
+  ];
+  const lines = [header.join(",")];
+  roll.forEach((r) => {
+    lines.push([
+      csvEscape(r.sl_no ?? ""),
+      csvEscape(r.name),
+      csvEscape(r.phone),
+      csvEscape(r.pincode ?? ""),
+      csvEscape(contactStateLabel(r.contact_state || 0, r.status)),
+      csvEscape(r.status === "daily" ? "yes" : "no"),
+      csvEscape(r.last_chanted_date ?? ""),
+      csvEscape(r.notes ?? ""),
+    ].join(","));
+  });
+  // Prepend BOM so Excel opens Tamil/UTF-8 names correctly.
+  return "﻿" + lines.join("\r\n") + "\r\n";
+}
+
+function csvDownloadButton(roll, ownerName, filenamePrefix) {
+  const btn = el("button", { class: "btn", type: "button",
+    style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
+    t("myroll.download_csv"));
+  btn.addEventListener("click", () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filename = `${filenamePrefix}-${slugify(ownerName)}-${today}.csv`;
+    const blob = new Blob([rollToCsv(roll)], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    // Revoke on next tick so Safari has time to start the download.
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  });
+  return btn;
+}
+
 function rollList(roll, editable) {
   const ul = el("ul", { class: "roll" });
   roll.forEach((r) => {
@@ -1888,6 +1969,13 @@ async function renderUserDrill(userId) {
       el("a", { class: "btn", href: ME.role === "hk_leader" ? "#/hk" : "#/leader" }, t("btn.back")),
     ));
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
+    // Download CSV — leader/HK drilling into a coord gets the same
+    // export button (only when there's actually a roll to export).
+    if (roll.length > 0) {
+      const toolbar = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin:.4rem 0 .6rem" });
+      toolbar.append(csvDownloadButton(roll, target.name || "coord", "sangha"));
+      view.append(toolbar);
+    }
     view.append(beadLegend());
     view.append(garlandStrip(roll, /* editable */ true));
     view.append(rollListManageable(roll, target.id));

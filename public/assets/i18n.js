@@ -496,6 +496,7 @@ const DICT = {
     "bc.myroll_broadcast_btn": "📢 Broadcast Today's Message",
     "bc.myroll_wa_group_btn_have": "💬 My WhatsApp Group",
     "bc.myroll_wa_group_btn_setup": "💬 Set Up My WhatsApp Group",
+    "myroll.download_csv": "📥 Download CSV",
 
     // WA Group
     "wg.picker_open_btn": "📱 Open WhatsApp Picker",
@@ -1392,6 +1393,7 @@ const DICT = {
     "bc.myroll_broadcast_btn": "📢 இன்றைய செய்தியை அனுப்பு",
     "bc.myroll_wa_group_btn_have": "💬 என் WhatsApp குழு",
     "bc.myroll_wa_group_btn_setup": "💬 என் WhatsApp குழுவை அமை",
+    "myroll.download_csv": "📥 CSV பதிவிறக்கம்",
 
     // WA Group
     "wg.picker_open_btn": "📱 WhatsApp picker திற",
