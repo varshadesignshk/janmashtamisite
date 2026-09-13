@@ -497,6 +497,9 @@ const DICT = {
     "bc.myroll_wa_group_btn_have": "💬 My WhatsApp Group",
     "bc.myroll_wa_group_btn_setup": "💬 Set Up My WhatsApp Group",
     "myroll.download_csv": "📥 Download CSV",
+    "toast.marked_contacted_prefix": "Marked ",
+    "toast.marked_contacted_suffix": " as contacted",
+    "toast.undo": "Undo",
 
     // WA Group
     "wg.picker_open_btn": "📱 Open WhatsApp Picker",
@@ -1394,6 +1397,9 @@ const DICT = {
     "bc.myroll_wa_group_btn_have": "💬 என் WhatsApp குழு",
     "bc.myroll_wa_group_btn_setup": "💬 என் WhatsApp குழுவை அமை",
     "myroll.download_csv": "📥 CSV பதிவிறக்கம்",
+    "toast.marked_contacted_prefix": "",
+    "toast.marked_contacted_suffix": " தொடர்பு கொள்ளப்பட்டதாகக் குறிக்கப்பட்டது",
+    "toast.undo": "செயல்தவிர்",
 
     // WA Group
     "wg.picker_open_btn": "📱 WhatsApp picker திற",

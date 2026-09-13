@@ -1539,6 +1539,129 @@ function csvDownloadButton(roll, ownerName, filenamePrefix) {
   return btn;
 }
 
+// -------------------------------- auto-mark-contacted with undo toast ---
+// Shared helper for the individual WhatsApp button on a roll row (both
+// rollList and rollListManageable). We can't observe WhatsApp's Send
+// tap from a wa.me link — so at wa.me open time we optimistically fire
+// mark-contacted and show a 5s "Marked · Undo" toast. Tapping Undo
+// within 5s reverts the row back to its prior contact_state via
+// /api/roll/mark. If the person is already at contact_state >= 2
+// (responded), the server's guard is a no-op and we simply skip the
+// toast — nothing changed, nothing to undo.
+//
+// Sibling beads for the same person on the garland strip stay in sync
+// via the .bead[data-person="..."] selector, the same channel the row
+// beadwrap and chant toggle use.
+function attachWaAutoMarkContacted(anchor, row, rowBead) {
+  anchor.addEventListener("click", () => {
+    // Only fire when there's an assigned person id and the current
+    // state is fresh (0). The server also guards this (0 → 1 only), but
+    // client-side gating avoids a wasted round-trip and a stale toast.
+    if (!row || !row.id) return;
+    const priorState = row.contact_state || 0;
+    if (priorState !== 0) return;   // already contacted/responded/needs_visit
+
+    // Optimistic UI: flip row + garland to "yellow" (contacted) now.
+    row.contact_state = 1;
+    row.bead_color = recomputeBead(row);
+    if (rowBead) rowBead.dataset.color = row.bead_color;
+    document.querySelectorAll(`.bead[data-person="${row.id}"]`)
+      .forEach(x => x.dataset.color = row.bead_color);
+
+    // Fire the mark-contacted API in the background. If it fails we
+    // revert the optimistic UI — no toast in that case, the user
+    // didn't ask for an undo they never saw offered.
+    let committed = false;
+    api("/api/roll/mark-contacted", {
+      method: "POST", body: JSON.stringify({ person_id: row.id }),
+    }).then((r) => {
+      committed = true;
+      // Server may report a different final state if a race happened.
+      row.contact_state = r.contact_state ?? row.contact_state;
+    }).catch(() => {
+      // API blip — revert optimistic UI, no toast.
+      row.contact_state = priorState;
+      row.bead_color = recomputeBead(row);
+      if (rowBead) rowBead.dataset.color = row.bead_color;
+      document.querySelectorAll(`.bead[data-person="${row.id}"]`)
+        .forEach(x => x.dataset.color = row.bead_color);
+    });
+
+    // Show the toast. Undo reverts the state on the server AND the UI.
+    showUndoToast(row.name, async () => {
+      // Wait for the commit round-trip if it's still in flight, so an
+      // Undo tap immediately after the WA open still finds a server
+      // state to revert from.
+      const revertUi = () => {
+        row.contact_state = priorState;
+        row.bead_color = recomputeBead(row);
+        if (rowBead) rowBead.dataset.color = row.bead_color;
+        document.querySelectorAll(`.bead[data-person="${row.id}"]`)
+          .forEach(x => x.dataset.color = row.bead_color);
+      };
+      revertUi();
+      if (committed) {
+        try {
+          await api("/api/roll/mark", {
+            method: "POST", body: JSON.stringify({ person_id: row.id, contact_state: priorState }),
+          });
+        } catch { /* undo is best-effort */ }
+      }
+    });
+  });
+}
+
+// Minimal, self-contained toast — one at a time, bottom-centered,
+// auto-commits after 5s (dismissed with no action taken). Undo tap
+// fires the callback and dismisses immediately. Reuses no existing
+// styles; footprint is one absolutely-positioned <div>.
+let _njyToastEl = null;
+let _njyToastTimer = null;
+function showUndoToast(personName, onUndo) {
+  // Dismiss any prior toast — one at a time, latest wins.
+  if (_njyToastTimer) { clearTimeout(_njyToastTimer); _njyToastTimer = null; }
+  if (_njyToastEl && _njyToastEl.isConnected) _njyToastEl.remove();
+
+  const msg = (t("toast.marked_contacted_prefix") || "Marked ")
+            + personName
+            + (t("toast.marked_contacted_suffix") || " as contacted");
+  const undoLabel = t("toast.undo") || "Undo";
+
+  const box = el("div", {
+    role: "status",
+    style: [
+      "position:fixed",
+      "left:50%", "bottom:24px",
+      "transform:translateX(-50%)",
+      "background:#1f2937", "color:#fff",
+      "padding:.7rem 1rem", "border-radius:8px",
+      "box-shadow:0 4px 14px rgba(0,0,0,.25)",
+      "display:flex", "align-items:center", "gap:.7rem",
+      "z-index:9999", "font-size:.9rem",
+      "max-width:min(92vw,420px)",
+    ].join(";"),
+  },
+    el("span", { style: "flex:1" }, msg),
+    el("button", { type: "button", style:
+      "background:transparent;color:#facc15;border:none;font-weight:700;cursor:pointer;padding:.2rem .4rem",
+    }, "· " + undoLabel),
+  );
+  const undoBtn = box.querySelector("button");
+  undoBtn.addEventListener("click", () => {
+    if (_njyToastTimer) { clearTimeout(_njyToastTimer); _njyToastTimer = null; }
+    _njyToastEl = null;
+    box.remove();
+    try { onUndo(); } catch { /* undo is best-effort */ }
+  });
+  document.body.append(box);
+  _njyToastEl = box;
+  _njyToastTimer = setTimeout(() => {
+    _njyToastTimer = null;
+    if (_njyToastEl === box) _njyToastEl = null;
+    box.remove();
+  }, 5000);
+}
+
 function rollList(roll, editable) {
   const ul = el("ul", { class: "roll" });
   roll.forEach((r) => {
@@ -1594,6 +1717,11 @@ function rollList(roll, editable) {
     });
 
     const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
+    // Auto-mark contacted + undo toast on wa.me open. Only fires for
+    // rows that are currently fresh (contact_state === 0). No-op for
+    // rows already marked contacted/responded/needs_visit. Editable-
+    // only — read-only views don't get to change status.
+    if (editable) attachWaAutoMarkContacted(wa, r, rowBead);
 
     // "History" button — expands a 14-day chant strip below the row
     const historyBtn = el("button", { class: "history-btn", title: t("title.chant_history") }, "📅");
@@ -2037,6 +2165,12 @@ function rollListManageable(roll, currentOwnerUserId) {
     });
 
     const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
+    // Same auto-mark-contacted + undo toast as the coord's own roll —
+    // leader/HK drilling into a coord's roll is still contacting the
+    // same member, so the same status update applies. Server-side auth
+    // check in /api/roll/mark-contacted lets leader/hk act on any
+    // member in their scope (see handlers.js).
+    attachWaAutoMarkContacted(wa, r, rowBead);
 
     const historyBtn = el("button", { class: "history-btn", title: t("title.chant_history") }, "📅");
     historyBtn.addEventListener("click", async () => {
