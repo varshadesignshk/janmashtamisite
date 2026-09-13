@@ -5,7 +5,7 @@
 const DICT = {
   en: {
     // Nav
-    "nav.my_roll": "My Roll",
+    "nav.my_roll": "My Sangha",
     "nav.team": "Team",
     "nav.hk": "HK",
     "nav.duties": "Duties",
@@ -501,7 +501,7 @@ const DICT = {
     "bc.started_prefix": "Started ",
     "bc.finished_time_prefix": ", finished ",
     "bc.upgraded_suffix": " marked → contacted (already-responded chanters unchanged).",
-    "bc.return_myroll": "Return to My Roll",
+    "bc.return_myroll": "Return to My Sangha",
     "bc.message_that_sent": "Message That Will Be Sent:",
     "bc.send_via_wa": "✉ SEND VIA WHATSAPP  →",
     "bc.after_tap_hint": "After tapping Send in WhatsApp, come back to this tab and tap the button below to move on.",
@@ -852,7 +852,7 @@ const DICT = {
 
     // Admin — gate section titles (GATE_GROUPS keys)
     "admin.gate_section.header_global": "Header / Global",
-    "admin.gate_section.my_roll": "My Roll",
+    "admin.gate_section.my_roll": "My Sangha",
     "admin.gate_section.team_leader": "Team (Leader)",
     "admin.gate_section.hk_dashboard": "HK Dashboard",
     "admin.gate_section.duties": "Duties",
