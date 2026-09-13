@@ -75,13 +75,24 @@ const ERROR_MESSAGES = {
   http_502: "Server unreachable (bad gateway). Cloudflare may still be deploying — wait 60 seconds and retry.",
   http_503: "Server temporarily unavailable. Retry shortly.",
 };
+// Preferred lookup: the i18n dictionary. Falls back to the English
+// ERROR_MESSAGES table above (which is the source of truth for the
+// English copy), then to the raw code. This keeps every operator-visible
+// server-error sentence translatable while remaining backward-safe.
+function localizedError(code) {
+  const key = "err." + code;
+  const translated = t(key);
+  if (translated !== key) return translated;
+  return ERROR_MESSAGES[code] || null;
+}
 function humanizeError(err) {
-  if (!err) return "Something went wrong.";
-  if (typeof err === "string") return ERROR_MESSAGES[err] || err;
+  if (!err) return t("err.generic") !== "err.generic" ? t("err.generic") : "Something went wrong.";
+  if (typeof err === "string") return localizedError(err) || err;
   const code = err.body?.error || err.error || err.message || "";
-  if (ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+  const direct = localizedError(code);
+  if (direct) return direct;
   if (err.status) {
-    const gen = ERROR_MESSAGES[`http_${err.status}`];
+    const gen = localizedError(`http_${err.status}`);
     if (gen) return `${gen} (code: ${code})`;
   }
   return code || String(err);
@@ -264,31 +275,11 @@ function maybeShowOnboardingTour() {
   try { if (localStorage.getItem(key)) return; } catch { /* private mode */ }
 
   const slides = [
-    {
-      emoji: "🙏 🌸",
-      title: "Welcome, coordinator",
-      body: "This app helps you keep track of the chanters you talk with — who's chanted today, who needs a nudge, and how everyone's doing. It's very simple. Let's walk through the four things you'll do most.",
-    },
-    {
-      emoji: "⚪ 🟡 🟠 🟢 🔴",
-      title: "The bead beside each name",
-      body: "White = fresh (nothing marked). <strong>Tap once</strong> = you contacted them (yellow). <strong>Tap again</strong> = they responded (orange). The bead resets to white every morning. Red means a daily chanter hasn't chanted for 3+ days — needs your attention.",
-    },
-    {
-      emoji: "✓ chanted",
-      title: "The 'chant?' button",
-      body: "When someone tells you they chanted today, tap this button — it turns gold with a tick. The bead also turns green. It's disabled unless the person's status is <strong>daily</strong> (change status via the dropdown next to their name).",
-    },
-    {
-      emoji: "💬",
-      title: "WhatsApp button",
-      body: "Tap the green <strong>WhatsApp</strong> button on any row — WhatsApp opens with a Tamil + English message ready to send to that chanter. You can add a personal line before hitting send. You can also customise your default message in the Settings tab.",
-    },
-    {
-      emoji: "🪙 🏆",
-      title: "Your points and leaderboard",
-      body: "Every action earns points — chanting marks, follow-ups, event attendance. See your live points in the coin chip at the top-right. The <strong>Leaderboard</strong> tab shows how you rank. The <strong>Janmashtami</strong> tab is where you add new chanters on the big day. Tap the <strong>📅</strong> button on any row to see 14 days of chant history.",
-    },
+    { emoji: "🙏 🌸", title: t("tour.slide1_title"), body: t("tour.slide1_body") },
+    { emoji: "⚪ 🟡 🟠 🟢 🔴", title: t("tour.slide2_title"), body: t("tour.slide2_body") },
+    { emoji: "✓ " + t("btn.chanted").replace("✓ ",""), title: t("tour.slide3_title"), body: t("tour.slide3_body") },
+    { emoji: "💬", title: t("tour.slide4_title"), body: t("tour.slide4_body") },
+    { emoji: "🪙 🏆", title: t("tour.slide5_title"), body: t("tour.slide5_body") },
   ];
 
   const overlay = el("div", { class: "tour-overlay" });
@@ -411,10 +402,10 @@ function renderHeaderContactPills() {
   };
   const pills = [];
   if (ME.role === "njy_coordinator") {
-    const p1 = pill("Leader", ME.manager_phone); if (p1) pills.push(p1);
-    const p2 = pill("HK", ME.hk_phone); if (p2) pills.push(p2);
+    const p1 = pill(t("pill.leader"), ME.manager_phone); if (p1) pills.push(p1);
+    const p2 = pill(t("pill.hk"), ME.hk_phone); if (p2) pills.push(p2);
   } else if (ME.role === "njy_leader") {
-    const p = pill("HK", ME.hk_phone); if (p) pills.push(p);
+    const p = pill(t("pill.hk"), ME.hk_phone); if (p) pills.push(p);
   }
   // Insert before logout so the order reads: name · role | contact... | Sign out | lang
   for (const p of pills) line.insertBefore(p, logout);
@@ -457,12 +448,12 @@ async function refreshLbSide() {
         if (myIdx >= 3) {
           inner.append(el("span", { class: "lb-strip-slot you" },
             el("span", {}, "🪙"),
-            el("span", { class: "nm" }, `You #${myIdx + 1}`),
+            el("span", { class: "nm" }, `${t("lb.you")} #${myIdx + 1}`),
             el("span", { class: "pt" }, String(rows[myIdx].pts)),
           ));
         }
       }
-      inner.append(el("a", { class: "lb-strip-more", href: "#/leaderboard/daily" }, "Full →"));
+      inner.append(el("a", { class: "lb-strip-more", href: "#/leaderboard/daily" }, t("lb.full_short")));
       strip.append(inner);
       strip.hidden = false;
     }
@@ -496,12 +487,12 @@ async function refreshLbSide() {
     if (ME.role === "njy_coordinator" && myIdx >= 0) {
       const me = rows[myIdx];
       side.append(el("div", { class: "lb-you-row" },
-        el("span", { class: "lb-you-label" }, "You"),
+        el("span", { class: "lb-you-label" }, t("lb.you")),
         el("span", { class: "lb-you-rank" }, `#${myIdx + 1}`),
         el("span", { class: "lb-you-pts" }, `${me.pts} pts`),
       ));
     }
-    side.append(el("a", { class: "lb-open", href: "#/leaderboard/daily" }, "Full leaderboard →"));
+    side.append(el("a", { class: "lb-open", href: "#/leaderboard/daily" }, t("lb.full_link")));
     side.hidden = false;
   } catch (_) { side.hidden = true; }
   clearTimeout(_lbSideTimer);
@@ -630,11 +621,11 @@ async function renderCoordRoll(view) {
           el("span", {}, t("hd.your_leader"), ": "),
           el("strong", { style: "font-weight:700;color:var(--ink-2)" }, ME.manager_display_name),
         );
-        if (ME.manager_phone) line.append(wame(ME.manager_phone, "Contact leader"));
+        if (ME.manager_phone) line.append(wame(ME.manager_phone, t("pill.contact_leader")));
       } else {
         line.append(el("span", {}, t("msg.no_leader")));
       }
-      if (ME.hk_phone) line.append(wame(ME.hk_phone, "Contact HK"));
+      if (ME.hk_phone) line.append(wame(ME.hk_phone, t("pill.contact_hk")));
       view.append(line);
     }
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
@@ -644,12 +635,12 @@ async function renderCoordRoll(view) {
       if (can("myroll_broadcast_button")) {
         broadcastRow.append(el("a", { class: "primary", href: "#/broadcast",
           style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
-          "📢 Broadcast today's message"));
+          t("bc.myroll_broadcast_btn")));
       }
       if (can("myroll_wa_group_button")) {
         broadcastRow.append(el("a", { class: "btn", href: "#/wa-group",
           style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
-          ME.wa_group_link ? "💬 My WhatsApp group" : "💬 Set up my WhatsApp group"));
+          ME.wa_group_link ? t("bc.myroll_wa_group_btn_have") : t("bc.myroll_wa_group_btn_setup")));
       }
       if (broadcastRow.children.length) view.append(broadcastRow);
     }
@@ -689,16 +680,16 @@ function renderCareMomentPanel(container, cm) {
   const total = (cm.counts.missed_3_plus || 0) + (cm.counts.missed_2 || 0) + (cm.counts.milestones || 0);
   if (!total) {
     container.append(el("div", { class: "care-empty" },
-      el("span", { style: "font-size:1.05rem" }, "🌸 Your team is on track today."),
-      el("span", { class: "hint", style: "margin-left:.4rem;font-size:.85rem" }, "Hare Krsna 🙏"),
+      el("span", { style: "font-size:1.05rem" }, t("care.on_track")),
+      el("span", { class: "hint", style: "margin-left:.4rem;font-size:.85rem" }, t("msg.hare_krsna")),
     ));
     return;
   }
   const wrap = el("div", { class: "care-panel" });
   wrap.append(el("h3", {},
     el("span", {}, "🎯"),
-    el("span", {}, "Needs your attention"),
-    el("span", { class: "hint", style: "font-weight:400;font-size:.78rem;margin-left:auto" }, `${total} chanter${total === 1 ? "" : "s"}`),
+    el("span", {}, t("care.needs_attention")),
+    el("span", { class: "hint", style: "font-weight:400;font-size:.78rem;margin-left:auto" }, `${total} ${total === 1 ? t("care.chanter_count_suffix") : t("care.chanter_count_suffix_plural")}`),
   ));
 
   const buildRow = (item, icon, subtitle) => {
@@ -709,23 +700,23 @@ function renderCareMomentPanel(container, cm) {
         el("div", { class: "care-name" }, item.name),
         el("div", { class: "care-sub" }, subtitle),
       ),
-      el("a", { class: "care-send", href: item.wa_url, target: "_blank" }, "Send 💬"),
+      el("a", { class: "care-send", href: item.wa_url, target: "_blank" }, t("care.send_btn")),
     );
     return row;
   };
 
   for (const item of (cm.missed_3_plus || [])) {
-    wrap.append(buildRow(item, "🔴", `Missed ${item.days_missed}+ days — needs personal check-in`));
+    wrap.append(buildRow(item, "🔴", `${t("care.missed_days_prefix")}${item.days_missed}${t("care.missed_days_suffix")}`));
   }
   for (const item of (cm.missed_2 || [])) {
-    wrap.append(buildRow(item, "🟠", "Missed yesterday — gentle nudge"));
+    wrap.append(buildRow(item, "🟠", t("care.missed_yesterday")));
   }
   for (const item of (cm.milestones || [])) {
-    wrap.append(buildRow(item, "🎉", `${item.streak_days}-day streak — celebrate!`));
+    wrap.append(buildRow(item, "🎉", `${item.streak_days}${t("care.streak_suffix")}`));
   }
 
   wrap.append(el("p", { class: "hint", style: "margin:.6rem 0 0;font-size:.72rem" },
-    "Tapping Send opens WhatsApp with a suggested message. Edit or send as-is."));
+    t("care.tap_send_hint")));
   container.append(wrap);
 }
 
@@ -752,7 +743,7 @@ function renderWaGroupPickerCard() {
   card.append(ta);
   const msg = el("span", { class: "hint", style: "margin-left:.5rem" });
   const openBtn = el("button", { class: "primary", type: "button", id: "wg-pick-open",
-    style: "font-size:1rem;padding:.6rem 1.1rem" }, "📱 Open WhatsApp picker");
+    style: "font-size:1rem;padding:.6rem 1.1rem" }, t("wg.picker_open_btn"));
   card.append(el("p", { style: "margin-top:.7rem" }, openBtn, msg));
   openBtn.addEventListener("click", () => {
     const text = (ta.value || "").trim();
@@ -794,10 +785,10 @@ function broadcastAndWaGroupNav() {
   row.append(
     el("a", { class: "primary", href: "#/broadcast",
       style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
-      "📢 Broadcast today's message"),
+      t("bc.myroll_broadcast_btn")),
     el("a", { class: "btn", href: "#/wa-group",
       style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
-      ME.wa_group_link ? "💬 My WhatsApp group" : "💬 Set up my WhatsApp group"),
+      ME.wa_group_link ? t("bc.myroll_wa_group_btn_have") : t("bc.myroll_wa_group_btn_setup")),
   );
   return row;
 }
@@ -833,7 +824,7 @@ async function loadBroadcastRecipients() {
     const { roll } = await api("/api/roll");
     return {
       kind: "members",
-      label: "chanters",
+      label: t("wg.invitees_chanters"),
       recipients: (roll || []).map(r => ({
         id: r.id, name: r.name, phone: r.phone,
         chanted_today: !!r.chanted_today, bead_color: r.bead_color,
@@ -844,7 +835,7 @@ async function loadBroadcastRecipients() {
     const { coordinators } = await api("/api/leader/coordinators");
     return {
       kind: "coords",
-      label: "coordinators",
+      label: t("wg.invitees_coords"),
       recipients: (coordinators || []).map(c => ({
         id: c.user_id, name: c.name, phone: c.phone,
       })),
@@ -854,13 +845,13 @@ async function loadBroadcastRecipients() {
     const { leaders } = await api("/api/hk/leaders");
     return {
       kind: "leaders",
-      label: "NJY leaders",
+      label: t("wg.invitees_leaders"),
       recipients: (leaders || []).map(l => ({
         id: l.user_id, name: l.name, phone: l.phone,
       })),
     };
   }
-  return { kind: "none", label: "recipients", recipients: [] };
+  return { kind: "none", label: t("wg.invitees_chanters"), recipients: [] };
 }
 
 async function renderBroadcastSetup(view) {
@@ -870,28 +861,23 @@ async function renderBroadcastSetup(view) {
     el("a", { class: "btn", href: "#/" }, t("btn.back")),
   ));
   const roleHelp = ME.role === "njy_coordinator"
-    ? "Send the same WhatsApp message to every chanter in your roll — one tap per person. "
+    ? t("bc.roles_coord_intro")
     : ME.role === "njy_leader"
-    ? "Send the same WhatsApp message to every coordinator on your team — one tap per person. "
-    : "Send the same WhatsApp message to every NJY Leader — one tap per person. ";
-  view.append(helpBanner(
-    roleHelp +
-    "Each send opens WhatsApp with the message ready; you tap Send, and the app queues the next recipient. " +
-    "Every message goes from YOUR personal WhatsApp."
-  ));
-  const loader = loadingLine("Loading recipients…");
+    ? t("bc.roles_leader_intro")
+    : t("bc.roles_hk_intro");
+  view.append(helpBanner(roleHelp + t("bc.help_common")));
+  const loader = loadingLine(t("bc.loading_recipients"));
   view.append(loader);
   try {
     const { kind, label, recipients } = await loadBroadcastRecipients();
     if (myToken !== routeToken) return;
     loader.remove();
     if (!recipients.length) {
-      view.append(el("p", { class: "hint" }, `No ${label} yet.`));
+      view.append(el("p", { class: "hint" }, `${t("bc.no_recipients_prefix")}${label}${t("bc.no_recipients_suffix")}`));
       return;
     }
     // Message editor — defaults to caller's saved daily template.
-    const defaultMsg = ME.wa_template_daily
-      || "Hare Krsna {name}! 🌸\n\nDid you complete your daily rounds today?\nEven one round makes the day meaningful. 🙏";
+    const defaultMsg = ME.wa_template_daily || t("bc.default_template");
     const msgTa = el("textarea", { id: "bc-msg", rows: 5 });
     msgTa.value = defaultMsg;
 
@@ -912,7 +898,7 @@ async function renderBroadcastSetup(view) {
       countLine.innerHTML = "";
       countLine.append(
         el("strong", {}, `${filtered.length}`),
-        ` of ${recipients.length} ${label} will receive this message.`,
+        `${t("bc.will_receive_infix")}${recipients.length} ${label}${t("bc.will_receive_suffix")}`,
       );
     }
     if (isMembers) {
@@ -926,8 +912,8 @@ async function renderBroadcastSetup(view) {
     msgCard.append(
       el("h3", {}, t("hd.message")),
       el("p", { class: "bc-hint" },
-        "Use ", el("code", { style: "background:var(--tint-followed);padding:.05rem .3rem;border-radius:3px" }, "{name}"),
-        ` anywhere in your message — it gets replaced with each ${isMembers ? "chanter's" : "recipient's"} actual name at send time.`),
+        t("bc.use_name_prefix"), el("code", { style: "background:var(--tint-followed);padding:.05rem .3rem;border-radius:3px" }, "{name}"),
+        isMembers ? t("bc.use_name_suffix_chanter") : t("bc.use_name_suffix_recipient")),
       msgTa,
     );
     view.append(msgCard);
@@ -940,11 +926,11 @@ async function renderBroadcastSetup(view) {
         el("label", { class: "bc-check-row" }, skipChanted,
           el("span", { class: "bc-check-label" },
             el("strong", {}, t("hd.skip_chanted")),
-            el("span", { class: "bc-check-sub" }, "No need to remind them — save this message for those who haven't chanted yet"))),
+            el("span", { class: "bc-check-sub" }, t("bc.skip_chanted_sub")))),
         el("label", { class: "bc-check-row" }, skipRed,
           el("span", { class: "bc-check-label" },
             el("strong", {}, t("hd.skip_disqualified")),
-            el("span", { class: "bc-check-sub" }, "Chanters who've missed 3+ consecutive days (red bead) — they need a personal check-in, not a bulk reminder"))),
+            el("span", { class: "bc-check-sub" }, t("bc.skip_disqualified_sub")))),
         countLine,
       );
     } else {
@@ -953,7 +939,7 @@ async function renderBroadcastSetup(view) {
     filterCard.append(
       el("p", { style: "margin-top:1rem;text-align:right" },
         el("button", { class: "primary", id: "bc-start", style: "font-size:1rem;padding:.7rem 1.4rem" },
-          "Start Broadcast  →"),
+          t("bc.start_btn")),
       ),
     );
     view.append(filterCard);
@@ -1017,7 +1003,7 @@ function renderBroadcastQueue(view) {
   progressCard.append(
     el("div", { class: "spread", style: "margin-bottom:.4rem" },
       el("strong", { style: "color:var(--peacock-deep);font-size:.9rem" },
-        done ? `Finished — ${total} chanters` : `${state.index + 1} of ${total}`),
+        done ? `${t("bc.finished_prefix")}${total}${t("bc.finished_suffix_chanters")}` : `${state.index + 1}${t("bc.of_infix")}${total}`),
       el("span", { class: "hint", style: "font-size:.8rem" }, `${pct}%`),
     ),
     el("div", { class: "pbar", "data-mid": "0",
@@ -1036,16 +1022,16 @@ function renderBroadcastQueue(view) {
     const summary = el("div", { class: "care-empty" },
       el("h3", { style: "margin:0 0 .3rem" }, t("hd.broadcast_complete_card")),
       el("p", { style: "margin:0;font-size:.9rem" },
-        `Sent to `, el("strong", {}, sentCount), ` chanter${sentCount === 1 ? "" : "s"}. `,
-        skipCount ? `Skipped ${skipCount}. ` : "",
-        `Started ${new Date(state.startedAt).toLocaleTimeString()}, finished ${new Date().toLocaleTimeString()}.`),
+        t("bc.sent_to_prefix"), el("strong", {}, sentCount), ` ${sentCount === 1 ? t("bc.sent_to_suffix_chanter") : t("bc.sent_to_suffix_chanters")}. `,
+        skipCount ? `${t("bc.skipped_prefix")}${skipCount}. ` : "",
+        `${t("bc.started_prefix")}${new Date(state.startedAt).toLocaleTimeString()}${t("bc.finished_time_prefix")}${new Date().toLocaleTimeString()}.`),
       upgradedCount ? el("p", { class: "hint", style: "margin:.4rem 0 0;font-size:.85rem" },
         el("strong", { style: "color:var(--peacock-deep)" }, `${upgradedCount}`),
-        ` marked → contacted (already-responded chanters unchanged).`) : null,
+        t("bc.upgraded_suffix")) : null,
       el("p", { style: "margin-top:.9rem" },
         el("a", { class: "bc-big-btn", href: "#/",
           style: "background:var(--peacock-deep);box-shadow:0 2px 6px rgba(14,79,82,.3)" },
-          "Return to My Roll"),
+          t("bc.return_myroll")),
       ),
     );
     view.append(summary);
@@ -1083,22 +1069,22 @@ function renderBroadcastQueue(view) {
       ),
       el("span", { style: "font-size:.75rem;color:var(--muted);align-self:flex-start" }, `#${state.index + 1}`),
     ),
-    el("div", { class: "bc-hint", style: "margin-bottom:.4rem" }, "Message that will be sent:"),
+    el("div", { class: "bc-hint", style: "margin-bottom:.4rem" }, t("bc.message_that_sent")),
     el("div", {
       style: "background:var(--tint-followed,#f6f2ea);padding:.75rem .9rem;border-radius:6px;border-left:3px solid var(--peacock-deep);white-space:pre-wrap;font-size:.88rem;line-height:1.45;color:var(--ink-2);margin-bottom:1rem",
     }, filledMsg),
     el("div", { style: "display:flex;flex-wrap:wrap;gap:.6rem;align-items:center" },
       el("a", { class: "bc-big-btn", href: waUrl, target: "_blank", id: "bc-send" },
-        "✉ SEND VIA WHATSAPP  →"),
+        t("bc.send_via_wa")),
       el("button", { class: "btn", id: "bc-skip", type: "button",
-        style: "padding:.55rem .9rem" }, "Skip"),
+        style: "padding:.55rem .9rem" }, t("btn.skip")),
     ),
     el("p", { class: "bc-hint", style: "margin:.9rem 0 .3rem;font-size:.78rem" },
-      "After tapping Send in WhatsApp, come back to this tab and tap the button below to move on."),
+      t("bc.after_tap_hint")),
     el("p", { style: "margin:0" },
       el("button", { class: "primary", id: "bc-next", type: "button",
         style: "background:var(--peacock-deep,#0e4f52);padding:.7rem 1.2rem;font-size:.95rem" },
-        "✓ Sent — Next chanter  →"),
+        t("bc.sent_next")),
     ),
   );
   view.append(card);
@@ -1153,26 +1139,24 @@ async function renderWaGroup(view) {
     view.append(el("p", { class: "hint" }, t("msg.wa_group_access")));
     return;
   }
-  const inviteeWord = ME.role === "njy_coordinator" ? "chanters"
-    : ME.role === "njy_leader" ? "coordinators"
-    : "NJY leaders";
+  const inviteeWord = ME.role === "njy_coordinator" ? t("wg.invitees_chanters")
+    : ME.role === "njy_leader" ? t("wg.invitees_coords")
+    : t("wg.invitees_leaders");
   view.append(el("div", { class: "spread" },
     el("h2", { class: "section" }, t("hd.my_wa_group")),
     el("a", { class: "btn", href: "#/" }, t("btn.back")),
   ));
   view.append(helpBanner(
-    "One-time setup: create a WhatsApp group in WhatsApp app, copy its invite link, and paste below. " +
-    `Then you can send personal invite messages to your ${inviteeWord} so they can join. ` +
-    `WhatsApp does NOT allow apps to add ${inviteeWord} directly — they must tap the invite link themselves.`
+    t("wg.setup_help_prefix") + inviteeWord + t("wg.setup_help_mid") + inviteeWord + t("wg.setup_help_suffix")
   ));
 
   // --- Setup card ---
   const setup = el("div", { class: "card" });
   setup.append(el("h3", { class: "section", style: "margin-top:0" }, t("hd.group_settings")));
 
-  const nameI = el("input", { id: "wg-name", placeholder: "e.g. SKJ Chanters — Sri Krsna Coord" });
+  const nameI = el("input", { id: "wg-name", placeholder: t("wg.ph_name") });
   nameI.value = ME.wa_group_name || "";
-  const linkI = el("input", { id: "wg-link", placeholder: "https://chat.whatsapp.com/xxxxxxx" });
+  const linkI = el("input", { id: "wg-link", placeholder: t("wg.ph_link") });
   linkI.value = ME.wa_group_link || "";
   const msg = el("span", { class: "hint", style: "margin-left:.5rem" });
   const saveBtn = el("button", { class: "primary", id: "wg-save" }, t("btn.save"));
@@ -1180,8 +1164,8 @@ async function renderWaGroup(view) {
   const clearBtn = el("button", { class: "btn", id: "wg-clear", style: "margin-left:.4rem" }, t("btn.clear"));
 
   setup.append(
-    formField("Group name (optional)", nameI),
-    formField("Invite link (from WhatsApp → group → Group Info → Invite via link)", linkI),
+    formField(t("wg.group_name_field"), nameI),
+    formField(t("wg.link_field"), linkI),
     el("p", { style: "margin-top:.7rem" }, saveBtn, testBtn, clearBtn, msg),
   );
 
@@ -1190,7 +1174,7 @@ async function renderWaGroup(view) {
     try {
       const link = linkI.value.trim();
       if (link && !/^https:\/\/chat\.whatsapp\.com\//i.test(link)) {
-        throw new Error("Link must start with https://chat.whatsapp.com/");
+        throw new Error(t("wg.link_must_start"));
       }
       await api("/api/me/wa-group", { method: "POST",
         body: JSON.stringify({ wa_group_link: link, wa_group_name: nameI.value.trim() }) });
@@ -1223,9 +1207,9 @@ async function renderWaGroup(view) {
   // --- Invite recipients card ---
   const linkNow = () => (linkI.value || "").trim();
   const invite = el("div", { class: "card" });
-  invite.append(el("h3", { class: "section", style: "margin-top:0" }, `Invite ${inviteeWord} to this group`));
+  invite.append(el("h3", { class: "section", style: "margin-top:0" }, `${t("wg.invite_title_prefix")}${inviteeWord}${t("wg.invite_title_suffix")}`));
 
-  const loader = loadingLine("Loading recipients…");
+  const loader = loadingLine(t("bc.loading_recipients"));
   invite.append(loader);
   view.append(invite);
 
@@ -1234,18 +1218,17 @@ async function renderWaGroup(view) {
     if (myToken !== routeToken) return;
     loader.remove();
     if (!recipients.length) {
-      invite.append(el("p", { class: "hint" }, `No ${label} yet.`));
+      invite.append(el("p", { class: "hint" }, `${t("bc.no_recipients_prefix")}${label}${t("bc.no_recipients_suffix")}`));
       return;
     }
 
     invite.append(el("p", { class: "hint" },
-      `Select ${label} below. Tap the button to walk through sending each an invite message via your personal WhatsApp. ` +
-      `The message includes your group's invite link — the recipient taps it → WhatsApp opens Join Group prompt.`));
+      t("wg.select_intro_prefix") + label + t("wg.select_intro_mid") + t("wg.select_intro_suffix")));
 
     // Message template for invites
     const inviteMsg = el("textarea", { id: "wg-inv-msg", rows: 4,
       style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px" });
-    inviteMsg.value = "Hare Krsna {name}! 🌸\n\nI'm inviting you to join our chanting group on WhatsApp. Tap here to join 🙏\n\n{link}";
+    inviteMsg.value = t("wg.default_invite");
     invite.append(el("p", { class: "hint" }, t("help.invite_message")));
     invite.append(inviteMsg);
 
@@ -1254,8 +1237,8 @@ async function renderWaGroup(view) {
     const selectAll = el("input", { type: "checkbox", id: "wg-select-all" });
     listHead.append(
       el("label", { style: "display:flex;gap:.5rem;align-items:center;cursor:pointer;font-weight:500;margin:0" },
-        selectAll, el("span", {}, "Select all")),
-      el("span", { class: "hint", id: "wg-count", style: "font-size:.85rem" }, "0 selected"),
+        selectAll, el("span", {}, t("wg.select_all"))),
+      el("span", { class: "hint", id: "wg-count", style: "font-size:.85rem" }, "0" + t("wg.selected_suffix")),
     );
     invite.append(listHead);
 
@@ -1271,14 +1254,14 @@ async function renderWaGroup(view) {
         cb,
         el("span", { style: "flex:1;min-width:0" },
           el("div", { style: "font-weight:500;font-size:.9rem;color:var(--ink-2);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" }, r.name),
-          el("div", { class: "hint", style: "font-size:.72rem;font-family:var(--font-mono)" }, r.phone || "(no phone)")),
+          el("div", { class: "hint", style: "font-size:.72rem;font-family:var(--font-mono)" }, r.phone || t("wg.no_phone"))),
       );
       ul.append(row);
     });
     invite.append(ul);
     function updateCount() {
       const selected = rowChecks.filter(c => c.checked).length;
-      $("wg-count").textContent = `${selected} selected`;
+      $("wg-count").textContent = `${selected}${t("wg.selected_suffix")}`;
     }
     selectAll.addEventListener("change", () => {
       rowChecks.forEach(c => { c.checked = selectAll.checked; });
@@ -1287,7 +1270,7 @@ async function renderWaGroup(view) {
 
     // Send-invite button
     const sendBtn = el("button", { class: "primary", id: "wg-send-invites", type: "button" },
-      "Start invite queue →");
+      t("wg.start_invite_queue"));
     invite.append(el("p", { style: "margin-top:.7rem" }, sendBtn));
 
     sendBtn.addEventListener("click", () => {
@@ -1376,13 +1359,7 @@ function bumpTallyCell(key, delta) {
 
 // Human-readable label for a bead color — used in tooltips.
 function beadColorLabel(c) {
-  return ({
-    white: "fresh, not marked today",
-    yellow: "contacted today",
-    orange: "responded today",
-    green: "chanted today",
-    red: "needs attention — 3+ days no chant",
-  })[c] || "fresh";
+  return t("bead.color." + c) !== "bead.color." + c ? t("bead.color." + c) : t("bead.color.white");
 }
 
 // Build a 14-day history strip for one person. Each day is a small
@@ -1396,7 +1373,7 @@ async function buildHistoryStrip(personId, opts = {}) {
   // opts.chantBtn — the .chant-tag button for this row (kept in sync).
   const { row, chantBtn } = opts;
   const strip = el("div", { class: "history-strip" });
-  strip.append(el("div", { class: "hint", style: "grid-column:1/-1;font-size:.7rem" }, "Loading history…"));
+  strip.append(el("div", { class: "hint", style: "grid-column:1/-1;font-size:.7rem" }, t("hist.loading")));
   try {
     const { history } = await api(`/api/roll/${encodeURIComponent(personId)}/history?days=14`);
     strip.innerHTML = "";
@@ -1406,7 +1383,7 @@ async function buildHistoryStrip(personId, opts = {}) {
       const monthName = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m, 10) - 1];
       const cell = el("div", {
         class: "history-day" + (d.chanted ? " chanted" : "") + (d.is_today ? " today" : ""),
-        title: `${d.date} — ${d.chanted ? "chanted" : "not chanted"}${d.is_today ? " (today)" : ""}. Tap to toggle.`,
+        title: `${d.date} — ${d.chanted ? t("hist.chanted") : t("hist.not_chanted")}${d.is_today ? t("hist.today_suffix") : ""}${t("hist.tap_toggle")}`,
       },
         el("div", { class: "label" }, day),
         el("div", { class: "month" }, monthName),
@@ -1420,7 +1397,7 @@ async function buildHistoryStrip(personId, opts = {}) {
           }) });
           d.chanted = next;
           cell.classList.toggle("chanted", next);
-          cell.title = `${d.date} — ${next ? "chanted" : "not chanted"}${d.is_today ? " (today)" : ""}. Tap to toggle.`;
+          cell.title = `${d.date} — ${next ? t("hist.chanted") : t("hist.not_chanted")}${d.is_today ? t("hist.today_suffix") : ""}${t("hist.tap_toggle")}`;
           // When the toggled day IS today, the person's row-level state
           // (chant chip, bead color, and tally counter) is derived from
           // "chanted today" — sync those so the UI matches the DB without
@@ -1437,7 +1414,7 @@ async function buildHistoryStrip(personId, opts = {}) {
             }
             bumpTallyCell("chanted_today", next ? 1 : -1);
           }
-        } catch (err) { alert(err.message || "Could not update"); }
+        } catch (err) { alert(err.message || t("msg.could_not_update")); }
       });
       strip.append(cell);
     }
@@ -1461,7 +1438,7 @@ function bead(colorOrState, onclick) {
 }
 
 function garlandStrip(roll, editable) {
-  const g = el("div", { class: "garland", "aria-label": "Roll at a glance" });
+  const g = el("div", { class: "garland", "aria-label": t("aria.roll_glance") });
   roll.forEach((r) => {
     const b = bead(r.bead_color || "white", editable ? async () => {
       const upd = await api("/api/roll/mark", { method: "POST", body: JSON.stringify({ person_id: r.id }) });
@@ -1527,7 +1504,7 @@ function rollList(roll, editable) {
         if (r.status === "daily") chant.removeAttribute("disabled");
         else { chant.setAttribute("disabled", ""); }
       } catch (err) {
-        alert(err.message || "Could not update status");
+        alert(err.message || t("msg.could_not_update_status"));
         lifecycle.value = r.status || "chanter";
       }
     });
@@ -1559,13 +1536,13 @@ async function renderLeaderDashboard(view) {
   // CHANGE 5 — leader → HK full-mesh contact link.
   if (ME.hk_phone) {
     view.append(el("p", { class: "hint", style: "display:flex;gap:.4rem;align-items:center;margin:.4rem 0" },
-      "HK Leader: ", el("strong", { style: "font-weight:700;color:var(--ink-2)" }, ME.hk_display_name || "HK"),
-      wame(ME.hk_phone, "Contact HK"),
+      t("team.hk_leader_prefix"), el("strong", { style: "font-weight:700;color:var(--ink-2)" }, ME.hk_display_name || t("team.hk_leader_fallback")),
+      wame(ME.hk_phone, t("pill.contact_hk")),
     ));
   }
   // CHANGE 3 — leader gets Broadcast + WA Group over their coords.
   view.append(broadcastAndWaGroupNav());
-  const loader = loadingLine("Loading your coordinators…");
+  const loader = loadingLine(t("team.loading_coords"));
   view.append(loader);
   try {
     const { coordinators } = await api("/api/leader/coordinators");
@@ -1593,7 +1570,7 @@ async function renderHkLeadersList(view) {
   view.append(helpBanner(t("help.hk_leaders_list")));
   // CHANGE 3 — HK gets Broadcast + WA Group over all NJY leaders.
   view.append(broadcastAndWaGroupNav());
-  const loader = loadingLine("Loading leaders…");
+  const loader = loadingLine(t("team.loading_leaders"));
   view.append(loader);
   try {
     // KPI tiles first (fast — single query behind the scenes)
@@ -1628,7 +1605,7 @@ function leaderRowCard(l) {
   const chantedPct = l.assigned ? Math.round(100 * l.chanted_today / l.assigned) : 0;
   // CHANGE 5 — HK → leader full-mesh: WhatsApp pill next to Open.
   const rightBtns = el("div", { style: "display:flex;gap:.35rem;align-items:center" });
-  if (l.phone) rightBtns.append(wame(l.phone, "WA"));
+  if (l.phone) rightBtns.append(wame(l.phone, t("pill.wa")));
   rightBtns.append(el("a", { class: "btn", href: `#/leader/${l.user_id}` }, t("btn.open")));
   return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
     el("div", {},
@@ -1641,12 +1618,12 @@ function leaderRowCard(l) {
       ),
       el("div", { class: "progress-line", style: "margin-top:.55rem" },
         el("span", {}, t("hd.coords_active_today")),
-        el("span", { class: "fraction" }, `${l.active_coords_today} of ${l.coord_count}`),
+        el("span", { class: "fraction" }, `${l.active_coords_today}${t("team.of_infix")}${l.coord_count}`),
       ),
       el("div", { class: "pbar", "data-mid": String(activePct >= 60 ? 0 : (activePct >= 30 ? 1 : 2)), style: `--pct:${activePct}%` }),
       el("div", { class: "progress-line", style: "margin-top:.4rem" },
         el("span", {}, t("hd.chanted_today")),
-        el("span", { class: "fraction" }, `${l.chanted_today} of ${l.assigned}`),
+        el("span", { class: "fraction" }, `${l.chanted_today}${t("team.of_infix")}${l.assigned}`),
       ),
       el("div", { class: "pbar", "data-mid": String(chantedPct >= 60 ? 0 : (chantedPct >= 30 ? 1 : 2)), style: `--pct:${chantedPct}%` }),
     ),
@@ -1660,7 +1637,7 @@ async function renderLeaderDrill(leaderId) {
   const myToken = routeToken;  // BUG 1+2
   const view = $("view");
   const backHref = ME.role === "hk_leader" ? "#/leader" : "#/";
-  const loader = loadingLine("Loading…");
+  const loader = loadingLine(t("team.loading_generic"));
   view.append(loader);
   try {
     const target = await api(`/api/user/${encodeURIComponent(leaderId)}`).catch(() => null);
@@ -1673,7 +1650,7 @@ async function renderLeaderDrill(leaderId) {
     if (myToken !== routeToken) return;
     const leader = leaders.find(l => l.user_id === leaderId) || {};
     const leaderUser = users.find(u => u.id === leaderId);
-    const name = leader.name || leaderUser?.display_name || leaderUser?.username || "Leader";
+    const name = leader.name || leaderUser?.display_name || leaderUser?.username || t("team.leader_fallback");
     loader.remove();
     view.append(el("div", { class: "spread" },
       el("h2", { class: "section" }, `${name} · ${humanRole("njy_leader")}`),
@@ -1768,9 +1745,9 @@ function openAssignCoordsModal(leaderId, leaderName, allUsers) {
     list.append(wrap);
   };
   section(t("hd.currently_assigned"), assigned, true);
-  section("Unassigned ✱", unassigned, false);
+  section(t("team.unassigned_group"), unassigned, false);
   if (otherAssigned.length) {
-    section("Currently under another leader", otherAssigned, false);
+    section(t("team.other_leader_group"), otherAssigned, false);
   }
   box.append(list);
 
@@ -1797,7 +1774,7 @@ function openAssignCoordsModal(leaderId, leaderName, allUsers) {
       // Refresh the drill page
       setTimeout(() => { backdrop.remove(); renderRoute(); }, 500);
     } catch (err) {
-      msg.textContent = err.message || "Failed.";
+      msg.textContent = err.message || t("team.failed");
       save.disabled = false;
     }
   });
@@ -1827,8 +1804,8 @@ function coordCard(c) {
   const midConsistent = pctConsistent >= 60 ? 0 : (pctConsistent >= 30 ? 1 : 2);
   // CHANGE 5 — leader → coord + HK → coord full-mesh: WhatsApp pill next to Open.
   const coordBtns = el("div", { style: "display:flex;gap:.35rem;align-items:center" });
-  if (c.phone) coordBtns.append(wame(c.phone, "WA"));
-  coordBtns.append(el("a", { class: "btn", href: `#/user/${c.user_id}` }, "Open"));
+  if (c.phone) coordBtns.append(wame(c.phone, t("pill.wa")));
+  coordBtns.append(el("a", { class: "btn", href: `#/user/${c.user_id}` }, t("btn.open")));
   return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
     el("div", {},
       el("div", { class: "spread" },
@@ -1836,16 +1813,16 @@ function coordCard(c) {
         coordBtns,
       ),
       el("div", { class: "hint", style: "margin-top:.2rem" },
-        `${dailyTotal} SKJ daily-committed · ${c.assigned || 0} in whole roll`,
+        `${dailyTotal}${t("team.daily_committed_suffix")}${c.assigned || 0}${t("team.whole_roll_suffix")}`,
       ),
       el("div", { class: "progress-line", style: "margin-top:.55rem" },
-        el("span", { title: "How many of the daily-committed chanters chanted today" }, "SKJ chanted today"),
-        el("span", { class: "fraction" }, `${daily_chanted} of ${dailyTotal}`),
+        el("span", { title: t("team.skj_today_title") }, t("team.skj_today_label")),
+        el("span", { class: "fraction" }, `${daily_chanted}${t("team.of_infix")}${dailyTotal}`),
       ),
       el("div", { class: "pbar", "data-mid": String(midToday), style: `--pct:${pctToday}%` }),
       el("div", { class: "progress-line", style: "margin-top:.4rem" },
-        el("span", { title: "Daily-committed chanters still on the streak. 3+ consecutive missed days = disqualified." }, "Consistency streak"),
-        el("span", { class: "fraction" }, `${consistent} of ${dailyTotal}${disqualified ? ` · ${disqualified} out` : ""}`),
+        el("span", { title: t("team.consistency_title") }, t("team.consistency_label")),
+        el("span", { class: "fraction" }, `${consistent}${t("team.of_infix")}${dailyTotal}${disqualified ? ` · ${disqualified}${t("team.out_suffix")}` : ""}`),
       ),
       el("div", { class: "pbar", "data-mid": String(midConsistent), style: `--pct:${pctConsistent}%` }),
     ),
@@ -1857,7 +1834,7 @@ async function renderHkDashboard(view) {
   const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, t("hd.hk_dashboard")));
   view.append(helpBanner(t("help.hk_dashboard")));
-  const loader = loadingLine("Loading dashboard numbers…");
+  const loader = loadingLine(t("team.loading_dashboard"));
   view.append(loader);
   try {
     const s = await api("/api/hk/summary");
@@ -1905,7 +1882,7 @@ async function renderUserDrill(userId) {
     if (myToken !== routeToken) return;
     view.append(el("div", { class: "spread" },
       el("h2", { class: "section" }, `${target.name} · ${humanRole(target.role)}`),
-      el("a", { class: "btn", href: ME.role === "hk_leader" ? "#/hk" : "#/leader" }, "← Back"),
+      el("a", { class: "btn", href: ME.role === "hk_leader" ? "#/hk" : "#/leader" }, t("btn.back")),
     ));
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
     view.append(beadLegend());
@@ -1963,7 +1940,7 @@ function rollListManageable(roll, currentOwnerUserId) {
         if (r.status === "daily") chant.removeAttribute("disabled");
         else { chant.setAttribute("disabled", ""); }
       } catch (err) {
-        alert(err.message || "Could not update status");
+        alert(err.message || t("msg.could_not_update_status"));
         lifecycle.value = r.status || "chanter";
       }
     });
@@ -2025,12 +2002,12 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
 
   const assignBtn = el("button", { class: "mini-btn" }, t("btn.move_short"));
   assignBtn.addEventListener("click", async () => {
-    if (!userSel.value) return alert("Pick a user to move this person to.");
+    if (!userSel.value) return alert(t("team.pick_user_move"));
     try {
       await api(`/api/person/${person.id}/assign`, {
         method: "POST", body: JSON.stringify({ assigned_to_user_id: userSel.value }),
       });
-      alert("Moved. Refreshing.");
+      alert(t("team.moved_refreshing"));
       renderRoute();
     } catch (err) { alert(err.message); }
   });
@@ -2051,7 +2028,7 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
       await api(`/api/person/${person.id}/status`, {
         method: "POST", body: JSON.stringify({ status: statusSel.value }),
       });
-      alert(`Status now: ${statusSel.value}`);
+      alert(`${t("team.status_now_prefix")}${statusSel.value}`);
     } catch (err) { alert(err.message); }
   });
   panel.append(el("div", {},
@@ -2062,10 +2039,10 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
   // Delete
   const del = el("button", { class: "danger" }, t("btn.delete_person"));
   del.addEventListener("click", async () => {
-    if (!confirm(`Delete ${person.name}? This is a soft-delete — history is kept, but they will no longer appear in active lists.`)) return;
+    if (!confirm(`${t("team.delete_confirm_prefix")}${person.name}${t("team.delete_confirm_suffix")}`)) return;
     try {
       await api(`/api/member/${person.id}`, { method: "DELETE" });
-      alert("Deleted.");
+      alert(t("team.deleted"));
       renderRoute();
     } catch (err) { alert(err.message); }
   });
@@ -2159,17 +2136,17 @@ async function renderEventAttendance(eventId) {
     view.append(el("div", { class: "spread" },
       el("div", {}, el("h2", { class: "section" }, event.name),
         el("div", { class: "hint" }, `${event.kind} · ${event.event_date}${event.venue ? " · " + esc(event.venue) : ""}`)),
-      el("a", { class: "btn", href: "#/events" }, "← Back"),
+      el("a", { class: "btn", href: "#/events" }, t("btn.back")),
     ));
     const attendedSet = new Set(attended_ids);
 
     const tally = el("div", { class: "tally" });
     const capCell = el("div", { class: "cell" },
       el("div", { class: "n" }, String(event.capacity || "—")),
-      el("div", { class: "k" }, "Capacity"));
+      el("div", { class: "k" }, t("ev.capacity_label")));
     const nCell = el("div", { class: "cell" },
       el("div", { class: "n", id: "att-n" }, String(attended_count)),
-      el("div", { class: "k" }, "Attended"));
+      el("div", { class: "k" }, t("ev.attended_label")));
     tally.append(nCell, capCell);
     view.append(tally);
 
@@ -2183,8 +2160,8 @@ async function renderEventAttendance(eventId) {
       const card = el("div", { class: "card" });
       card.append(el("h3", { class: "section" }, t("hd.attendance_by_coord")));
       card.append(el("p", { class: "hint" }, ME.role === "njy_coordinator"
-        ? "Tap your row to expand and mark your chanters present."
-        : "Tap any coordinator's row to expand and mark their chanters. You can also use the search fallback below."));
+        ? t("help.attendance_by_coord_coord")
+        : t("help.attendance_by_coord_leader")));
       const bul = el("ul", { class: "list" });
       for (const b of breakdown) {
         // Progress bar measured against the coord's real roll size,
@@ -2200,12 +2177,12 @@ async function renderEventAttendance(eventId) {
           "aria-expanded": "false",
         },
           el("div", { class: "spread" },
-            el("strong", {}, b.name + (isSelf ? " (you)" : "")),
-            el("span", { class: "hint" }, `${b.attended}/${b.assigned} in roll · tap to expand`),
+            el("strong", {}, b.name + (isSelf ? t("ev.you_suffix") : "")),
+            el("span", { class: "hint" }, `${b.attended}/${b.assigned}${t("ev.in_roll_expand_suffix")}`),
           ),
           el("div", { class: "progress-line", style: "margin-top:.4rem" },
-            el("span", {}, "Attended"),
-            el("span", { class: "fraction" }, `${b.attended} of ${b.assigned || 0}`),
+            el("span", {}, t("ev.attended_label")),
+            el("span", { class: "fraction" }, `${b.attended}${t("ev.attendance_of_infix")}${b.assigned || 0}`),
           ),
           el("div", { class: "pbar", "data-mid": String(mid), style: `--pct:${pct}%` }),
         );
@@ -2220,11 +2197,11 @@ async function renderEventAttendance(eventId) {
               for (const p of roll) {
                 const isOn = attendedSet.has(p.id);
                 const bd = bead(isOn ? "green" : "white", null);
-                bd.title = isOn ? "attended" : "not attended";
+                bd.title = isOn ? t("ev.tooltip_attended") : t("ev.tooltip_not_attended");
                 const nameEl = el("div", { class: "name" });
                 nameEl.innerHTML = esc(p.name) + `<span class="phone">${esc(p.phone || "")}</span>`;
                 const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") },
-                  isOn ? "✓ Present · tap to undo" : "Mark present");
+                  isOn ? t("ev.present_undo") : t("ev.mark_present"));
                 toggle.addEventListener("click", async (ev) => {
                   ev.stopPropagation();
                   const next = !attendedSet.has(p.id);
@@ -2234,7 +2211,7 @@ async function renderEventAttendance(eventId) {
                     });
                     if (next) attendedSet.add(p.id); else attendedSet.delete(p.id);
                     toggle.className = "chant-tag" + (next ? " on" : "");
-                    toggle.textContent = next ? "✓ Present · tap to undo" : "Mark present";
+                    toggle.textContent = next ? t("ev.present_undo") : t("ev.mark_present");
                     bd.dataset.color = next ? "green" : "white";
                     $("att-n").textContent = String(attendedSet.size);
                   } catch (err) { alert(err.message); }
@@ -2245,8 +2222,8 @@ async function renderEventAttendance(eventId) {
               body.dataset.loaded = "1";
             } catch (err) {
               body.append(el("p", { class: "hint" }, err.status === 403
-                ? "You can't mark attendance on someone else's roll. This coordinator will mark their own people."
-                : "Could not load roll: " + err.message));
+                ? t("ev.cant_mark_other")
+                : t("ev.could_not_load_roll") + err.message));
               body.dataset.loaded = "1";
             }
           }
@@ -2265,7 +2242,7 @@ async function renderEventAttendance(eventId) {
     searchCard.append(
       el("h3", { class: "section" }, t("hd.search_mark")),
       el("p", { class: "hint" }, t("help.search_mark")),
-      formField("Search", el("input", { id: "att-q", placeholder: "Ravi   or   9999000001", autocapitalize: "none", autocorrect: "off" })),
+      formField(t("field.search"), el("input", { id: "att-q", placeholder: t("ev.ph_search"), autocapitalize: "none", autocorrect: "off" })),
     );
     const results = el("ul", { class: "roll", id: "att-results" });
     searchCard.append(results);
@@ -2276,14 +2253,14 @@ async function renderEventAttendance(eventId) {
       results.innerHTML = "";
       if (q.length < 2) return;
       const { people } = await api(`/api/people/search?q=${encodeURIComponent(q)}`);
-      if (!people.length) { results.append(el("li", {}, el("span", { class: "hint" }, "No match."))); return; }
+      if (!people.length) { results.append(el("li", {}, el("span", { class: "hint" }, t("ev.no_match")))); return; }
       for (const p of people) {
         const isOn = attendedSet.has(p.id);
         const b = bead(isOn ? 2 : 0, null);
-        b.title = isOn ? "attended" : "not attended";
+        b.title = isOn ? t("ev.tooltip_attended") : t("ev.tooltip_not_attended");
         const name = el("div", { class: "name", html: esc(p.name) + `<span class="phone">${esc(p.phone || "")}</span>` });
         const toggle = el("button", { class: "chant-tag" + (isOn ? " on" : "") },
-          isOn ? "✓ Present · tap to undo" : "Mark present");
+          isOn ? t("ev.present_undo") : t("ev.mark_present"));
         toggle.addEventListener("click", async () => {
           const next = !attendedSet.has(p.id);
           try {
@@ -2292,7 +2269,7 @@ async function renderEventAttendance(eventId) {
             });
             if (next) attendedSet.add(p.id); else attendedSet.delete(p.id);
             toggle.className = "chant-tag" + (next ? " on" : "");
-            toggle.textContent = next ? "✓ Present · tap to undo" : "Mark present";
+            toggle.textContent = next ? t("ev.present_undo") : t("ev.mark_present");
             b.dataset.color = next ? "green" : "white";
             $("att-n").textContent = String(attendedSet.size);
           } catch (err) { alert(err.message); }
@@ -2323,7 +2300,7 @@ function loadXlsx() {
     s.src = "https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js";
     s.async = true;
     s.onload = () => resolve(window.XLSX);
-    s.onerror = () => reject(new Error("Could not load Excel parser (offline?)"));
+    s.onerror = () => reject(new Error(t("xl.load_err")));
     document.head.appendChild(s);
   });
   return _xlsxPromise;
@@ -2406,12 +2383,12 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
   if (templateGateKey && !can(templateGateKey)) tplBtn.hidden = true;
   tplBtn.addEventListener("click", async () => {
     tplBtn.disabled = true;
-    tplBtn.textContent = "Generating…";
+    tplBtn.textContent = t("xl.generating");
     try {
       await (templateBuilder || downloadXlsxTemplate)();
       tplBtn.textContent = tplLabel;
     } catch (err) {
-      tplBtn.textContent = "Failed — try again";
+      tplBtn.textContent = t("xl.failed_try_again");
     } finally {
       tplBtn.disabled = false;
     }
@@ -2419,7 +2396,7 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
   wrap.append(
     el("p", { class: "hint" }, helperText),
     el("p", {}, tplBtn,
-      el("span", { class: "hint" }, " — mobile column is pre-formatted as text, so 10-digit numbers keep their form. Fill your rows in Excel, save, then upload."),
+      el("span", { class: "hint" }, t("xl.helper_suffix")),
     ),
   );
   const fileInput = el("input", { type: "file", accept: ".xlsx,.xls,.csv" });
@@ -2434,7 +2411,7 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
     previewBox.innerHTML = "";
     commitBtn.disabled = true;
     if (!fileInput.files[0]) return;
-    msg.textContent = "Parsing…";
+    msg.textContent = t("msg.parsing");
     try {
       const raw = await readSpreadsheetFile(fileInput.files[0]);
       const rowIsValid = isValidRow || ((r) => r.name && r.mobile);
@@ -2466,19 +2443,19 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
         // eyeball spelling issues (e.g. "Coupon_no" vs "coupon_no").
         const headers = raw[0] ? Object.keys(raw[0]) : [];
         previewBox.append(el("p", { class: "error" }, emptyMessage
-          || "No usable rows found. Make sure the file has 'name' and 'mobile' columns."));
+          || t("xl.no_usable_default")));
         if (headers.length) {
           previewBox.append(el("p", { class: "hint", style: "font-family:var(--font-mono);font-size:.75rem;color:var(--muted)" },
-            "Headers found in the file: ", el("code", {}, headers.join(", "))));
+            t("xl.headers_prefix"), el("code", {}, headers.join(", "))));
         }
         msg.textContent = "";
         return;
       }
-      msg.textContent = `Parsed ${parsedRows.length} row(s). Preview:`;
+      msg.textContent = `${t("xl.parsed_prefix")}${parsedRows.length}${t("xl.parsed_suffix")}`;
       const table = el("table", { style: "width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.4rem" });
       // Default preview is chanter-shaped; each caller can override with
       // previewCols (header labels) + previewRow (row -> [cell values]).
-      const cols = previewCols || ["Name", "Mobile", "Pincode"];
+      const cols = previewCols || [t("xl.col_name"), t("xl.col_mobile"), t("xl.col_pincode")];
       const rowFn = previewRow || ((r) => [r.name || "", r.mobile || "", r.pincode || ""]);
       const head = el("tr", {}, ...cols.map(c =>
         el("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:.3rem" }, c)));
@@ -2490,10 +2467,10 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
         ));
       });
       previewBox.append(table);
-      if (parsedRows.length > 8) previewBox.append(el("p", { class: "hint" }, `…and ${parsedRows.length - 8} more.`));
+      if (parsedRows.length > 8) previewBox.append(el("p", { class: "hint" }, `${t("xl.and_more_prefix")}${parsedRows.length - 8}${t("xl.and_more_suffix")}`));
       commitBtn.disabled = false;
     } catch (err) {
-      previewBox.append(el("p", { class: "error" }, err.message || "Could not read the file."));
+      previewBox.append(el("p", { class: "error" }, err.message || t("xl.could_not_read")));
       msg.textContent = "";
     }
   });
@@ -2501,20 +2478,20 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
   const errBox = el("div", { style: "margin-top:.6rem" });
   commitBtn.addEventListener("click", async () => {
     commitBtn.disabled = true;
-    msg.textContent = "Importing…";
+    msg.textContent = t("msg.importing");
     errBox.innerHTML = "";
     try {
       const result = await onCommit(parsedRows);
       const created = result.created ?? parsedRows.length;
       const errs = result.errors || [];
-      msg.textContent = `Imported ${created}${errs.length ? ` · ${errs.length} row error(s)` : ""}`;
+      msg.textContent = `${t("xl.imported_prefix")}${created}${errs.length ? `${t("xl.errors_middle")}${errs.length}${t("xl.errors_suffix")}` : ""}`;
 
       // Case A — some rows failed on the backend. Render each with a
       // friendly reason (humanizeError translates codes like
       // "username_taken" → "That username is already used…").
       if (errs.length) {
         const card = el("div", { class: "card", style: "border-color:#c02020;background:#fff5f5;margin-top:.5rem" });
-        card.append(el("h4", { style: "color:#c02020;margin:0 0 .3rem" }, `${errs.length} row(s) rejected by the server:`));
+        card.append(el("h4", { style: "color:#c02020;margin:0 0 .3rem" }, `${errs.length}${t("xl.rejected_suffix")}`));
         const ul = el("ul", { style: "margin:.2rem 0 0;padding-left:1.2rem;font-size:.85rem" });
         errs.slice(0, 20).forEach(e => {
           const label = e.row?.username || e.username || e.row?.name || e.name || e.row?.legal_name || e.legal_name || `row #${(e.index ?? "?") + 1}`;
@@ -2539,11 +2516,8 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
       // endpoint returned an unexpected shape). Surface it loudly.
       if (created === 0 && !errs.length) {
         const card = el("div", { class: "card", style: "border-color:#c07a00;background:#fff8ee;margin-top:.5rem" });
-        card.append(el("h4", { style: "color:#c07a00;margin:0 0 .3rem" }, "0 rows imported, but the server didn't return any row errors."));
-        card.append(el("p", { style: "margin:0;font-size:.85rem" },
-          "This usually means: (1) the file's rows didn't map to any usable data, (2) they were all duplicates the server silently skipped, or (3) the endpoint returned an unexpected shape. ",
-          "Open the browser console (F12) for full request/response detail — every API call logs there now.",
-        ));
+        card.append(el("h4", { style: "color:#c07a00;margin:0 0 .3rem" }, t("xl.zero_hd")));
+        card.append(el("p", { style: "margin:0;font-size:.85rem" }, t("xl.zero_body")));
         errBox.append(card);
       }
 
@@ -2555,7 +2529,7 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
       // Whole-request failure (network, 500, 403, etc). Show friendly
       // message on-screen AND full detail in the error box + console.
       const friendly = humanizeError(err);
-      msg.textContent = "Import failed: " + friendly;
+      msg.textContent = t("xl.import_failed_prefix") + friendly;
       const card = el("div", { class: "card", style: "border-color:#c02020;background:#fff5f5;margin-top:.5rem" });
       card.append(el("h4", { style: "color:#c02020;margin:0 0 .3rem" }, t("msg.error_prefix").replace(":","")));
       card.append(el("p", { style: "margin:0 0 .3rem;font-size:.9rem" }, friendly));
@@ -2585,34 +2559,34 @@ async function renderSadhana(personId) {
   if (!personId) return renderSadhanaBrowse(view);
   view.append(el("div", { class: "spread" },
     el("h2", { class: "section" }, t("hd.sadhana_daily_entry")),
-    el("a", { class: "btn", href: "#/sadhana" }, "← Browse"),
+    el("a", { class: "btn", href: "#/sadhana" }, t("sd.back_browse")),
   ));
   view.append(el("p", { class: "hint" }, t("help.sadhana_daily")));
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   const today = new Date().toISOString().slice(0, 10);
   card.append(
-    formField("Person id", el("input", { id: "sd-person", value: personId || "", required: true, readonly: true })),
-    formField("Date", el("input", { id: "sd-date", type: "date", value: today })),
+    formField(t("sd.field_person_id"), el("input", { id: "sd-person", value: personId || "", required: true, readonly: true })),
+    formField(t("sd.field_date"), el("input", { id: "sd-date", type: "date", value: today })),
     el("div", { class: "grid2" },
-      formField("Wake-up time (HH:MM)", el("input", { id: "sd-wake", placeholder: "05:15" })),
-      formField("Wake-up pts", el("input", { id: "sd-wake-pts", type: "number", min: "0", max: "10", value: "0" })),
+      formField(t("sd.field_wakeup_time"), el("input", { id: "sd-wake", placeholder: t("sd.ph_wakeup") })),
+      formField(t("sd.field_wakeup_pts"), el("input", { id: "sd-wake-pts", type: "number", min: "0", max: "10", value: "0" })),
     ),
-    formField("Mangala-arati pts (0 or 10)", el("input", { id: "sd-mangala", type: "number", value: "0", min: "0", max: "10" })),
+    formField(t("sd.field_mangala"), el("input", { id: "sd-mangala", type: "number", value: "0", min: "0", max: "10" })),
     el("h3", { class: "section" }, t("hd.rounds_chanted")),
     el("div", { class: "grid2" },
-      formField("Before 7am (×4)", el("input", { id: "sd-r-1", type: "number", value: "0", min: "0" })),
-      formField("7–8am (×3)", el("input", { id: "sd-r-2", type: "number", value: "0", min: "0" })),
-      formField("8–10am (×2)", el("input", { id: "sd-r-3", type: "number", value: "0", min: "0" })),
-      formField("After 10am (×1)", el("input", { id: "sd-r-4", type: "number", value: "0", min: "0" })),
+      formField(t("sd.field_before7"), el("input", { id: "sd-r-1", type: "number", value: "0", min: "0" })),
+      formField(t("sd.field_7_8"), el("input", { id: "sd-r-2", type: "number", value: "0", min: "0" })),
+      formField(t("sd.field_8_10"), el("input", { id: "sd-r-3", type: "number", value: "0", min: "0" })),
+      formField(t("sd.field_after10"), el("input", { id: "sd-r-4", type: "number", value: "0", min: "0" })),
     ),
     el("h3", { class: "section" }, t("hd.sravanam_seva")),
     el("div", { class: "grid2" },
-      formField("Reading mins", el("input", { id: "sd-read-min", type: "number", value: "0" })),
-      formField("Reading pts", el("input", { id: "sd-read-pts", type: "number", value: "0" })),
-      formField("Hearing mins", el("input", { id: "sd-hear-min", type: "number", value: "0" })),
-      formField("Hearing pts", el("input", { id: "sd-hear-pts", type: "number", value: "0" })),
-      formField("Temple seva pts", el("input", { id: "sd-seva", type: "number", value: "0", max: "10" })),
-      formField("Preaching pts", el("input", { id: "sd-preach", type: "number", value: "0", max: "10" })),
+      formField(t("sd.field_read_min"), el("input", { id: "sd-read-min", type: "number", value: "0" })),
+      formField(t("sd.field_read_pts"), el("input", { id: "sd-read-pts", type: "number", value: "0" })),
+      formField(t("sd.field_hear_min"), el("input", { id: "sd-hear-min", type: "number", value: "0" })),
+      formField(t("sd.field_hear_pts"), el("input", { id: "sd-hear-pts", type: "number", value: "0" })),
+      formField(t("sd.field_seva_pts"), el("input", { id: "sd-seva", type: "number", value: "0", max: "10" })),
+      formField(t("sd.field_preach_pts"), el("input", { id: "sd-preach", type: "number", value: "0", max: "10" })),
     ),
     el("p", { style: "margin-top:1rem" },
       el("button", { type: "submit", class: "primary" }, t("btn.save_entry")),
@@ -2640,8 +2614,8 @@ async function renderSadhana(personId) {
     };
     try {
       const r = await api("/api/sadhana", { method: "POST", body: JSON.stringify(body) });
-      $("sd-msg").textContent = `Saved · ${r.entry.total_pts} / 124 pts`;
-    } catch (err) { $("sd-msg").textContent = "Error: " + err.message; }
+      $("sd-msg").textContent = `${t("sd.saved_prefix")}${r.entry.total_pts}${t("sd.saved_suffix")}`;
+    } catch (err) { $("sd-msg").textContent = t("sd.error_prefix") + err.message; }
   };
   view.append(card);
 }
@@ -2656,7 +2630,7 @@ function formField(labelText, control) {
 // sign-in page in future.
 function passwordFieldWithEye(id, labelText) {
   const input = el("input", { id, type: "password", required: true, autocomplete: "new-password" });
-  const eye = el("button", { type: "button", class: "eye-btn", "aria-label": "Show / hide password" }, "👁");
+  const eye = el("button", { type: "button", class: "eye-btn", "aria-label": t("aria.show_hide_pw") }, "👁");
   eye.addEventListener("click", () => {
     if (input.type === "password") { input.type = "text"; eye.textContent = "🙈"; }
     else { input.type = "password"; eye.textContent = "👁"; }
@@ -2675,7 +2649,7 @@ async function renderSadhanaBrowse(view) {
   const search = el("div", { class: "card" });
   search.append(
     el("h3", { class: "section" }, t("hd.find_member")),
-    formField("Search", el("input", { id: "sd-q", placeholder: "name or phone digits", autocapitalize: "none" })),
+    formField(t("field.search"), el("input", { id: "sd-q", placeholder: t("sd.ph_search"), autocapitalize: "none" })),
     el("ul", { class: "roll", id: "sd-results" }),
   );
   view.append(search);
@@ -2684,12 +2658,12 @@ async function renderSadhanaBrowse(view) {
     const ul = $("sd-results"); ul.innerHTML = "";
     if (q.length < 2) return;
     const { people } = await api(`/api/people/search?q=${encodeURIComponent(q)}`);
-    if (!people.length) return ul.append(el("li", {}, el("span", { class: "hint" }, "No match.")));
+    if (!people.length) return ul.append(el("li", {}, el("span", { class: "hint" }, t("ev.no_match"))));
     for (const p of people) {
       ul.append(el("li", {},
         el("div", { class: "bead-wrap" }, bead(0)),
         el("div", { class: "name", html: esc(p.name) + `<span class="phone">${esc(p.phone || "")}</span>` }),
-        el("a", { class: "wa", href: `#/sadhana/${p.id}` }, "Open"),
+        el("a", { class: "wa", href: `#/sadhana/${p.id}` }, t("sd.open")),
         el("span", {}),
       ));
     }
@@ -2705,15 +2679,15 @@ async function renderSadhanaBrowse(view) {
     for (const e of entries) {
       const li = el("li", {},
         el("div", {}, el("strong", {}, e.person_name),
-          el("div", { class: "hint" }, `${e.entry_date} · rounds ${(e.rounds_before_7||0)+(e.rounds_7_8||0)+(e.rounds_8_10||0)+(e.rounds_after_10||0)}`)),
-        el("span", { class: "score" }, `${e.total_pts || 0} / 124`),
+          el("div", { class: "hint" }, `${e.entry_date}${t("sd.rounds_infix")}${(e.rounds_before_7||0)+(e.rounds_7_8||0)+(e.rounds_8_10||0)+(e.rounds_after_10||0)}`)),
+        el("span", { class: "score" }, `${e.total_pts || 0}${t("sd.pts_of_124_suffix")}`),
         el("div", {}),
       );
       const actions = li.lastChild;
-      const open = el("a", { class: "mini-btn", href: `#/sadhana/${e.person_id}` }, "Open");
-      const del = el("button", { class: "danger", style: "margin-left:.4rem" }, "Delete");
+      const open = el("a", { class: "mini-btn", href: `#/sadhana/${e.person_id}` }, t("sd.open"));
+      const del = el("button", { class: "danger", style: "margin-left:.4rem" }, t("sd.delete"));
       del.addEventListener("click", async () => {
-        if (!confirm(`Delete this sadhana entry for ${e.person_name} on ${e.entry_date}?`)) return;
+        if (!confirm(`${t("sd.confirm_delete_prefix")}${e.person_name}${t("sd.confirm_delete_infix")}${e.entry_date}${t("sd.confirm_delete_suffix")}`)) return;
         try {
           await api(`/api/sadhana/${e.id}`, { method: "DELETE" });
           renderRoute();
@@ -2732,21 +2706,16 @@ async function renderSadhanaBrowse(view) {
 async function renderBvStructure(view) {
   const myToken = routeToken;  // BUG 1+2
   view.append(el("h2", { class: "section" }, t("hd.bv_structure")));
-  view.append(helpBanner(
-    "The Circle → Sector → BV Group hierarchy for Phase 4 (Feb 2027 " +
-    "onward). Six circles, four sectors each, three BV groups per " +
-    "sector. Right now HK Leader seeds it here; later, Servant Leaders " +
-    "run their own BV groups against it."
-  ));
+  view.append(helpBanner(t("bv.help_prefix")));
   view.append(el("p", { class: "hint" }, t("help.bv_structure")));
   try {
     const { circles, sectors, bv_groups } = await api("/api/bv/structure");
     if (myToken !== routeToken) return;
-    view.append(el("h3", { class: "section" }, `Circles (${circles.length})`));
+    view.append(el("h3", { class: "section" }, `${t("bv.circles_prefix")}${circles.length}${t("bv.count_suffix")}`));
     view.append(structureList(circles));
-    view.append(el("h3", { class: "section" }, `Sectors (${sectors.length})`));
+    view.append(el("h3", { class: "section" }, `${t("bv.sectors_prefix")}${sectors.length}${t("bv.count_suffix")}`));
     view.append(structureList(sectors));
-    view.append(el("h3", { class: "section" }, `BV groups (${bv_groups.length})`));
+    view.append(el("h3", { class: "section" }, `${t("bv.groups_prefix")}${bv_groups.length}${t("bv.count_suffix")}`));
     view.append(structureList(bv_groups));
     view.append(newGroupForm());
   } catch (err) {
@@ -2760,7 +2729,7 @@ function structureList(groups) {
     const li = el("li", {},
       el("div", {}, el("strong", {}, g.name),
         el("div", { class: "hint" }, `${g.kind}${g.meeting_day ? " · " + g.meeting_day : ""}${g.meeting_time ? " " + g.meeting_time : ""}`)),
-      el("span", { class: "pill" }, g.target_strength ? `${g.target_strength} target` : ""),
+      el("span", { class: "pill" }, g.target_strength ? `${g.target_strength}${t("bv.target_suffix")}` : ""),
       el("div", {}),
     );
     const actions = li.lastChild;
@@ -2771,11 +2740,11 @@ function structureList(groups) {
       const existing = li.querySelector(".manage");
       if (existing) { existing.remove(); return; }
       const p = el("div", { class: "manage" },
-        formField("Name", el("input", { id: `ge-name-${g.id}`, value: g.name })),
-        formField("Meeting day", el("input", { id: `ge-day-${g.id}`, value: g.meeting_day || "" })),
-        formField("Meeting time", el("input", { id: `ge-time-${g.id}`, value: g.meeting_time || "" })),
-        formField("Meeting venue", el("input", { id: `ge-venue-${g.id}`, value: g.meeting_venue || "" })),
-        formField("Target strength", el("input", { id: `ge-str-${g.id}`, type: "number", value: g.target_strength || "" })),
+        formField(t("bv.gform_name"), el("input", { id: `ge-name-${g.id}`, value: g.name })),
+        formField(t("bv.gform_day"), el("input", { id: `ge-day-${g.id}`, value: g.meeting_day || "" })),
+        formField(t("bv.gform_time"), el("input", { id: `ge-time-${g.id}`, value: g.meeting_time || "" })),
+        formField(t("bv.gform_venue"), el("input", { id: `ge-venue-${g.id}`, value: g.meeting_venue || "" })),
+        formField(t("bv.gform_target"), el("input", { id: `ge-str-${g.id}`, type: "number", value: g.target_strength || "" })),
       );
       const save = el("button", { class: "primary" }, t("btn.save"));
       save.addEventListener("click", async () => {
@@ -2794,7 +2763,7 @@ function structureList(groups) {
       li.append(p);
     });
     delBtn.addEventListener("click", async () => {
-      if (!confirm(`Delete group "${g.name}"? Members are unlinked; the group is soft-deleted (history kept). Continue?`)) return;
+      if (!confirm(`${t("bv.delete_confirm_prefix")}${g.name}${t("bv.delete_confirm_suffix")}`)) return;
       try {
         await api(`/api/bv/group/${g.id}`, { method: "DELETE" });
         renderRoute();
@@ -2808,20 +2777,20 @@ function newGroupForm() {
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   card.append(
     el("h3", { class: "section" }, t("hd.new_group")),
-    formField("Name", el("input", { id: "g-name", required: true })),
-    formField("Kind", el("select", { id: "g-kind" },
-      el("option", { value: "bv_group" }, "BV Group"),
-      el("option", { value: "sector" }, "Sector"),
-      el("option", { value: "circle" }, "Circle"),
-      el("option", { value: "manjari" }, "Manjari"),
-      el("option", { value: "njy_group" }, "NJY Group"),
+    formField(t("bv.gform_name"), el("input", { id: "g-name", required: true })),
+    formField(t("bv.kind_label"), el("select", { id: "g-kind" },
+      el("option", { value: "bv_group" }, t("bv.kind_bv_group")),
+      el("option", { value: "sector" }, t("bv.kind_sector")),
+      el("option", { value: "circle" }, t("bv.kind_circle")),
+      el("option", { value: "manjari" }, t("bv.kind_manjari")),
+      el("option", { value: "njy_group" }, t("bv.kind_njy_group")),
     )),
     el("div", { class: "grid2" },
-      formField("Meeting day", el("input", { id: "g-day", placeholder: "Sun" })),
-      formField("Meeting time", el("input", { id: "g-time", placeholder: "18:00" })),
+      formField(t("bv.gform_day"), el("input", { id: "g-day", placeholder: t("bv.ph_day") })),
+      formField(t("bv.gform_time"), el("input", { id: "g-time", placeholder: t("bv.ph_time") })),
     ),
-    formField("Venue", el("input", { id: "g-venue" })),
-    formField("Target strength", el("input", { id: "g-strength", type: "number" })),
+    formField(t("bv.gform_venue_short"), el("input", { id: "g-venue" })),
+    formField(t("bv.gform_target"), el("input", { id: "g-strength", type: "number" })),
     el("p", {}, el("button", { class: "primary", type: "submit" }, t("btn.save_group")),
       " ", el("span", { class: "hint", id: "g-msg" })),
   );
@@ -2835,7 +2804,7 @@ function newGroupForm() {
     };
     try {
       await api("/api/bv/group", { method: "POST", body: JSON.stringify(body) });
-      $("g-msg").textContent = "Saved."; renderRoute();
+      $("g-msg").textContent = t("msg.saved_short"); renderRoute();
     } catch (err) { $("g-msg").textContent = err.message; }
   };
   return card;
@@ -2855,37 +2824,37 @@ async function renderMemberDetails(personId) {
       formField(label, el("input", { id, value: val || "", ...extra }));
     card.append(
       el("h3", { class: "section" }, t("hd.personal")),
-      F("m-name", "Legal name", person.legal_name),
+      F("m-name", t("md.field_legal_name"), person.legal_name),
       el("div", { class: "grid2" },
-        F("m-gender", "Gender", person.gender, { placeholder: "Male/Female" }),
-        F("m-dob", "DOB", person.dob, { type: "date" }),
+        F("m-gender", t("md.field_gender"), person.gender, { placeholder: t("md.ph_gender") }),
+        F("m-dob", t("md.field_dob"), person.dob, { type: "date" }),
       ),
       el("div", { class: "grid2" },
-        F("m-marital", "Marital status", person.marital_status),
-        F("m-children", "Number of children", person.num_children, { type: "number" }),
+        F("m-marital", t("md.field_marital"), person.marital_status),
+        F("m-children", t("md.field_children"), person.num_children, { type: "number" }),
       ),
-      F("m-spouse", "Spouse name", person.spouse_name),
+      F("m-spouse", t("md.field_spouse_name"), person.spouse_name),
       el("div", { class: "grid2" },
-        F("m-spouse-dob", "Spouse DOB", person.spouse_dob, { type: "date" }),
-        F("m-anniv", "Wedding anniversary", person.wedding_anniversary, { type: "date" }),
+        F("m-spouse-dob", t("md.field_spouse_dob"), person.spouse_dob, { type: "date" }),
+        F("m-anniv", t("md.field_anniv"), person.wedding_anniversary, { type: "date" }),
       ),
-      F("m-addr", "Address", person.address),
+      F("m-addr", t("md.field_address"), person.address),
       el("div", { class: "grid2" },
-        F("m-phone", "Phone", person.phone),
-        F("m-pincode", "Pincode", person.pincode, { placeholder: "e.g. 625001" }),
+        F("m-phone", t("md.field_phone"), person.phone),
+        F("m-pincode", t("field.pincode"), person.pincode, { placeholder: t("md.ph_pincode") }),
       ),
-      F("m-email", "Email", person.email, { type: "email" }),
+      F("m-email", t("md.field_email"), person.email, { type: "email" }),
       el("h3", { class: "section" }, t("hd.work")),
       el("div", { class: "grid2" },
-        F("m-edu", "Education", person.education),
-        F("m-occ", "Occupation", person.occupation),
-        F("m-org", "Organization", person.organization),
-        F("m-des", "Designation", person.designation),
+        F("m-edu", t("md.field_education"), person.education),
+        F("m-occ", t("md.field_occupation"), person.occupation),
+        F("m-org", t("md.field_organization"), person.organization),
+        F("m-des", t("md.field_designation"), person.designation),
       ),
-      F("m-lang", "Languages known", person.languages_known),
+      F("m-lang", t("md.field_languages"), person.languages_known),
       el("h3", { class: "section" }, t("hd.notes")),
-      formField("Notes", el("textarea", { id: "m-notes" }, person.notes || "")),
-      el("p", {}, el("button", { class: "primary", type: "submit" }, "Save"),
+      formField(t("field.notes"), el("textarea", { id: "m-notes" }, person.notes || "")),
+      el("p", {}, el("button", { class: "primary", type: "submit" }, t("btn.save")),
         " ", el("span", { class: "hint", id: "m-msg" })),
     );
     card.onsubmit = async (e) => {
@@ -2907,7 +2876,7 @@ async function renderMemberDetails(personId) {
       };
       try {
         await api(`/api/member/${encodeURIComponent(personId)}`, { method: "POST", body: JSON.stringify(body) });
-        $("m-msg").textContent = "Saved.";
+        $("m-msg").textContent = t("msg.saved_short");
       } catch (err) { $("m-msg").textContent = err.message; }
     };
     view.append(card);
@@ -2925,45 +2894,45 @@ async function renderGroupReport(groupId) {
   const num = (id, label) => formField(label, el("input", { id, type: "number", min: "0", value: "0" }));
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   card.append(
-    formField("Report date", el("input", { id: "gr-date", type: "date", value: new Date().toISOString().slice(0,10), required: true })),
-    formField("Week number", el("input", { id: "gr-wk", type: "number" })),
+    formField(t("gr.field_report_date"), el("input", { id: "gr-date", type: "date", value: new Date().toISOString().slice(0,10), required: true })),
+    formField(t("gr.field_week_no"), el("input", { id: "gr-wk", type: "number" })),
     el("h3", { class: "section" }, t("hd.member_attendance")),
     el("div", { class: "grid3" },
-      num("gr-avg", "Avg attendance"),
-      num("gr-high", "Highest"),
-      num("gr-irr", "Irregular"),
-      num("gr-child", "Children avg"),
-      num("gr-bvlc", "BVLC avg"),
+      num("gr-avg", t("gr.field_avg_att")),
+      num("gr-high", t("gr.field_highest")),
+      num("gr-irr", t("gr.field_irregular")),
+      num("gr-child", t("gr.field_children_avg")),
+      num("gr-bvlc", t("gr.field_bvlc_avg")),
     ),
-    el("h3", { class: "section" }, "B · Shiksha level"),
+    el("h3", { class: "section" }, t("gr.section_b")),
     el("div", { class: "grid3" },
-      num("gr-brah", "Brahmana init."),
-      num("gr-hari", "Harinama init."),
-      num("gr-guru", "Guru-ashraya"),
-      num("gr-sp", "Prabhupada-ashraya"),
-      num("gr-sadh", "Sadhaka"),
-      num("gr-sev", "Sevaka"),
-      num("gr-shr", "Shraddhavan"),
-      num("gr-pot", "Potential leaders"),
+      num("gr-brah", t("gr.field_brah")),
+      num("gr-hari", t("gr.field_hari")),
+      num("gr-guru", t("gr.field_guru")),
+      num("gr-sp", t("gr.field_sp")),
+      num("gr-sadh", t("gr.field_sadh")),
+      num("gr-sev", t("gr.field_sev")),
+      num("gr-shr", t("gr.field_shr")),
+      num("gr-pot", t("gr.field_pot")),
     ),
-    el("h3", { class: "section" }, "C · Preaching"),
+    el("h3", { class: "section" }, t("gr.section_c")),
     el("div", { class: "grid3" },
-      num("gr-h2h", "House-to-house"),
-      num("gr-nag", "Nagara sankirtan"),
-      num("gr-out", "Outreach"),
+      num("gr-h2h", t("gr.field_h2h")),
+      num("gr-nag", t("gr.field_nag")),
+      num("gr-out", t("gr.field_out")),
     ),
-    formField("Other preaching", el("input", { id: "gr-other-p" })),
-    el("h3", { class: "section" }, "D · Temple services"),
+    formField(t("gr.field_other_p"), el("input", { id: "gr-other-p" })),
+    el("h3", { class: "section" }, t("gr.section_d")),
     el("div", { class: "grid3" },
-      num("gr-eng", "Services engaged"),
-      num("gr-mon", "Monthly contributors"),
-      num("gr-amt", "Amount"),
-      num("gr-life", "Life members"),
+      num("gr-eng", t("gr.field_eng")),
+      num("gr-mon", t("gr.field_mon")),
+      num("gr-amt", t("gr.field_amt")),
+      num("gr-life", t("gr.field_life")),
     ),
-    formField("Service details", el("input", { id: "gr-svc-d" })),
-    formField("Other contribution", el("input", { id: "gr-oth-c" })),
+    formField(t("gr.field_svc_d"), el("input", { id: "gr-svc-d" })),
+    formField(t("gr.field_oth_c"), el("input", { id: "gr-oth-c" })),
     el("p", { style: "margin-top:1rem" },
-      el("button", { class: "primary", type: "submit" }, "Save report"),
+      el("button", { class: "primary", type: "submit" }, t("btn.save_report")),
       " ", el("span", { class: "hint", id: "gr-msg" })),
   );
   card.onsubmit = async (e) => {
@@ -2987,7 +2956,7 @@ async function renderGroupReport(groupId) {
     };
     try {
       await api("/api/group-reports", { method: "POST", body: JSON.stringify(body) });
-      $("gr-msg").textContent = "Saved.";
+      $("gr-msg").textContent = t("msg.saved_short");
     } catch (err) { $("gr-msg").textContent = err.message; }
   };
   view.append(card);
@@ -3029,28 +2998,26 @@ async function renderLeaderboard(kind, rest) {
   const isLeadersBoard = suffix === "leaders" && canSeeLeadersBoard;
 
   const tabs = el("div", { class: "nav", style: "border:none" });
-  const t = (k, label, extra) => el("a", { class: (actualKind === k && !!extra === isLeadersBoard) ? "active" : "",
+  // Local tab-anchor builder — renamed from `t` to avoid shadowing the
+  // global i18n `t()` helper (which also lives in this function scope).
+  const mkTabLink = (k, label, extra) => el("a", { class: (actualKind === k && !!extra === isLeadersBoard) ? "active" : "",
     href: `#/leaderboard/${k}${extra ? "/leaders" : ""}` }, label);
   tabs.append(
-    t("daily", "Coords · Today"),
-    t("overall", "Coords · Overall"),
+    mkTabLink("daily", t("lb.tab_coords_today")),
+    mkTabLink("overall", t("lb.tab_coords_overall")),
   );
   if (canSeeLeadersBoard) {
     tabs.append(
-      t("daily", "Leaders · Today", "leaders"),
-      t("overall", "Leaders · Overall", "leaders"),
+      mkTabLink("daily", t("lb.tab_leaders_today"), "leaders"),
+      mkTabLink("overall", t("lb.tab_leaders_overall"), "leaders"),
     );
   }
-  tabs.append(el("a", { href: "#/points-rules", style: "margin-left:auto" }, "How points work ↗"));
+  tabs.append(el("a", { href: "#/points-rules", style: "margin-left:auto" }, t("lb.how_points_link")));
   view.append(tabs);
 
   const hint = isLeadersBoard
-    ? (actualKind === "daily"
-        ? "NJY Leaders ranked by their coords' today performance. Sort by total points OR per-coord average (fair when leaders have different team sizes)."
-        : "NJY Leaders ranked by their coords' Phase-1+2 performance. Sort by total OR per-coord average.")
-    : (actualKind === "daily"
-        ? "Coords ranked by today's points — resets every midnight IST. Chant a chanter = +10 · Follow up = +5 · NJY attendance = +50 · Perfect day = +50."
-        : "Coords ranked cumulatively (Phase 1 + Phase 2). Adds Janmashtami entry/commit tier bonuses and milestone bonuses. Tap the rules link for the full matrix.");
+    ? (actualKind === "daily" ? t("lb.hint_leaders_today") : t("lb.hint_leaders_overall"))
+    : (actualKind === "daily" ? t("lb.hint_coords_today") : t("lb.hint_coords_overall"));
   view.append(el("p", { class: "hint" }, hint));
 
   // Sort toggle — only on Leaders board. Persist choice in localStorage
@@ -3073,9 +3040,9 @@ async function renderLeaderboard(kind, rest) {
       return btn;
     };
     sortRow.append(
-      el("span", { class: "hint", style: "align-self:center" }, "Sort by:"),
-      mkSortBtn("total", "Total pts"),
-      mkSortBtn("avg", "Per-coord avg (prorated)"),
+      el("span", { class: "hint", style: "align-self:center" }, t("lb.sort_by")),
+      mkSortBtn("total", t("lb.sort_total")),
+      mkSortBtn("avg", t("lb.sort_avg")),
     );
     view.append(sortRow);
   }
@@ -3111,8 +3078,8 @@ async function renderLeaderboard(kind, rest) {
       const summary = el("div", { class: "card", style: "margin-bottom:.7rem;background:linear-gradient(180deg,var(--tint-responded),var(--tint-followed));border-color:var(--mark-responded)" },
         el("div", { class: "spread" },
           el("div", {}, el("strong", {}, t("hd.hk_whole_org")),
-            el("div", { class: "hint" }, `${rows.length} NJY Leaders · ${orgCoords} coords`)),
-          el("span", { class: "score" }, sortMode === "avg" ? `${orgAvg} avg` : `${orgTotal} pts`),
+            el("div", { class: "hint" }, `${rows.length} ${t("lb.leaders_summary_prefix")} · ${orgCoords} ${t("lb.leaders_summary_coords")}`)),
+          el("span", { class: "score" }, sortMode === "avg" ? `${orgAvg}${t("lb.suffix_avg")}` : `${orgTotal}${t("lb.suffix_pts")}`),
         ),
       );
       view.append(summary);
@@ -3139,8 +3106,8 @@ async function renderLeaderboard(kind, rest) {
       // used for ranking. Old "raw pts" available via `raw_team_pts`
       // when we want to expose it.
       const scoreText = (isLeadersBoard && sortMode === "avg")
-        ? `${r.pts_per_coord || 0} avg · ${r.total_score || r.pts} score`
-        : (isLeadersBoard ? `${r.total_score || r.pts} score` : `${r.pts} pts`);
+        ? `${r.pts_per_coord || 0}${t("lb.score_avg_prefix")}${r.total_score || r.pts}${t("lb.score_suffix_score")}`
+        : (isLeadersBoard ? `${r.total_score || r.pts}${t("lb.score_suffix_score")}` : `${r.pts}${t("lb.score_suffix_pts")}`);
 
       // Build the 3-bucket mini bars for the leaders board only. Each
       // bar is a .pbar with --pct set from the *_bar (0-100 normalised)
@@ -3156,9 +3123,9 @@ async function renderLeaderboard(kind, rest) {
           el("div", { class: "pbar", style: `--pct:${Math.max(0, Math.min(100, pctBar || 0))}%` }),
         );
         bucketBlock = el("div", { class: "leader-buckets", style: "margin-top:.4rem" },
-          barRow(`Team Performance (60%)`, r.team_performance || 0, r.team_performance_bar || 0, " avg"),
-          barRow(`Team Coverage (25%)`,     r.team_coverage    || 0, r.team_coverage_bar    || 0, "%"),
-          barRow(`Leader Touch (15%)`,      r.leader_touch     || 0, r.leader_touch_bar     || 0, " pts"),
+          barRow(t("lb.bucket_team_perf"), r.team_performance || 0, r.team_performance_bar || 0, t("lb.suffix_avg")),
+          barRow(t("lb.bucket_team_cov"),   r.team_coverage    || 0, r.team_coverage_bar    || 0, t("lb.pct")),
+          barRow(t("lb.bucket_leader_touch"), r.leader_touch   || 0, r.leader_touch_bar     || 0, t("lb.suffix_pts")),
         );
       }
 
@@ -3170,8 +3137,8 @@ async function renderLeaderboard(kind, rest) {
         ),
         el("span", { class: "score" }, scoreText),
         r.user_id === ME.id
-          ? el("a", { class: "pill on", href: openHref, style: "text-decoration:none" }, "you — open")
-          : el("a", { class: "btn", href: openHref }, "Open"),
+          ? el("a", { class: "pill on", href: openHref, style: "text-decoration:none" }, t("lb.you_open"))
+          : el("a", { class: "btn", href: openHref }, t("btn.open")),
       );
       ul.append(li);
     });
@@ -3189,24 +3156,9 @@ async function renderLeaderboard(kind, rest) {
 
 // Turn the internal point-kind slugs into short human labels.
 function prettyPointKind(k) {
-  return ({
-    chanted: "chanted today",
-    follow_up: "follow-ups",
-    njy_attend: "NJY attends",
-    perfect_day: "perfect day",
-    chant_days: "chant days",
-    follow_ups: "follow-ups",
-    njy_attends: "NJY attends",
-    njy_triple: "3-NJY streak",
-    jm_entries: "Janmashtami entries",
-    jm_daily_commits: "daily commits",
-    milestone_35_one_month: "milestone 35 one-month",
-    milestone_16_njy2: "milestone 16 NJY-2",
-    milestone_12_njy3: "milestone 12 NJY-3",
-    coords_in_team: "coords in team",
-    coords_scoring: "coords scoring",
-    sum_of_coord_pts: "team total",
-  })[k] || k.replace(/_/g, " ");
+  const key = "pk." + k;
+  const translated = t(key);
+  return translated !== key ? translated : k.replace(/_/g, " ");
 }
 
 // ---------------------------------------------------- Profile ---
@@ -3237,26 +3189,25 @@ async function renderProfile(userId) {
     loader.remove();
     const daily = dailyRes.rows.find(r => r.user_id === target);
     const overall = overallRes.rows.find(r => r.user_id === target);
-    const name = daily?.name || overall?.name || ME.display_name || "Coordinator";
+    const name = daily?.name || overall?.name || ME.display_name || t("team.coordinator_fallback");
     const dailyRankIdx = dailyRes.rows.findIndex(r => r.user_id === target);
     const overallRankIdx = overallRes.rows.findIndex(r => r.user_id === target);
     const dailyRank = dailyRankIdx >= 0 ? dailyRankIdx + 1 : 0;
     const overallRank = overallRankIdx >= 0 ? overallRankIdx + 1 : 0;
     if (boardsUnavailable) {
-      view.append(el("p", { class: "hint" },
-        "Leaderboards aren't available for your role — showing the rest of your profile."));
+      view.append(el("p", { class: "hint" }, t("lb.leaders_unavailable")));
     }
 
     view.append(el("div", { class: "spread" },
       el("h3", { class: "section", style: "margin:0" }, name),
-      el("a", { class: "btn", href: "#/leaderboard/overall" }, "← Back to leaderboard"),
+      el("a", { class: "btn", href: "#/leaderboard/overall" }, t("lb.back_to_lb")),
     ));
 
     // Show the coord's own NJY Leader so they know who to escalate to.
     // Only meaningful when viewing your OWN profile (userId undefined).
     if (!userId && ME.manager_display_name) {
       view.append(el("p", { class: "hint", style: "margin:.2rem 0 .8rem" },
-        "Your NJY Leader: ", el("strong", {}, ME.manager_display_name),
+        t("hd.your_leader_prefix") + " ", el("strong", {}, ME.manager_display_name),
       ));
     }
 
@@ -3265,27 +3216,27 @@ async function renderProfile(userId) {
     kpis.append(
       el("div", { class: "cell" },
         el("div", { class: "n" }, String(daily?.pts || 0)),
-        el("div", { class: "k" }, "Today's points")),
+        el("div", { class: "k" }, t("lb.kpi_today_pts"))),
       el("div", { class: "cell" },
         el("div", { class: "n" }, String(overall?.pts || 0)),
-        el("div", { class: "k" }, "Overall points")),
+        el("div", { class: "k" }, t("lb.kpi_overall_pts"))),
       el("div", { class: "cell" },
         el("div", { class: "n" }, dailyRank ? `#${dailyRank}` : "—"),
-        el("div", { class: "k" }, "Rank today")),
+        el("div", { class: "k" }, t("lb.kpi_rank_today"))),
       el("div", { class: "cell" },
         el("div", { class: "n" }, overallRank ? `#${overallRank}` : "—"),
-        el("div", { class: "k" }, "Rank overall")),
+        el("div", { class: "k" }, t("lb.kpi_rank_overall"))),
     );
     view.append(kpis);
 
     // Two breakdown lists, side by side on desktop / stacked on phone.
     const grid = el("div", { class: "grid2", style: "margin-top:1rem" });
-    grid.append(pointsBreakdownCard("Today", daily?.breakdown));
-    grid.append(pointsBreakdownCard("Overall (P1+P2)", overall?.breakdown));
+    grid.append(pointsBreakdownCard(t("lb.today_col"), daily?.breakdown));
+    grid.append(pointsBreakdownCard(t("lb.overall_col"), overall?.breakdown));
     view.append(grid);
 
     view.append(el("p", { style: "margin-top:1rem" },
-      el("a", { class: "btn", href: "#/points-rules" }, "See full points rules →"),
+      el("a", { class: "btn", href: "#/points-rules" }, t("lb.see_full_rules")),
     ));
   } catch (err) {
     loader.remove();
@@ -3305,7 +3256,7 @@ function pointsBreakdownCard(title, breakdown) {
   for (const b of breakdown) {
     ul.append(el("li", {},
       el("div", {}, el("strong", {}, prettyPointKind(b.k)),
-        el("div", { class: "hint" }, b.n ? `${b.n} × action` : "milestone")),
+        el("div", { class: "hint" }, b.n ? `${b.n} ${t("lb.action_suffix")}` : t("lb.milestone"))),
       el("span", { class: "score" }, `+${b.pts}`),
       el("span", {}),
     ));
@@ -3325,43 +3276,43 @@ function renderPointsRules(view) {
 
   const daily = el("div", { class: "card" });
   daily.append(
-    el("h3", { class: "section", style: "margin-top:0" }, "Daily leaderboard (resets midnight IST)"),
+    el("h3", { class: "section", style: "margin-top:0" }, t("rules.daily_hd")),
     el("ul", { class: "list" },
-      pointRow("Chanter marked chanted today", "+10"),
-      pointRow("Follow-up (contact-state change today)", "+5"),
-      pointRow("Chanter attended an NJY event", "+50"),
-      pointRow("Same chanter attended ALL 3 NJYs (one-time)", "+100"),
-      pointRow("Chanter hits 7-day chanting streak", "+20"),
-      pointRow("Chanter hits 30-day chanting streak", "+50"),
-      pointRow("Perfect day — all your chanters chanted today", "+50"),
+      pointRow(t("rules.daily_row1"), "+10"),
+      pointRow(t("rules.daily_row2"), "+5"),
+      pointRow(t("rules.daily_row3"), "+50"),
+      pointRow(t("rules.daily_row4"), "+100"),
+      pointRow(t("rules.daily_row5"), "+20"),
+      pointRow(t("rules.daily_row6"), "+50"),
+      pointRow(t("rules.daily_row7"), "+50"),
     ),
   );
   view.append(daily);
 
   const overall = el("div", { class: "card" });
   overall.append(
-    el("h3", { class: "section", style: "margin-top:0" }, "Overall leaderboard (cumulative P1 + P2)"),
-    el("p", { class: "hint" }, "Everything above accumulates. Plus these one-off Janmashtami-day bonuses:"),
-    el("h3", { class: "section" }, "Janmashtami entries"),
+    el("h3", { class: "section", style: "margin-top:0" }, t("rules.overall_hd")),
+    el("p", { class: "hint" }, t("rules.overall_intro")),
+    el("h3", { class: "section" }, t("rules.jm_hd")),
     el("ul", { class: "list" },
-      pointRow("Each new person entered", "+5"),
-      pointRow("Tier bonus at 25 entries", "+25"),
-      pointRow("Tier bonus at 50 entries", "+50"),
-      pointRow("Tier bonus at 75 entries", "+75"),
-      pointRow("Tier bonus at 100 entries", "+100"),
+      pointRow(t("rules.jm_row1"), "+5"),
+      pointRow(t("rules.jm_row2"), "+25"),
+      pointRow(t("rules.jm_row3"), "+50"),
+      pointRow(t("rules.jm_row4"), "+75"),
+      pointRow(t("rules.jm_row5"), "+100"),
     ),
-    el("h3", { class: "section" }, "Daily-chanter commits (on Janmashtami)"),
+    el("h3", { class: "section" }, t("rules.commits_hd")),
     el("ul", { class: "list" },
-      pointRow("Each person set to daily on Janmashtami", "+10"),
-      pointRow("Tier bonus at 15 daily commits", "+30"),
-      pointRow("Tier bonus at 25 daily commits", "+50"),
-      pointRow("Tier bonus at 50 daily commits", "+100"),
+      pointRow(t("rules.commits_row1"), "+10"),
+      pointRow(t("rules.commits_row2"), "+30"),
+      pointRow(t("rules.commits_row3"), "+50"),
+      pointRow(t("rules.commits_row4"), "+100"),
     ),
-    el("h3", { class: "section" }, "Milestones (one-off, permanent)"),
+    el("h3", { class: "section" }, t("rules.milestones_hd")),
     el("ul", { class: "list" },
-      pointRow("35 of your 50 chanters stayed daily for a month", "+200"),
-      pointRow("16 of your 50 attended NJY 2", "+200"),
-      pointRow("12 of your 50 attended NJY 3", "+400"),
+      pointRow(t("rules.milestones_row1"), "+200"),
+      pointRow(t("rules.milestones_row2"), "+200"),
+      pointRow(t("rules.milestones_row3"), "+400"),
     ),
   );
   view.append(overall);
@@ -3372,27 +3323,26 @@ function renderPointsRules(view) {
   // their leader's ranking.
   const leader = el("div", { class: "card" });
   leader.append(
-    el("h3", { class: "section", style: "margin-top:0" }, "NJY Leader leaderboard (3-bucket prorated)"),
-    el("p", { class: "hint" },
-      "Leaders don't earn chant points directly — their score is a weighted composite of how their team is doing and their own personal touch. Prorated so a leader with 6 coords isn't penalised vs one with 15."),
-    el("h3", { class: "section" }, "Team Performance — 60%"),
-    el("p", { class: "hint" }, "Average points per coord (sum of your coords' points ÷ number of coords). Rewards balanced strong teams."),
-    el("h3", { class: "section" }, "Team Coverage — 25%"),
-    el("p", { class: "hint" }, "Percentage of your coords who did anything today (any chant, follow-up, or event). 8 of your 10 coords active → 80%."),
-    el("h3", { class: "section" }, "Leader Touch — 15%"),
-    el("p", { class: "hint" }, "Your own actions this day:"),
+    el("h3", { class: "section", style: "margin-top:0" }, t("rules.leader_hd")),
+    el("p", { class: "hint" }, t("rules.leader_intro")),
+    el("h3", { class: "section" }, t("rules.leader_perf_hd")),
+    el("p", { class: "hint" }, t("rules.leader_perf_desc")),
+    el("h3", { class: "section" }, t("rules.leader_cov_hd")),
+    el("p", { class: "hint" }, t("rules.leader_cov_desc")),
+    el("h3", { class: "section" }, t("rules.leader_touch_hd")),
+    el("p", { class: "hint" }, t("rules.leader_touch_desc")),
     el("ul", { class: "list" },
-      pointRow("Fired broadcast to your coords (once/day)", "+5"),
-      pointRow("Updated your coord-group WhatsApp (once/day)", "+5"),
-      pointRow("Contacted a coord via mesh WA — Sent ✓ tap (cap 3/day)", "+3"),
-      pointRow("Attended an event in person (per event)", "+10"),
-      pointRow("Onboarded a new coord (per coord, one-time)", "+5"),
+      pointRow(t("rules.leader_row1"), "+5"),
+      pointRow(t("rules.leader_row2"), "+5"),
+      pointRow(t("rules.leader_row3"), "+3"),
+      pointRow(t("rules.leader_row4"), "+10"),
+      pointRow(t("rules.leader_row5"), "+5"),
     ),
   );
   view.append(leader);
 
   view.append(el("p", { style: "margin-top:1rem" },
-    el("a", { class: "btn", href: "#/leaderboard/overall" }, "← Back to leaderboard"),
+    el("a", { class: "btn", href: "#/leaderboard/overall" }, t("lb.back_to_lb")),
   ));
 }
 
@@ -3431,11 +3381,11 @@ async function renderJanmashtami(view) {
       progressWrap.innerHTML = "";
       const b1 = el("span", { class: "tier-badge" },
         el("span", { class: "num" }, String(p.entries_today)),
-        p.next_entry_tier ? ` entries — next tier at ${p.next_entry_tier}` : " entries",
+        p.next_entry_tier ? `${t("jm.entries_next_prefix")}${p.next_entry_tier}` : t("jm.entries_suffix"),
       );
       const b2 = el("span", { class: "tier-badge warm" },
         el("span", { class: "num" }, String(p.committed_today)),
-        p.next_commit_tier ? ` daily-commits — next tier at ${p.next_commit_tier}` : " daily-commits",
+        p.next_commit_tier ? `${t("jm.commits_next_prefix")}${p.next_commit_tier}` : t("jm.commits_suffix"),
       );
       progressWrap.append(b1, b2);
     } catch (err) { /* silent */ }
@@ -3447,7 +3397,7 @@ async function renderJanmashtami(view) {
   cardA.append(el("h3", { class: "section" }, t("hd.quick_add")));
   cardA.append(el("p", { class: "hint" }, t("help.quick_add")));
   const form = el("form", { class: "rapid-form", method: "post", action: "javascript:void(0)" });
-  const couponI = el("input", { placeholder: "e.g. 1234", required: true, inputmode: "numeric", autocomplete: "off" });
+  const couponI = el("input", { placeholder: t("jm.ph_coupon"), required: true, inputmode: "numeric", autocomplete: "off" });
   const nameI = el("input", { placeholder: t("field.name"), required: true, autocapitalize: "words" });
   const mobI  = el("input", { placeholder: t("field.mobile"), required: true, inputmode: "tel" });
   const pinI  = el("input", { placeholder: t("field.pincode"), inputmode: "numeric" });
@@ -3467,13 +3417,13 @@ async function renderJanmashtami(view) {
   form.onsubmit = async (e) => {
     e.preventDefault();
     submitBtn.disabled = true;
-    feedback.textContent = "Saving…";
+    feedback.textContent = t("jm.saving");
     try {
       const r = await api("/api/janmashtami/entry", { method: "POST", body: JSON.stringify({
         coupon_no: couponI.value, name: nameI.value, mobile: mobI.value, pincode: pinI.value,
       }) });
       const p = r.person;
-      feedback.textContent = `Saved · coupon ${p.sl_no} · ${p.legal_name}`;
+      feedback.textContent = `${t("jm.saved_prefix")}${p.sl_no}${t("jm.saved_infix")}${p.legal_name}`;
       recentUl.prepend(el("li", {},
         el("div", {}, el("strong", {}, p.legal_name),
           el("div", { class: "hint" }, `coupon ${p.sl_no} · ${p.phone}${p.pincode ? " · " + p.pincode : ""}`)),
@@ -3483,7 +3433,7 @@ async function renderJanmashtami(view) {
       couponI.focus();
       refreshProgress();
     } catch (err) {
-      feedback.textContent = "Error: " + (err.body?.hint || err.message);
+      feedback.textContent = t("jm.error_prefix") + (err.body?.hint || err.message);
     } finally {
       submitBtn.disabled = false;
     }
@@ -3496,7 +3446,7 @@ async function renderJanmashtami(view) {
   cardB.append(excelUploadWidget({
     templateGateKey: "janmashtami_download_template",
     commitGateKey:   "janmashtami_commit_import",
-    helperText: "Attach a .xlsx or .csv file. Columns: coupon_no, name, mobile, pincode, is_daily (optional 'yes'/'no'). Preview → confirm.",
+    helperText: t("jm.upload_help"),
     mapRow: (row) => ({
       coupon_no: String(row.coupon_no || row.coupon || row.Coupon || row["Coupon #"] || row["Coupon No"] || "").trim(),
       name: String(row.name || row.Name || row.NAME || "").trim(),
@@ -3518,10 +3468,10 @@ async function renderJanmashtami(view) {
   cardC.append(
     el("h3", { class: "section" }, t("hd.paste_excel")),
     el("p", { class: "hint" }, t("help.paste_excel")),
-    formField("Paste here", el("textarea", { id: "jm-paste", rows: "6",
-      placeholder: "1\tRavi\t9876543210\t625001\tyes\n2\tPriya\t9876543211\t625002\tno" })),
+    formField(t("hd.paste_excel"), el("textarea", { id: "jm-paste", rows: "6",
+      placeholder: t("jm.ph_paste") })),
     el("p", {},
-      el("button", { class: "primary", type: "button", id: "jm-paste-go" }, "Import"),
+      el("button", { class: "primary", type: "button", id: "jm-paste-go" }, t("btn.import")),
       " ", el("span", { class: "hint", id: "jm-paste-msg" }),
     ),
   );
@@ -3551,7 +3501,7 @@ async function renderJanmashtami(view) {
     }).filter(r => r.name && r.mobile);
     try {
       const r = await api("/api/janmashtami/bulk", { method: "POST", body: JSON.stringify({ rows }) });
-      $("jm-paste-msg").textContent = `Imported ${r.created} · ${r.errors.length} error(s)`;
+      $("jm-paste-msg").textContent = `${t("jm.imported_prefix")}${r.created}${t("jm.imported_infix")}${r.errors.length}${t("jm.imported_suffix")}`;
       $("jm-paste").value = "";
       refreshProgress();
       loadTodayEntries();
@@ -3618,7 +3568,7 @@ async function renderSettings(view) {
     } catch (err) {
       pwMsg.textContent = err.body?.error === "wrong_current_password"
         ? t("msg.pw_wrong_current")
-        : (err.message || "Could not update.");
+        : (err.message || t("st.could_not_update"));
     }
   };
   if (can("settings_change_password")) view.append(pwCard);
@@ -3642,9 +3592,9 @@ async function renderSettings(view) {
 
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   const daily = el("textarea", { id: "wa-daily", rows: "5",
-    placeholder: "Hare Krsna {name}, did you complete your daily japa today? 🌸" });
+    placeholder: t("bc.default_template") });
   const nondaily = el("textarea", { id: "wa-nondaily", rows: "5",
-    placeholder: "Hare Krsna {name}! Are you interested in daily chanting? Reply YES and we'll share the mantra card." });
+    placeholder: t("bc.default_template") });
   // Emoji-corruption guard. U+FFFD (REPLACEMENT CHARACTER, "�") shows
   // up when a legacy save mangled 4-byte UTF-8 before the charset
   // response-header fix landed. Silently drop the corrupted template
@@ -3670,12 +3620,10 @@ async function renderSettings(view) {
       // devices they do; on others they don't — the button lets the
       // coord decide for themselves rather than us guessing.
       el("button", { type: "button", class: "btn", id: "wa-test-emoji" },
-        t("btn.test_emoji") || "Test emoji"),
+        t("btn.test_emoji") || t("st.test_emoji_label")),
       " ", el("span", { class: "hint", id: "wa-msg" }),
     ),
-    el("p", { class: "hint", style: "margin-top:.4rem" },
-      t("hint.emoji_test") ||
-      "Tap Test emoji to open WhatsApp with 🌸 🙏 pre-filled. If those show as ? on your phone, WhatsApp on your device doesn't render 4-byte emojis — keep templates emoji-free."),
+    el("p", { class: "hint", style: "margin-top:.4rem" }, t("st.emoji_hint")),
   );
   card.onsubmit = async (e) => {
     e.preventDefault();
@@ -3683,8 +3631,7 @@ async function renderSettings(view) {
     // means the input never round-tripped the browser's encoding
     // correctly to begin with, and saving would re-poison the row.
     if (isCorrupt(daily.value) || isCorrupt(nondaily.value)) {
-      $("wa-msg").textContent =
-        "Template contains encoding-corrupted characters (�) — remove them or clear the box and re-type before saving.";
+      $("wa-msg").textContent = t("st.corrupt_encoding");
       return;
     }
     try {
@@ -3695,7 +3642,7 @@ async function renderSettings(view) {
       ME.wa_template_nondaily = nondaily.value;
       $("wa-msg").textContent = t("msg.saved");
     } catch (err) {
-      $("wa-msg").textContent = err.message || "Save failed";
+      $("wa-msg").textContent = err.message || t("st.save_failed");
     }
   };
   if (can("settings_wa_templates")) {
@@ -3705,9 +3652,8 @@ async function renderSettings(view) {
     if (wasCorrupt) {
       view.append(el("div", { class: "card",
         style: "border-color:var(--mark-attention);background:var(--tint-attention);margin-bottom:.5rem" },
-        el("strong", {}, "Your saved WhatsApp template had encoding issues and was reset."),
-        el("p", { class: "hint", style: "margin:.3rem 0 0" },
-          "Please retype your message below and hit Save. Emojis (🌸 🙏) render correctly now that the server preserves UTF-8."),
+        el("strong", {}, t("st.corrupt_banner")),
+        el("p", { class: "hint", style: "margin:.3rem 0 0" }, t("st.corrupt_hint")),
       ));
     }
     view.append(card);
@@ -3734,11 +3680,11 @@ async function renderAdmin(tab) {
   // sub-tabs their gate allows show up here — and route access is
   // guarded below in case they hit the URL directly.
   const subGates = [
-    { key: "gates",       gate: "admin_gates",           label: "Feature gates",      render: renderAdminGates },
-    { key: "users",       gate: "admin_users",           label: "Users",              render: renderAdminUsers },
-    { key: "users-bulk",  gate: "admin_users_bulk",      label: "Bulk create users",  render: renderAdminUsersBulk },
-    { key: "import",      gate: "admin_import_chanters", label: "Bulk import chanters", render: renderAdminImport },
-    { key: "events",      gate: "admin_events",          label: "Events",             render: renderAdminEvents },
+    { key: "gates",       gate: "admin_gates",           label: t("admin.tab_gates"),       render: renderAdminGates },
+    { key: "users",       gate: "admin_users",           label: t("admin.tab_users"),       render: renderAdminUsers },
+    { key: "users-bulk",  gate: "admin_users_bulk",      label: t("admin.tab_users_bulk"),  render: renderAdminUsersBulk },
+    { key: "import",      gate: "admin_import_chanters", label: t("admin.tab_import"),      render: renderAdminImport },
+    { key: "events",      gate: "admin_events",          label: t("admin.tab_events"),      render: renderAdminEvents },
   ];
   const visible = subGates.filter(s => can(s.gate));
   const target = subGates.find(s => s.key === tab) || subGates[0];
@@ -3752,13 +3698,7 @@ async function renderAdmin(tab) {
     return;
   }
   view.append(el("h2", { class: "section" }, t("hd.admin")));
-  view.append(helpBanner(
-    "Administrative controls — HK Leader only. Feature gates toggle " +
-    "which roles see which parts of the app (no redeploy needed). " +
-    "Users lets you create logins and assign SL ranges. Bulk import " +
-    "brings chanter lists in from Excel. Events lets you create NJY / " +
-    "BG sessions with their real dates."
-  ));
+  view.append(helpBanner(t("admin.help_banner")));
   const tabs = el("div", { class: "nav", style: "border:none" });
   const mkTab = (key, label) => el("a", { class: tab === key ? "active" : "", href: `#/admin/${key}` }, label);
   for (const s of visible) tabs.append(mkTab(s.key, s.label));
@@ -3775,12 +3715,12 @@ async function renderAdminUsersBulk(view) {
   const upload = el("div", { class: "card" });
   upload.append(el("h3", { class: "section", style: "margin-top:0" }, t("hd.upload_excel_csv")));
   upload.append(excelUploadWidget({
-    helperText: "Columns: username, password, display_name, phone, role, manager_username.",
+    helperText: t("admin.users_bulk_cols"),
     templateBuilder: downloadUsersTemplate,
     templateLabel: t("btn.download_users_template"),
     isValidRow: (r) => r.username && r.display_name,
-    emptyMessage: "No usable rows found. Make sure the file has 'username' and 'display_name' columns filled in.",
-    previewCols: ["Username", "Display name", "Role", "Phone", "Manager"],
+    emptyMessage: t("xl.no_usable_users"),
+    previewCols: [t("xl.col_username"), t("xl.col_display_name"), t("xl.col_role"), t("xl.col_phone"), t("xl.col_manager")],
     previewRow: (r) => [r.username, r.display_name, r.role, r.phone, r.manager_username],
     mapRow: (row) => ({
       username: String(row.username || row.Username || "").trim(),
@@ -3802,8 +3742,8 @@ async function renderAdminUsersBulk(view) {
   paste.append(
     el("h3", { class: "section", style: "margin-top:0" }, t("hd.paste_rows")),
     el("p", { class: "hint" }, t("help.admin_paste_users")),
-    formField("Paste", el("textarea", { id: "ub-paste", rows: "8",
-      placeholder: "leader1\tpass123\tRadha Priya\t9876500001\tnjy_leader\t\ncoord01\tpass123\tSri Coord\t9876500002\tnjy_coordinator\tleader1" })),
+    formField(t("hd.paste_rows"), el("textarea", { id: "ub-paste", rows: "8",
+      placeholder: t("admin.users_bulk_paste_ph") })),
     el("p", {}, el("button", { class: "primary", type: "button", id: "ub-go" }, t("btn.import")),
       " ", el("span", { class: "hint", id: "ub-msg" })),
     el("pre", { id: "ub-out", style: "font-family:var(--font-mono);font-size:.75rem;color:var(--muted);white-space:pre-wrap" }),
@@ -3825,7 +3765,7 @@ async function renderAdminUsersBulk(view) {
     }).filter(r => r.username);
     try {
       const r = await api("/api/admin/users/bulk", { method: "POST", body: JSON.stringify({ rows }) });
-      $("ub-msg").textContent = `Created ${r.created.length} · ${r.errors.length} error(s)`;
+      $("ub-msg").textContent = `${t("admin.record_created_prefix")}${r.created.length}${t("xl.errors_middle")}${r.errors.length}${t("xl.errors_suffix")}`;
       $("ub-out").textContent = JSON.stringify(r, null, 2);
     } catch (err) { $("ub-msg").textContent = err.message; }
   });
@@ -3892,14 +3832,14 @@ async function renderAdminGates(view) {
   if (myToken !== routeToken) return;
 
   const ROLES = [
-    { key: "hk_leader",       label: "HK" },
-    { key: "njy_leader",      label: "Leader" },
-    { key: "njy_coordinator", label: "Coord" },
-    { key: "servant_leader",  label: "SL" },
-    { key: "circle_servant",  label: "CS" },
-    { key: "sector_servant",  label: "SS" },
-    { key: "manjari_servant_leader", label: "MSL" },
-    { key: "member",          label: "Member" },
+    { key: "hk_leader",       label: t("admin.role_hk") },
+    { key: "njy_leader",      label: t("admin.role_leader") },
+    { key: "njy_coordinator", label: t("admin.role_coord") },
+    { key: "servant_leader",  label: t("admin.role_sl") },
+    { key: "circle_servant",  label: t("admin.role_cs") },
+    { key: "sector_servant",  label: t("admin.role_ss") },
+    { key: "manjari_servant_leader", label: t("admin.role_msl") },
+    { key: "member",          label: t("admin.role_member") },
   ];
 
   // Working copy — user edits this, then hits Save on a section.
@@ -3920,13 +3860,11 @@ async function renderAdminGates(view) {
   }
 
   view.append(el("h3", { class: "section" }, t("hd.feature_visibility")));
-  view.append(el("p", { class: "hint" },
-    "Toggle a role checkbox to grant/revoke access. Click Save section to commit. " +
-    "HK Leader implicitly sees every feature regardless of the checkbox."));
+  view.append(el("p", { class: "hint" }, t("admin.gates_hint")));
 
   // Search box (filters section rows by key or description)
   const search = el("input", {
-    placeholder: "Filter gates (e.g. janmashtami, wa_group, upload)",
+    placeholder: t("admin.gates_filter_ph"),
     style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px;margin:.4rem 0 1rem",
     id: "gate-search",
   });
@@ -3943,7 +3881,7 @@ async function renderAdminGates(view) {
     if (!keys.length) return null;
     const card = el("div", { class: "card", "data-section": title });
     card.append(el("h3", { class: "section", style: "margin-top:0" }, title,
-      el("span", { class: "hint", style: "margin-left:.5rem;font-weight:400" }, `${keys.length} gate${keys.length === 1 ? "" : "s"}`)));
+      el("span", { class: "hint", style: "margin-left:.5rem;font-weight:400" }, `${keys.length}${keys.length === 1 ? t("admin.gate_count_suffix") : t("admin.gate_count_suffix_plural")}`)));
 
     for (const key of keys.sort()) {
       const rowEl = el("div", {
@@ -3972,7 +3910,7 @@ async function renderAdminGates(view) {
           dirty.add(key);
           rowEl.style.background = "var(--tint-followed, #fff8e1)";
           saveBtn.disabled = false;
-          globalMsg.textContent = `${dirty.size} unsaved change${dirty.size === 1 ? "" : "s"}`;
+          globalMsg.textContent = `${dirty.size}${dirty.size === 1 ? t("admin.unsaved_singular") : t("admin.unsaved_plural")}`;
         });
         chip.append(cb, el("span", {}, r.label));
         chips.append(chip);
@@ -3989,18 +3927,18 @@ async function renderAdminGates(view) {
         .filter(k => dirty.has(k))
         .map(k => ({ feature_key: k, allowed_roles: state[k] }));
       if (!changes.length) return;
-      saveBtn.disabled = true; msg.textContent = "Saving…";
+      saveBtn.disabled = true; msg.textContent = t("admin.saving");
       try {
         await api("/api/admin/feature-gates/bulk", {
           method: "POST", body: JSON.stringify({ changes }),
         });
         for (const c of changes) dirty.delete(c.feature_key);
-        msg.textContent = `Saved ${changes.length}.`;
+        msg.textContent = `${t("admin.saved_prefix")}${changes.length}${t("admin.saved_suffix")}`;
         // clear highlight on saved rows
         card.querySelectorAll(".gate-row").forEach(el2 => el2.style.background = "");
-        globalMsg.textContent = dirty.size ? `${dirty.size} unsaved change(s) in other sections` : "";
+        globalMsg.textContent = dirty.size ? `${dirty.size}${t("admin.unsaved_other_suffix")}` : "";
       } catch (err) {
-        msg.textContent = "Error: " + err.message;
+        msg.textContent = t("admin.error_prefix") + err.message;
         saveBtn.disabled = false;
       }
     });
@@ -4011,19 +3949,21 @@ async function renderAdminGates(view) {
 
   // Global save-all: fire one bulk request for every dirty key
   globalSave.addEventListener("click", async () => {
-    if (!dirty.size) { globalMsg.textContent = "No changes."; return; }
-    globalSave.disabled = true; globalMsg.textContent = "Saving all…";
+    if (!dirty.size) { globalMsg.textContent = t("admin.no_changes"); return; }
+    globalSave.disabled = true; globalMsg.textContent = t("admin.saving_all");
     try {
       const changes = [...dirty].map(k => ({ feature_key: k, allowed_roles: state[k] }));
       await api("/api/admin/feature-gates/bulk", {
         method: "POST", body: JSON.stringify({ changes }),
       });
       dirty.clear();
-      globalMsg.textContent = `Saved ${changes.length}.`;
+      globalMsg.textContent = `${t("admin.saved_prefix")}${changes.length}${t("admin.saved_suffix")}`;
       view.querySelectorAll(".gate-row").forEach(el2 => el2.style.background = "");
-      view.querySelectorAll('button[type="button"]').forEach(b => { if (b.textContent === "Save section") b.disabled = true; });
+      // Disable every "Save section" button by matching the translated label.
+      const saveSectionLabel = t("btn.save_section");
+      view.querySelectorAll('button[type="button"]').forEach(b => { if (b.textContent === saveSectionLabel) b.disabled = true; });
     } catch (err) {
-      globalMsg.textContent = "Error: " + err.message;
+      globalMsg.textContent = t("admin.error_prefix") + err.message;
     } finally {
       globalSave.disabled = false;
     }
@@ -4063,12 +4003,12 @@ async function renderAdminUsers(view) {
     const ul = el("ul", { class: "list" });
     for (const u of users) {
       const rangeText = (u.sl_range_start != null && u.sl_range_end != null)
-        ? ` · sl ${u.sl_range_start}-${u.sl_range_end}` : "";
+        ? `${t("admin.sl_range_prefix")}${u.sl_range_start}-${u.sl_range_end}` : "";
       const mgr = users.find(x => x.id === u.manager_user_id);
-      const mgrText = mgr ? ` · under ${mgr.display_name || mgr.username}` : "";
+      const mgrText = mgr ? `${t("admin.under_prefix")}${mgr.display_name || mgr.username}` : "";
       const li = el("li", {},
         el("div", {}, el("strong", {}, u.display_name || u.username),
-          el("div", { class: "hint" }, `${u.username}${rangeText}${mgrText}${u.active ? "" : " · (inactive)"}`)),
+          el("div", { class: "hint" }, `${u.username}${rangeText}${mgrText}${u.active ? "" : t("admin.inactive_suffix")}`)),
         el("span", { class: "pill" }, humanRole(u.role)),
         el("button", { class: "mini-btn" }, t("btn.edit_short")),
       );
@@ -4080,14 +4020,14 @@ async function renderAdminUsers(view) {
         const nm = el("input", { value: u.display_name || "" });
         const rl = el("select", {}, ...ROLES.map(r =>
           el("option", { value: r, selected: r === u.role ? true : undefined }, humanRole(r))));
-        const pw = el("input", { type: "password", placeholder: "(leave blank to keep)" });
+        const pw = el("input", { type: "password", placeholder: t("admin.pw_ph_keep") });
         const act = el("select", {},
-          el("option", { value: "1", selected: u.active ? true : undefined }, "Active"),
-          el("option", { value: "0", selected: !u.active ? true : undefined }, "Inactive"),
+          el("option", { value: "1", selected: u.active ? true : undefined }, t("opt.active")),
+          el("option", { value: "0", selected: !u.active ? true : undefined }, t("opt.inactive")),
         );
-        const rs = el("input", { type: "number", value: u.sl_range_start ?? "", placeholder: "e.g. 10000" });
-        const re = el("input", { type: "number", value: u.sl_range_end ?? "", placeholder: "e.g. 10099" });
-        const autoBtn = el("button", { class: "mini-btn", type: "button" }, "Auto-fill next range");
+        const rs = el("input", { type: "number", value: u.sl_range_start ?? "", placeholder: t("admin.ph_sl_start") });
+        const re = el("input", { type: "number", value: u.sl_range_end ?? "", placeholder: t("admin.ph_sl_end") });
+        const autoBtn = el("button", { class: "mini-btn", type: "button" }, t("btn.autofill_range"));
         autoBtn.addEventListener("click", async () => {
           try {
             const r = await api("/api/admin/next-sl-range");
@@ -4135,37 +4075,37 @@ async function renderAdminUsers(view) {
     const leaders = users.filter(u => u.role === "njy_leader" && u.active);
     const form = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
     const roleSel = el("select", { id: "u-role" },
-      el("option", { value: "njy_coordinator" }, "NJY Group Coordinator"),
-      el("option", { value: "njy_leader" }, "NJY Leader"),
-      el("option", { value: "servant_leader" }, "Servant Leader"),
-      el("option", { value: "sector_servant" }, "Sector Servant"),
-      el("option", { value: "circle_servant" }, "Circle Servant"),
-      el("option", { value: "hk_leader" }, "HK Leader"),
+      el("option", { value: "njy_coordinator" }, t("admin.opt_njy_coord")),
+      el("option", { value: "njy_leader" }, t("admin.opt_njy_leader")),
+      el("option", { value: "servant_leader" }, t("admin.opt_servant_leader")),
+      el("option", { value: "sector_servant" }, t("admin.opt_sector_servant")),
+      el("option", { value: "circle_servant" }, t("admin.opt_circle_servant")),
+      el("option", { value: "hk_leader" }, t("admin.opt_hk_leader")),
     );
     const mgrSel = el("select", { id: "u-manager" },
       el("option", { value: "" }, "— no manager —"),
       ...leaders.map(l => el("option", { value: l.username }, l.display_name || l.username)),
     );
     const mgrRow = el("div", { id: "u-manager-row" },
-      formField("Manager (NJY Leader)", mgrSel),
+      formField(t("admin.user_field_mgr"), mgrSel),
     );
     const updateMgrVisibility = () => {
       mgrRow.style.display = (roleSel.value === "njy_coordinator") ? "" : "none";
     };
     roleSel.addEventListener("change", updateMgrVisibility);
     form.append(
-      el("h3", { class: "section" }, "New user"),
+      el("h3", { class: "section" }, t("hd.new_user")),
       el("p", { class: "hint" }, t("help.new_user")),
       el("div", { class: "grid2" },
-        formField("Username", el("input", { id: "u-name", required: true, autocapitalize: "none", autocomplete: "off" })),
-        formField("Display name", el("input", { id: "u-display", required: true })),
+        formField(t("admin.user_field_username"), el("input", { id: "u-name", required: true, autocapitalize: "none", autocomplete: "off" })),
+        formField(t("admin.user_field_display"), el("input", { id: "u-display", required: true })),
       ),
       el("div", { class: "grid2" },
-        formField("Password", el("input", { id: "u-pass", type: "password", required: true })),
-        formField("Phone", el("input", { id: "u-phone", inputmode: "numeric", placeholder: "10-digit or +91…" })),
+        formField(t("admin.user_field_password"), el("input", { id: "u-pass", type: "password", required: true })),
+        formField(t("admin.user_field_phone"), el("input", { id: "u-phone", inputmode: "numeric", placeholder: t("admin.user_ph_phone") })),
       ),
       el("div", { class: "grid2" },
-        formField("Role", roleSel),
+        formField(t("admin.user_field_role"), roleSel),
         mgrRow,
       ),
       el("p", {}, el("button", { class: "primary", type: "submit" }, t("btn.create_user")),
@@ -4184,11 +4124,11 @@ async function renderAdminUsers(view) {
       };
       try {
         await api("/api/admin/users", { method: "POST", body: JSON.stringify(body) });
-        $("u-msg").textContent = "Created."; renderRoute();
+        $("u-msg").textContent = t("admin.user_created"); renderRoute();
       } catch (err) {
-        $("u-msg").textContent = err.body?.error === "username_taken" ? "That username is already taken."
-          : err.body?.error === "manager_not_found" ? "Manager not found — pick again."
-          : (err.message || "Could not create.");
+        $("u-msg").textContent = err.body?.error === "username_taken" ? t("admin.user_err_username_taken")
+          : err.body?.error === "manager_not_found" ? t("admin.user_err_manager")
+          : (err.message || t("admin.user_err_generic"));
       }
     };
     view.append(form);
@@ -4218,22 +4158,22 @@ async function renderAdminImport(view) {
   // Coordinator picker for the whole batch (fallback when the sheet
   // doesn't specify coord_username per row).
   const coordSel = el("select", { id: "imp-assign-file" },
-    el("option", { value: "" }, "— pick coordinator for this batch (or use coord_username column) —"),
+    el("option", { value: "" }, t("msg.pick_coord_batch")),
     ...coordUsers.map(c => el("option", { value: c.id }, `${c.display_name || c.username} (${c.username})`)),
   );
   uploadCard.append(el("div", { style: "margin:.4rem 0 .7rem" },
     el("label", { style: "display:block;font-size:.85rem;color:var(--muted);margin-bottom:.2rem" },
-      "Assign to coordinator (batch default)"),
+      t("admin.assign_batch_label")),
     coordSel,
   ));
 
   uploadCard.append(excelUploadWidget({
-    helperText: "Attach a .xlsx or .csv file. Columns: coupon_no, name, mobile, pincode, is_daily, coord_username. coord_username per-row wins over the batch dropdown above.",
+    helperText: t("admin.chanters_help"),
     templateBuilder: downloadChanterTemplate,
     templateLabel: t("btn.download_chanters_template"),
     isValidRow: (r) => r.legal_name && r.phone,
-    emptyMessage: "No usable rows found. Make sure the file has 'name' and 'mobile' columns (case-insensitive) with non-empty values.",
-    previewCols: ["Coupon #", "Name", "Mobile", "Pincode", "Daily?", "Coord"],
+    emptyMessage: t("xl.no_usable_chanters"),
+    previewCols: [t("xl.col_coupon"), t("xl.col_name"), t("xl.col_mobile"), t("xl.col_pincode"), t("xl.col_daily"), t("xl.col_coord")],
     previewRow: (r) => [r.coupon_no, r.legal_name, r.phone, r.pincode || "", r.is_daily || "", r.coord_username || ""],
     mapRow: (row) => ({
       legal_name: String(row.legal_name || row.name || row.Name || row.NAME || "").trim(),
@@ -4262,22 +4202,22 @@ async function renderAdminImport(view) {
   // the operator never has to type a raw user id.
   const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
   const pasteCoordSel = el("select", { id: "imp-assign" },
-    el("option", { value: "" }, "— pick coordinator for these pasted rows (or leave blank if coord_username is in the rows) —"),
+    el("option", { value: "" }, t("msg.pick_coord_paste")),
     ...coordUsers.map(c => el("option", { value: c.id }, `${c.display_name || c.username} (${c.username})`)),
   );
   card.append(
     el("h3", { class: "section" }, t("hd.paste_rows")),
     el("p", { class: "hint" }, t("help.admin_paste_chanters")),
-    formField("Paste here", el("textarea", { id: "imp-csv", rows: "12", placeholder: "coupon_no\tname\tmobile\tpincode\tis_daily\tcoord_username\n1001\tRavi\t9999000001\t625001\tyes\tcoord01" })),
+    formField(t("hd.paste_excel"), el("textarea", { id: "imp-csv", rows: "12", placeholder: t("admin.chanters_paste_ph") })),
     el("div", { style: "margin:.4rem 0" },
       el("label", { style: "display:block;font-size:.85rem;color:var(--muted);margin-bottom:.2rem" },
-        "Assign to coordinator (batch default)"),
+        t("admin.assign_batch_label")),
       pasteCoordSel,
     ),
     el("p", {},
-      el("button", { class: "ghost", type: "button", id: "imp-preview" }, "Preview"),
+      el("button", { class: "ghost", type: "button", id: "imp-preview" }, t("btn.preview")),
       " ",
-      el("button", { class: "primary", type: "submit" }, "Commit"),
+      el("button", { class: "primary", type: "submit" }, t("btn.commit")),
       " ", el("span", { class: "hint", id: "imp-msg" }),
     ),
     el("pre", { id: "imp-out", style: "font-family:var(--font-mono);font-size:.8rem;white-space:pre-wrap;color:var(--muted);margin-top:1rem" }),
@@ -4325,7 +4265,7 @@ async function renderAdminImport(view) {
         rows, assigned_to_user_id: pasteCoordSel.value || null,
       }) });
       $("imp-out").textContent = JSON.stringify(r, null, 2);
-      $("imp-msg").textContent = `Created ${r.created} record(s).`;
+      $("imp-msg").textContent = `${t("admin.record_created_prefix")}${r.created}${t("admin.record_created_suffix")}`;
     } catch (err) { $("imp-msg").textContent = err.message; }
   };
   view.append(card);
@@ -4341,12 +4281,12 @@ async function renderAdminEvents(view) {
       for (const e of events) {
         const li = el("li", {},
           el("div", {}, el("strong", {}, e.name),
-            el("div", { class: "hint" }, `${e.kind} · ${e.event_date}${e.venue ? " · " + esc(e.venue) : ""}${e.batch_number ? " · batch " + e.batch_number : ""}`)),
-          el("span", { class: "pill" }, e.capacity ? `cap ${e.capacity}` : ""),
+            el("div", { class: "hint" }, `${e.kind} · ${e.event_date}${e.venue ? " · " + esc(e.venue) : ""}${e.batch_number ? t("admin.batch_prefix") + e.batch_number : ""}`)),
+          el("span", { class: "pill" }, e.capacity ? `${t("admin.cap_prefix")}${e.capacity}` : ""),
           el("div", {}),
         );
         const actions = li.lastChild;
-        const attendance = el("a", { class: "mini-btn", href: `#/events/${e.id}` }, "Attendance");
+        const attendance = el("a", { class: "mini-btn", href: `#/events/${e.id}` }, t("btn.attendance"));
         const del = el("button", { class: "danger", style: "margin-left:.4rem" }, t("btn.delete_short"));
         del.addEventListener("click", async () => {
           if (!confirm(`${t("confirm.delete_event_prefix")} "${e.name}"${t("confirm.delete_event_suffix")}`)) return;
@@ -4363,26 +4303,26 @@ async function renderAdminEvents(view) {
     const form = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
     form.append(
       el("h3", { class: "section" }, t("hd.new_event")),
-      formField("Name", el("input", { id: "ev-name", required: true })),
+      formField(t("admin.ev_field_name"), el("input", { id: "ev-name", required: true })),
       el("div", { class: "grid2" },
-        formField("Kind", el("select", { id: "ev-kind" },
-          el("option", { value: "njy1" }, "NJY 1"),
-          el("option", { value: "njy2" }, "NJY 2"),
-          el("option", { value: "njy3" }, "NJY 3"),
-          el("option", { value: "bg_session" }, "BG session"),
-          el("option", { value: "bvgm" }, "BVGM"),
-          el("option", { value: "children_program" }, "Children program"),
-          el("option", { value: "festival" }, "Festival"),
+        formField(t("admin.ev_field_kind"), el("select", { id: "ev-kind" },
+          el("option", { value: "njy1" }, t("admin.ev_kind_njy1")),
+          el("option", { value: "njy2" }, t("admin.ev_kind_njy2")),
+          el("option", { value: "njy3" }, t("admin.ev_kind_njy3")),
+          el("option", { value: "bg_session" }, t("admin.ev_kind_bg_session")),
+          el("option", { value: "bvgm" }, t("admin.ev_kind_bvgm")),
+          el("option", { value: "children_program" }, t("admin.ev_kind_children")),
+          el("option", { value: "festival" }, t("admin.ev_kind_festival")),
         )),
-        formField("Date", el("input", { id: "ev-date", type: "date", required: true })),
+        formField(t("admin.ev_field_date"), el("input", { id: "ev-date", type: "date", required: true })),
       ),
       el("div", { class: "grid2" },
-        formField("Time", el("input", { id: "ev-time", placeholder: "18:00" })),
-        formField("Venue", el("input", { id: "ev-venue" })),
+        formField(t("admin.ev_field_time"), el("input", { id: "ev-time", placeholder: t("admin.ev_ph_time") })),
+        formField(t("admin.ev_field_venue"), el("input", { id: "ev-venue" })),
       ),
       el("div", { class: "grid2" },
-        formField("Capacity", el("input", { id: "ev-cap", type: "number" })),
-        formField("Batch number", el("input", { id: "ev-batch", type: "number" })),
+        formField(t("admin.ev_field_capacity"), el("input", { id: "ev-cap", type: "number" })),
+        formField(t("admin.ev_field_batch"), el("input", { id: "ev-batch", type: "number" })),
       ),
       el("p", {}, el("button", { class: "primary", type: "submit" }, t("btn.save_event")),
         " ", el("span", { class: "hint", id: "ev-msg" })),
@@ -4398,7 +4338,7 @@ async function renderAdminEvents(view) {
       };
       try {
         await api("/api/events", { method: "POST", body: JSON.stringify(body) });
-        $("ev-msg").textContent = "Saved."; renderRoute();
+        $("ev-msg").textContent = t("msg.saved_short"); renderRoute();
       } catch (err) { $("ev-msg").textContent = err.message; }
     };
     view.append(form);
