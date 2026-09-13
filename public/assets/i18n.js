@@ -850,6 +850,22 @@ const DICT = {
     // Messages / errors
     "msg.save_section_id": "Save section",
 
+    // Admin — gate section titles (GATE_GROUPS keys)
+    "admin.gate_section.header_global": "Header / Global",
+    "admin.gate_section.my_roll": "My Roll",
+    "admin.gate_section.team_leader": "Team (leader)",
+    "admin.gate_section.hk_dashboard": "HK Dashboard",
+    "admin.gate_section.duties": "Duties",
+    "admin.gate_section.events": "Events",
+    "admin.gate_section.bv": "BV",
+    "admin.gate_section.janmashtami": "Janmashtami",
+    "admin.gate_section.leaderboard": "Leaderboard",
+    "admin.gate_section.settings": "Settings",
+    "admin.gate_section.admin": "Admin",
+    "admin.gate_section.sadhana": "Sadhana",
+    "admin.gate_section.cross_cutting": "Cross-cutting",
+    "admin.gate_section.other": "Other",
+
     // Server-error messages (mirror of ERROR_MESSAGES in app.js).
     "err.generic": "Something went wrong.",
     "err.invalid_credentials": "Wrong username or password.",
@@ -1742,6 +1758,22 @@ const DICT = {
 
     // Messages / errors
     "msg.save_section_id": "Save section",
+
+    // Admin — gate section titles (GATE_GROUPS keys)
+    "admin.gate_section.header_global": "தலைப்பு / பொது",
+    "admin.gate_section.my_roll": "என் பட்டியல்",
+    "admin.gate_section.team_leader": "குழு (தலைவர்)",
+    "admin.gate_section.hk_dashboard": "HK டாஷ்போர்டு",
+    "admin.gate_section.duties": "கடமைகள்",
+    "admin.gate_section.events": "நிகழ்வுகள்",
+    "admin.gate_section.bv": "பக்திவ்ருக்ஷா",
+    "admin.gate_section.janmashtami": "ஜென்மாஷ்டமி",
+    "admin.gate_section.leaderboard": "தலைவர் பட்டியல்",
+    "admin.gate_section.settings": "அமைப்புகள்",
+    "admin.gate_section.admin": "நிர்வாகம்",
+    "admin.gate_section.sadhana": "சாதனை",
+    "admin.gate_section.cross_cutting": "குறுக்கு-வெட்டு",
+    "admin.gate_section.other": "மற்றவை",
 
     // Server-error messages (mirror of ERROR_MESSAGES in app.js).
     "err.generic": "ஏதோ தவறு நடந்தது.",

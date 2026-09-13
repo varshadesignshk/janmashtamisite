@@ -3877,10 +3877,17 @@ async function renderAdminGates(view) {
   globalSaveWrap.append(globalSave, " ", globalMsg);
   view.append(globalSaveWrap);
 
+  // Section titles are English keys in GATE_GROUPS (used as lookup
+  // slugs); translate at render time via admin.gate_section.<key>.
+  const sectionLabel = (title) => {
+    const key = "admin.gate_section." + title.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const v = t(key);
+    return v !== key ? v : title;
+  };
   const renderSection = (title, keys) => {
     if (!keys.length) return null;
     const card = el("div", { class: "card", "data-section": title });
-    card.append(el("h3", { class: "section", style: "margin-top:0" }, title,
+    card.append(el("h3", { class: "section", style: "margin-top:0" }, sectionLabel(title),
       el("span", { class: "hint", style: "margin-left:.5rem;font-weight:400" }, `${keys.length}${keys.length === 1 ? t("admin.gate_count_suffix") : t("admin.gate_count_suffix_plural")}`)));
 
     for (const key of keys.sort()) {
