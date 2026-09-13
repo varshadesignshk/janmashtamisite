@@ -3296,21 +3296,10 @@ function renderPointsRules(view) {
   overall.append(
     el("h3", { class: "section", style: "margin-top:0" }, t("rules.overall_hd")),
     el("p", { class: "hint" }, t("rules.overall_intro")),
-    el("h3", { class: "section" }, t("rules.jm_hd")),
-    el("ul", { class: "list" },
-      pointRow(t("rules.jm_row1"), "+5"),
-      pointRow(t("rules.jm_row2"), "+25"),
-      pointRow(t("rules.jm_row3"), "+50"),
-      pointRow(t("rules.jm_row4"), "+75"),
-      pointRow(t("rules.jm_row5"), "+100"),
-    ),
-    el("h3", { class: "section" }, t("rules.commits_hd")),
-    el("ul", { class: "list" },
-      pointRow(t("rules.commits_row1"), "+10"),
-      pointRow(t("rules.commits_row2"), "+30"),
-      pointRow(t("rules.commits_row3"), "+50"),
-      pointRow(t("rules.commits_row4"), "+100"),
-    ),
+    // Janmashtami-day-based point rules (Janmashtami Entries + Daily-Chanter
+    // Commits) were removed after the 2026 campaign ended. Historical points
+    // already earned remain in users' totals; new awards no longer fire (see
+    // lib/leaderboard.js). Milestones below are ongoing and stay in effect.
     el("h3", { class: "section" }, t("rules.milestones_hd")),
     el("ul", { class: "list" },
       pointRow(t("rules.milestones_row1"), "+200"),
