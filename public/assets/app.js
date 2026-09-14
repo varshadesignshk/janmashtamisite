@@ -1515,6 +1515,18 @@ function contactStateLabel(cs, personStatus) {
   return "fresh";
 }
 
+// Excel mangles anything that looks like a number, so a raw mobile like
+// "+919876543210" or "9876543210" gets rendered in scientific notation
+// or with the leading + stripped. Wrapping the value as ="…" tells Excel
+// "this cell is a text formula" and preserves the exact string on open.
+// The wrapped formula still needs standard CSV quoting because it
+// contains =, so we escape any embedded quotes and wrap in double quotes.
+function csvMobileCell(phone) {
+  const s = String(phone ?? "").trim();
+  if (!s) return "";
+  return `"=""${s.replace(/"/g, '""""')}"""`;
+}
+
 function rollToCsv(roll) {
   const header = [
     "SL Number", "Name", "Mobile", "Pincode", "Status",
@@ -1525,7 +1537,7 @@ function rollToCsv(roll) {
     lines.push([
       csvEscape(r.sl_no ?? ""),
       csvEscape(r.name),
-      csvEscape(r.phone),
+      csvMobileCell(r.phone),
       csvEscape(r.pincode ?? ""),
       csvEscape(contactStateLabel(r.contact_state || 0, r.status)),
       csvEscape(r.status === "daily" ? "yes" : "no"),
