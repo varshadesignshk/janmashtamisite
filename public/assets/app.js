@@ -3572,8 +3572,109 @@ async function renderMemberDetails(personId) {
   view.append(el("h2", { class: "section" }, t("hd.member_details")));
   if (!personId) return view.append(el("p", { class: "hint" }, t("msg.open_via_row")));
   try {
-    const { person } = await api(`/api/member/${encodeURIComponent(personId)}`);
+    const { person, assigned_coord } = await api(`/api/member/${encodeURIComponent(personId)}`);
     if (myToken !== routeToken) return;
+
+    // Header banner: prominent "Assigned to: <coord name>" line plus a
+    // Reassign button that fetches eligible-coords lazily and PATCHes
+    // through the existing /api/person/:id/assign endpoint.
+    const banner = el("div", {
+      class: "card",
+      style: "display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding:.7rem .9rem;margin-bottom:.7rem",
+    });
+    const assignedLabel = el("span", { style: "font-weight:600" },
+      t("members.assigned_to_label") + ": ");
+    const assignedName = el("strong", { id: "m-coord-name", style: "color:var(--ink-2)" },
+      assigned_coord ? assigned_coord.display_name : t("members.unassigned_label"));
+    banner.append(assignedLabel, assignedName);
+    const reassignBtn = el("button", { class: "btn", type: "button", style: "margin-left:auto" },
+      t("members.reassign_btn"));
+    const reassignArea = el("div", {
+      id: "m-reassign-area",
+      style: "flex-basis:100%;display:none;margin-top:.5rem;align-items:center;gap:.5rem;flex-wrap:wrap",
+    });
+    banner.append(reassignBtn, reassignArea);
+    view.append(banner);
+
+    let eligibleLoaded = false;
+    reassignBtn.addEventListener("click", async () => {
+      if (reassignArea.style.display !== "none") {
+        reassignArea.style.display = "none"; return;
+      }
+      reassignArea.style.display = "flex";
+      if (eligibleLoaded) return;
+      eligibleLoaded = true;
+      reassignArea.append(el("span", { class: "hint" }, t("msg.loading")));
+      try {
+        const { coords } = await api("/api/members/eligible-coords");
+        reassignArea.innerHTML = "";
+        const sel = el("select", { style: "flex:1;min-width:10rem;padding:.35rem" });
+        sel.append(el("option", { value: "" }, t("members.bulk_pick_coord")));
+        for (const c of coords) {
+          const opt = el("option", { value: c.id }, c.display_name);
+          if (person.assigned_to_user_id === c.id) opt.setAttribute("selected", "");
+          sel.append(opt);
+        }
+        const goBtn = el("button", { class: "primary", type: "button" }, t("btn.save"));
+        const msg = el("span", { class: "hint" }, "");
+        reassignArea.append(sel, goBtn, msg);
+        goBtn.addEventListener("click", async () => {
+          const userId = sel.value;
+          if (!userId) { msg.textContent = t("members.bulk_pick_coord"); return; }
+          goBtn.disabled = true;
+          msg.textContent = t("msg.loading");
+          try {
+            const r = await api(`/api/person/${encodeURIComponent(personId)}/assign`, {
+              method: "POST", body: JSON.stringify({ assigned_to_user_id: userId }),
+            });
+            person.assigned_to_user_id = userId;
+            const picked = coords.find(c => c.id === userId);
+            $("m-coord-name").textContent = picked ? picked.display_name : t("members.unassigned_label");
+            msg.textContent = t("msg.saved_short");
+          } catch (err) {
+            msg.textContent = err.message;
+          } finally {
+            goBtn.disabled = false;
+          }
+        });
+      } catch (err) {
+        reassignArea.innerHTML = "";
+        reassignArea.append(el("span", { class: "error" }, err.message));
+      }
+    });
+
+    // Editable SL number — small inline form so operators can fix a
+    // wrongly-typed serial without touching the full editor below.
+    const slCard = el("div", { class: "card",
+      style: "display:flex;gap:.5rem;align-items:center;padding:.6rem .9rem;margin-bottom:.7rem" });
+    slCard.append(el("span", { style: "font-weight:600" }, t("members.col.sl") + ": "));
+    const slInput = el("input", {
+      id: "m-sl", value: person.sl_no != null ? String(person.sl_no) : "",
+      style: "flex:1;max-width:12rem;padding:.35rem;font-family:var(--font-mono)",
+    });
+    const slSaveBtn = el("button", { class: "primary", type: "button" }, t("members.sl_save"));
+    const slMsg = el("span", { class: "hint" }, "");
+    slCard.append(slInput, slSaveBtn, slMsg);
+    view.append(slCard);
+    slSaveBtn.addEventListener("click", async () => {
+      const v = slInput.value.trim();
+      if (v && !/^[A-Za-z0-9\-]{1,32}$/.test(v)) {
+        slMsg.textContent = t("members.sl_invalid"); return;
+      }
+      slSaveBtn.disabled = true;
+      slMsg.textContent = t("msg.loading");
+      try {
+        await api(`/api/member/${encodeURIComponent(personId)}`, {
+          method: "POST", body: JSON.stringify({ sl_no: v === "" ? null : v }),
+        });
+        slMsg.textContent = t("members.sl_saved");
+      } catch (err) {
+        slMsg.textContent = err.message;
+      } finally {
+        slSaveBtn.disabled = false;
+      }
+    });
+
     const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
     const F = (id, label, val, extra = {}) =>
       formField(label, el("input", { id, value: val || "", ...extra }));
