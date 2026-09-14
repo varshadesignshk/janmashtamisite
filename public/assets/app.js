@@ -64,6 +64,12 @@ const ERROR_MESSAGES = {
   bad_subscription: "Push subscription data was incomplete.",
   endpoint_required: "Push endpoint missing.",
   person_id_required: "Missing person_id.",
+  person_ids_required: "Select at least one member first.",
+  user_id_required: "Pick a coordinator to assign to.",
+  leader_username_required: "Pick which leader the new coordinator reports to.",
+  not_your_coord: "That coordinator isn't in your team.",
+  bad_sl_no: "SL can only contain letters, digits, and hyphens (max 32 chars).",
+  username_required: "Type a username first.",
   group_id_required: "Missing group_id.",
   // Network / HTTP
   http_400: "The server rejected the request (400 Bad Request). Check your input.",
