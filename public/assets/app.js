@@ -39,40 +39,40 @@ const ERROR_MESSAGES = {
   not_found: "Nothing found at this path.",
   user_not_found: "That user doesn't exist.",
   target_user_not_found: "The user you're trying to update doesn't exist.",
-  person_not_found: "That chanter doesn't exist.",
+  person_not_found: "That member doesn't exist.",
   event_not_found: "That event doesn't exist.",
   leader_not_found: "That NJY Leader doesn't exist.",
   duty_not_found: "That duty doesn't exist.",
-  not_your_roll: "That chanter belongs to a different coordinator.",
+  not_your_roll: "That member belongs to a different coordinator.",
   // Users
-  username_taken: "That username is already used — pick another.",
+  username_taken: "That username is already used, pick another.",
   missing_fields: "One or more required fields are blank.",
   bad_role: "Role must be one of: hk_leader, njy_leader, njy_coordinator, servant_leader, sector_servant, circle_servant.",
-  manager_not_found: "manager_username points to a leader that doesn't exist yet — did you import the leader row first?",
+  manager_not_found: "manager_username points to a leader that doesn't exist yet. Did you import the leader row first?",
   // Chanter import
-  duplicate_phone: "A chanter with that phone number already exists.",
-  duplicate_coupon: "A chanter with that coupon number already exists.",
+  duplicate_phone: "A member with that phone number already exists.",
+  duplicate_coupon: "A member with that coupon number already exists.",
   duplicate_sl_no: "That serial number is already used.",
   coupon_or_range_required: "Enter a coupon number, or ask HK Leader to assign your coord an sl_range.",
-  range_exhausted_or_missing: "Your assigned sl_no range is exhausted — ask HK Leader to widen it.",
+  range_exhausted_or_missing: "Your assigned sl_no range is exhausted. Ask HK Leader to widen it.",
   name_and_mobile_required: "Both name and mobile are required.",
   // Bulk
   rows_required: "The request had no rows to import.",
   bad_body: "The request body was malformed.",
   bad_status: "That status value isn't allowed.",
-  no_templates: "Nothing was changed — WhatsApp templates were empty.",
+  no_templates: "Nothing was changed. WhatsApp templates were empty.",
   bad_subscription: "Push subscription data was incomplete.",
   endpoint_required: "Push endpoint missing.",
   person_id_required: "Missing person_id.",
   group_id_required: "Missing group_id.",
   // Network / HTTP
   http_400: "The server rejected the request (400 Bad Request). Check your input.",
-  http_401: "Session expired — sign in again.",
+  http_401: "Session expired. Sign in again.",
   http_403: "You don't have permission for this action.",
   http_404: "Not found.",
   http_409: "That conflicts with existing data (usually a duplicate).",
   http_500: "The server hit an error. Try again in a minute; if it repeats, check dev console for the exact cause.",
-  http_502: "Server unreachable (bad gateway). Cloudflare may still be deploying — wait 60 seconds and retry.",
+  http_502: "Server unreachable (bad gateway). Cloudflare may still be deploying. Wait 60 seconds and retry.",
   http_503: "Server temporarily unavailable. Retry shortly.",
 };
 // Preferred lookup: the i18n dictionary. Falls back to the English
@@ -214,10 +214,11 @@ function showLogin() {
   $("view-app").hidden = true;
   $("view-login").hidden = false;
   // Translate login screen
-  if ($("login-title")) $("login-title").textContent = t("btn.sign_in");
+  if ($("login-title")) $("login-title").textContent = t("login.title");
   if ($("login-u-label")) $("login-u-label").textContent = t("field.username");
   if ($("login-p-label")) $("login-p-label").textContent = t("field.password");
   if ($("login-btn")) $("login-btn").textContent = t("btn.sign_in");
+  if ($("login-hint")) $("login-hint").textContent = t("login.contact_authority");
   // Wire the eye toggle on the login password
   const eye = $("login-eye");
   if (eye && !eye._wired) {
@@ -266,12 +267,13 @@ async function showApp() {
   maybeShowOnboardingTour();
 }
 
-// Show a 5-slide onboarding tour to a coordinator the first time they
-// sign in. Dismissal is remembered in localStorage per user id so the
-// tour never nags. They can re-run it by clearing browser storage.
+// Show a 5-slide onboarding tour to a coordinator EVERY sign-in until
+// they tap "Never Show Again". Dismissal via that button is remembered
+// in localStorage per user id so the tour never nags after opt-out. The
+// close (X)/backdrop tap dismisses this session only, without persisting.
 function maybeShowOnboardingTour() {
   if (ME.role !== "njy_coordinator") return;
-  const key = "njy-tour-done-" + ME.id;
+  const key = "njy-tour-never-" + ME.id;
   try { if (localStorage.getItem(key)) return; } catch { /* private mode */ }
 
   const slides = [
@@ -288,9 +290,34 @@ function maybeShowOnboardingTour() {
   document.body.append(overlay);
 
   let i = 0;
+  const closeSession = () => { overlay.remove(); };
+  const dismissForever = () => {
+    try { localStorage.setItem(key, "1"); } catch {}
+    overlay.remove();
+  };
   const render = () => {
     const s = slides[i];
     card.innerHTML = "";
+    const actions = el("div", { class: "tour-actions", style: "display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;justify-content:space-between" });
+    // Left: Never Show Again (persistent opt-out)
+    const neverBtn = el("button", { class: "tour-skip", type: "button" }, t("btn.never_show_again"));
+    neverBtn.addEventListener("click", dismissForever);
+    // Right: back + next/got-it
+    const navRow = el("div", { style: "display:flex;gap:.4rem" });
+    if (i > 0) {
+      const backBtn = el("button", { class: "btn", type: "button" }, t("btn.tour_back"));
+      backBtn.addEventListener("click", () => { i--; render(); });
+      navRow.append(backBtn);
+    }
+    const nextBtn = el("button", { class: "primary", type: "button" },
+      i === slides.length - 1 ? t("btn.got_it") : t("btn.tour_next"));
+    nextBtn.addEventListener("click", () => {
+      if (i === slides.length - 1) closeSession();
+      else { i++; render(); }
+    });
+    navRow.append(nextBtn);
+    actions.append(neverBtn, navRow);
+
     card.append(
       el("div", { class: "tour-emoji-row" }, s.emoji),
       el("h3", {}, s.title),
@@ -298,26 +325,17 @@ function maybeShowOnboardingTour() {
       el("div", { class: "tour-progress" },
         ...slides.map((_, idx) => el("span", { class: idx === i ? "on" : "" })),
       ),
-      el("div", { class: "tour-actions" },
-        el("button", { class: "tour-skip" }, t("btn.skip_tour")),
-        el("button", { class: "primary" }, i === slides.length - 1 ? t("btn.got_it") : t("btn.tour_next")),
-      ),
+      actions,
     );
-    card.querySelector(".tour-skip").addEventListener("click", done);
-    card.querySelector(".primary").addEventListener("click", () => {
-      if (i === slides.length - 1) done();
-      else { i++; render(); }
-    });
-  };
-  const done = () => {
-    try { localStorage.setItem(key, "1"); } catch {}
-    overlay.remove();
   };
   render();
 }
 // Expose a way to relaunch the tour from anywhere (for testing).
 window.replayTour = () => {
-  try { localStorage.removeItem("njy-tour-done-" + ME.id); } catch {}
+  try {
+    localStorage.removeItem("njy-tour-never-" + ME.id);
+    localStorage.removeItem("njy-tour-done-" + ME.id);  // legacy key from pre-v59
+  } catch {}
   maybeShowOnboardingTour();
 };
 
@@ -1500,7 +1518,7 @@ function contactStateLabel(cs, personStatus) {
 function rollToCsv(roll) {
   const header = [
     "SL Number", "Name", "Mobile", "Pincode", "Status",
-    "Daily Chanter", "Last Chanted Date", "Notes",
+    "Daily Member", "Last Chanted Date", "Notes",
   ];
   const lines = [header.join(",")];
   roll.forEach((r) => {
@@ -2214,7 +2232,7 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
     userSel.innerHTML = "";
     const filtered = users.filter(u => u.role === roleSel.value && u.active);
     if (!filtered.length) {
-      userSel.append(el("option", { value: "" }, "— no active users in this role —"));
+      userSel.append(el("option", { value: "" }, "- no active users in this role -"));
       return;
     }
     filtered.forEach(u => {
@@ -2367,7 +2385,7 @@ async function renderEventAttendance(eventId) {
 
     const tally = el("div", { class: "tally" });
     const capCell = el("div", { class: "cell" },
-      el("div", { class: "n" }, String(event.capacity || "—")),
+      el("div", { class: "n" }, String(event.capacity || "-")),
       el("div", { class: "k" }, t("ev.capacity_label")));
     const nCell = el("div", { class: "cell" },
       el("div", { class: "n", id: "att-n" }, String(attended_count)),
@@ -2723,7 +2741,7 @@ function excelUploadWidget({ helperText, mapRow, onCommit, templateBuilder, temp
           const rawReason = e.error || e.reason || (e.message ? e.message : "");
           const friendly = humanizeError({ body: { error: rawReason }, status: 400 });
           ul.append(el("li", { style: "margin-bottom:.2rem" },
-            el("strong", {}, label), " — ",
+            el("strong", {}, label), " - ",
             el("span", {}, friendly),
             el("span", { class: "hint", style: "margin-left:.4rem;font-family:var(--font-mono);font-size:.7rem" }, `[${rawReason}]`),
           ));
@@ -3357,7 +3375,7 @@ async function renderLeaderboard(kind, rest) {
       const li = el("li", {},
         el("div", { style: "flex:1;min-width:0" },
           el("strong", {}, `${label}  ${r.name}`),
-          el("div", { class: "hint", style: "margin-top:.15rem" }, breakdownText || "—"),
+          el("div", { class: "hint", style: "margin-top:.15rem" }, breakdownText || "-"),
           bucketBlock,
         ),
         el("span", { class: "score" }, scoreText),
@@ -3446,10 +3464,10 @@ async function renderProfile(userId) {
         el("div", { class: "n" }, String(overall?.pts || 0)),
         el("div", { class: "k" }, t("lb.kpi_overall_pts"))),
       el("div", { class: "cell" },
-        el("div", { class: "n" }, dailyRank ? `#${dailyRank}` : "—"),
+        el("div", { class: "n" }, dailyRank ? `#${dailyRank}` : "-"),
         el("div", { class: "k" }, t("lb.kpi_rank_today"))),
       el("div", { class: "cell" },
-        el("div", { class: "n" }, overallRank ? `#${overallRank}` : "—"),
+        el("div", { class: "n" }, overallRank ? `#${overallRank}` : "-"),
         el("div", { class: "k" }, t("lb.kpi_rank_overall"))),
     );
     view.append(kpis);
@@ -3879,7 +3897,7 @@ async function renderSettings(view) {
         // api.whatsapp.com/send/ (not wa.me) preserves 4-byte UTF-8 —
         // wa.me's 302 mangles emoji to U+FFFD. See lib/notify.js.
         const url = "https://api.whatsapp.com/send/?text="
-          + encodeURIComponent("Emoji test: 🌸 🙏 🕉 🌺 — do you see the flowers/hands?");
+          + encodeURIComponent("Emoji test: 🌸 🙏 🕉 🌺 - do you see the flowers/hands?");
         window.open(url, "_blank", "noopener");
       });
     }, 0);
@@ -4271,7 +4289,7 @@ async function renderAdminUsers(view) {
         // Manager dropdown — only NJY leaders show up; empty for HK/leader themselves.
         const leaders = users.filter(x => x.role === "njy_leader" && x.active);
         const mgrSel = el("select", {},
-          el("option", { value: "" }, "— no manager —"),
+          el("option", { value: "" }, "- no manager -"),
           ...leaders.map(l => el("option", {
             value: l.id, selected: l.id === u.manager_user_id ? true : undefined,
           }, l.display_name || l.username)),
@@ -4304,7 +4322,7 @@ async function renderAdminUsers(view) {
       el("option", { value: "hk_leader" }, t("admin.opt_hk_leader")),
     );
     const mgrSel = el("select", { id: "u-manager" },
-      el("option", { value: "" }, "— no manager —"),
+      el("option", { value: "" }, "- no manager -"),
       ...leaders.map(l => el("option", { value: l.username }, l.display_name || l.username)),
     );
     const mgrRow = el("div", { id: "u-manager-row" },
