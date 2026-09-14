@@ -12,7 +12,7 @@ const DICT = {
     "nav.events": "Events",
     "nav.sadhana": "Sadhana",
     "nav.bv": "BV",
-    "nav.janmashtami": "Janmashtami",
+    "nav.janmashtami": "New Entry",
     "nav.leaderboard": "Leaderboard",
     "nav.members": "Members",
     "nav.profile": "My Profile",
@@ -132,7 +132,7 @@ const DICT = {
     "msg.no_duties": "No pending duties.",
 
     // Janmashtami quick-add hints
-    "help.quick_add": "Enter one person at a time. Their sl.no is auto-assigned from your assigned range.",
+    "help.quick_add": "Add a new member to the database, one at a time. The SL number is auto-assigned from your range.",
     "help.upload_excel": "Attach a .xlsx or .csv file with columns: name, mobile, pincode. Preview → confirm.",
     "help.paste_excel": "Ctrl-C rows in Excel (copies as tab-separated), then paste here. One person per line: name, mobile, pincode.",
     "help.today_entries": "Everything you've added today lands here. Scroll down to double-check before the day ends.",
@@ -275,7 +275,7 @@ const DICT = {
     "hd.your_leader_prefix": "Your NJY Leader:",
 
     // Janmashtami rapid entry
-    "hd.janmashtami_rapid": "Janmashtami Rapid Entry",
+    "hd.janmashtami_rapid": "Add New Member",
     "msg.no_access_janmashtami": "You don't have access to the Janmashtami rapid entry.",
     "field.coupon": "Coupon #",
     "msg.saving": "Saving…",
@@ -929,7 +929,7 @@ const DICT = {
     "nav.events": "நிகழ்வுகள்",
     "nav.sadhana": "சாதனை",
     "nav.bv": "பக்திவ்ருக்ஷா",
-    "nav.janmashtami": "ஜென்மாஷ்டமி",
+    "nav.janmashtami": "புதிய பதிவு",
     "nav.leaderboard": "தலைவர் பட்டியல்",
     "nav.members": "உறுப்பினர்கள்",
     "nav.profile": "என் பக்கம்",
@@ -1049,7 +1049,7 @@ const DICT = {
     "msg.no_duties": "நிலுவை பணிகள் இல்லை.",
 
     // Janmashtami quick-add hints
-    "help.quick_add": "ஒரே நேரத்தில் ஒரு நபரைச் சேர்க்கவும். அவர்களின் sl.no உங்கள் ஒதுக்கப்பட்ட வரம்பிலிருந்து தானாக ஒதுக்கப்படும்.",
+    "help.quick_add": "தரவுத்தளத்தில் ஒரு நேரத்தில் ஒரு புதிய உறுப்பினரைச் சேர்க்கவும். SL எண் உங்கள் வரம்பிலிருந்து தானாக ஒதுக்கப்படும்.",
     "help.upload_excel": ".xlsx அல்லது .csv கோப்பை இணைக்கவும். நெடுவரிசைகள்: name, mobile, pincode. முன்னோட்டம் → உறுதி செய்.",
     "help.paste_excel": "Excel-ல் Ctrl-C செய்து இங்கே ஒட்டவும். ஒரு நபருக்கு ஒரு வரி: name, mobile, pincode.",
     "help.today_entries": "இன்று நீங்கள் சேர்த்த அனைவரும் இங்கே காட்டப்படுவார்கள். நாள் முடிவதற்குள் ஒருமுறை சரிபாருங்கள்.",
@@ -1192,7 +1192,7 @@ const DICT = {
     "hd.your_leader_prefix": "உங்கள் NJY தலைவர்:",
 
     // Janmashtami rapid entry
-    "hd.janmashtami_rapid": "ஜென்மாஷ்டமி விரைவு பதிவு",
+    "hd.janmashtami_rapid": "புதிய உறுப்பினரைச் சேர்",
     "msg.no_access_janmashtami": "உங்களுக்கு ஜென்மாஷ்டமி விரைவு பதிவுக்கான அணுகல் இல்லை.",
     "field.coupon": "கூப்பன் #",
     "msg.saving": "சேமிக்கிறது…",
