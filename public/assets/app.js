@@ -1735,18 +1735,16 @@ function rollList(roll, editable) {
     const name = el("div", { class: "name" });
     name.innerHTML = esc(r.name) + `<span class="phone">${esc(r.phone || "")}</span>`;
 
-    // Lifecycle status dropdown — the source of truth for the "daily
-    // chanter commitment" (was previously a Manage-panel dropdown, now
-    // inline). When status is not "daily", the chant toggle is disabled.
+    // Lifecycle status dropdown — tracks the "daily chanter commitment"
+    // for reporting/leaderboards, but no longer gates the Chant button
+    // (coords chant any member on their roll, regardless of status).
     const lifecycle = el("select", { class: "lifecycle", "data-status": r.status || "chanter" },
       ...LIFECYCLE.map(s => el("option", { value: s, selected: r.status === s ? true : undefined }, lifecycleLabel(s))),
     );
 
     const chant = el("button", { class: "chant-tag" + (r.chanted_today ? " on" : "") },
       r.chanted_today ? t("btn.chanted") : t("btn.chant_q"));
-    if (r.status !== "daily") chant.setAttribute("disabled", "");
     if (editable) chant.addEventListener("click", async () => {
-      if (r.status !== "daily") return;
       const next = !r.chanted_today;
       await api("/api/roll/chant", { method: "POST", body: JSON.stringify({ person_id: r.id, chanted: next }) });
       r.chanted_today = next;
@@ -1764,8 +1762,6 @@ function rollList(roll, editable) {
         });
         r.status = lifecycle.value;
         lifecycle.dataset.status = r.status;
-        if (r.status === "daily") chant.removeAttribute("disabled");
-        else { chant.setAttribute("disabled", ""); }
       } catch (err) {
         alert(err.message || t("msg.could_not_update_status"));
         lifecycle.value = r.status || "chanter";
@@ -2193,9 +2189,7 @@ function rollListManageable(roll, currentOwnerUserId) {
 
     const chant = el("button", { class: "chant-tag" + (r.chanted_today ? " on" : "") },
       r.chanted_today ? t("btn.chanted") : t("btn.chant_q"));
-    if (r.status !== "daily") chant.setAttribute("disabled", "");
     chant.addEventListener("click", async () => {
-      if (r.status !== "daily") return;
       const next = !r.chanted_today;
       await api("/api/roll/chant", { method: "POST", body: JSON.stringify({ person_id: r.id, chanted: next }) });
       r.chanted_today = next;
@@ -2212,8 +2206,6 @@ function rollListManageable(roll, currentOwnerUserId) {
         });
         r.status = lifecycle.value;
         lifecycle.dataset.status = r.status;
-        if (r.status === "daily") chant.removeAttribute("disabled");
-        else { chant.setAttribute("disabled", ""); }
       } catch (err) {
         alert(err.message || t("msg.could_not_update_status"));
         lifecycle.value = r.status || "chanter";
