@@ -1292,7 +1292,7 @@ const DICT = {
 
     // Header pills
     "pill.leader": "தலைவர்",
-    "pill.hk": "HK",
+    "pill.hk": "எச்.கே அழை",
     "pill.contact_hk": "HK-ஐ தொடர்பு கொள்",
     "pill.contact_leader": "தலைவரை தொடர்பு கொள்",
     "pill.wa": "WA",
