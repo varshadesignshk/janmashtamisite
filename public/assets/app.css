@@ -962,3 +962,20 @@ a[download]:hover {
 }
 .center .card { max-width: 22rem; width: 100%; margin: 0; }
 .center h2 { text-align: center; }
+
+/* Login topline: title on the left, tiny language toggle on the right.
+ * Kept as a pill (border + tint) so it reads as a control, not a link
+ * lost in the whitespace above the sign-in form. */
+.login-topline {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .5rem; margin-bottom: .5rem;
+}
+.login-topline h2 { margin: 0; flex: 1; }
+.login-lang {
+  font-size: .78rem; color: var(--muted);
+  text-decoration: none; white-space: nowrap;
+  padding: .2rem .45rem; border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-sunk);
+}
+.login-lang:hover { color: var(--peacock-deep); border-color: var(--peacock-deep); }

@@ -232,6 +232,17 @@ function showLogin() {
   if ($("login-p-label")) $("login-p-label").textContent = t("field.password");
   if ($("login-btn")) $("login-btn").textContent = t("btn.sign_in");
   if ($("login-hint")) $("login-hint").textContent = t("login.contact_authority");
+  // Language toggle on the login card — same behaviour as the post-login
+  // header toggle: click flips to the other language, persists in
+  // localStorage, reloads. Kept on the login screen so devotees can pick
+  // Tamil BEFORE signing in.
+  const loginLang = $("login-lang-toggle");
+  if (loginLang) {
+    const cur = getLang();
+    const other = window.LANGS.find(l => l.code !== cur);
+    loginLang.textContent = "🌐 " + other.label;
+    loginLang.onclick = (e) => { e.preventDefault(); setLang(other.code); };
+  }
   // Wire the eye toggle on the login password
   const eye = $("login-eye");
   if (eye && !eye._wired) {
