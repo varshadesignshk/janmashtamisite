@@ -90,7 +90,7 @@ const DICT = {
     "msg.hare_krsna": "Hare Krsna 🙏",
 
     // Events tab
-    "hd.events": "NJY Yajnas and BG Sessions",
+    "hd.events": "Nama-Japa-Yajnas and Bg Sessions",
     "help.events": "All the temple's Nama-Japa-Yajna and Bhagavad-Gita sessions. Tap 'Attendance' on any event to mark who came - you can expand your own row and tap-to-present each member.",
     "btn.attendance": "Attendance",
     "hd.attendance_by_coord": "Attendance by Coordinator",
@@ -997,7 +997,7 @@ const DICT = {
     "msg.hare_krsna": "ஹரே கிருஷ்ண 🙏",
 
     // Events tab
-    "hd.events": "NJY யக்ஞங்கள் மற்றும் பகவத் கீதை",
+    "hd.events": "நாம ஜப யக்ஞங்கள் மற்றும் Bg அமர்வுகள்",
     "help.events": "கோவிலின் அனைத்து நாம ஜப யக்ஞ மற்றும் பகவத் கீதை நிகழ்வுகள். எந்த நிகழ்விலும் 'வருகை' பொத்தானை தட்டவும் — உங்கள் வரிசையை விரிக்கலாம் மற்றும் ஒவ்வொரு ஜபிப்பவருக்கும் வந்துள்ளதாக குறிக்கலாம்.",
     "btn.attendance": "வருகை",
     "hd.attendance_by_coord": "ஒருங்கிணைப்பாளர் வாரியாக வருகை",
