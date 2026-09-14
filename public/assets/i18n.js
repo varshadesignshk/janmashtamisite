@@ -379,7 +379,7 @@ const DICT = {
     "tour.slide3_title": "The 'Chant?' Button",
     "tour.slide3_body": "When someone tells you they chanted today, tap this button. It turns gold with a tick. The bead also turns green.",
     "tour.slide4_title": "WhatsApp Button",
-    "tour.slide4_body": "Tap the green <strong>WhatsApp</strong> button on any row. WhatsApp opens with a Tamil + English message ready to send to that Member. You can add a personal line before hitting send. You can also customize your default message in the Settings tab.",
+    "tour.slide4_body": "Tap the green <strong>WhatsApp</strong> button on any row. WhatsApp opens with a Tamil + English message ready to send to that Member. You can add a personal line before hitting send. You can also customize your default message on the My Sangha page.",
     "tour.slide5_title": "Your Points and Leaderboard",
     "tour.slide5_body": "Every action earns points: chanting marks, follow-ups, event attendance. See your live points in the coin chip at the top-right. The <strong>Leaderboard</strong> tab shows how you rank. The <strong>Members</strong> tab is where you can update Member details. Tap the <strong>📅</strong> button on any row to see 14 days of chanting history.",
 
@@ -1296,7 +1296,7 @@ const DICT = {
     "tour.slide3_title": "'ஜபித்தாரா?' பொத்தான்",
     "tour.slide3_body": "யாராவது இன்று ஜபித்ததாக சொல்லும்போது, இந்த பொத்தானை தட்டவும். அது டிக் உடன் தங்கமாக மாறும். மணியும் பச்சையாக மாறும்.",
     "tour.slide4_title": "WhatsApp பொத்தான்",
-    "tour.slide4_body": "எந்த வரிசையிலும் பச்சை <strong>WhatsApp</strong> பொத்தானை தட்டவும். அந்த உறுப்பினருக்கு அனுப்ப தமிழ் + ஆங்கில செய்தியுடன் WhatsApp திறக்கும். அனுப்பும் முன் தனிப்பட்ட வரி சேர்க்கலாம். Settings டேபில் இயல்பான செய்தியையும் தனிப்பயனாக்கலாம்.",
+    "tour.slide4_body": "எந்த வரிசையிலும் பச்சை <strong>WhatsApp</strong> பொத்தானை தட்டவும். அந்த உறுப்பினருக்கு அனுப்ப தமிழ் + ஆங்கில செய்தியுடன் WhatsApp திறக்கும். அனுப்பும் முன் தனிப்பட்ட வரி சேர்க்கலாம். My Sangha பக்கத்தில் இயல்பான செய்தியையும் தனிப்பயனாக்கலாம்.",
     "tour.slide5_title": "உங்கள் புள்ளிகள் மற்றும் தலைவர் பட்டியல்",
     "tour.slide5_body": "ஒவ்வொரு செயலும் புள்ளிகளை ஈட்டும்: ஜபிப்பு குறிகள், தொடர்பு, நிகழ்வு வருகை. உங்கள் லைவ் புள்ளிகளை மேல்-வலதில் உள்ள நாணய சின்னத்தில் பாருங்கள். <strong>Leaderboard</strong> டேப் உங்கள் தரவரிசையைக் காட்டுகிறது. <strong>Members</strong> டேபில் உறுப்பினர் விவரங்களை மாற்றலாம். எந்த வரிசையிலும் <strong>📅</strong> பொத்தானை தட்டி 14 நாள் ஜப வரலாற்றைப் பார்க்கவும்.",
 
