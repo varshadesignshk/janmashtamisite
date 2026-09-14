@@ -548,6 +548,7 @@ function renderNav() {
     { href: "#/bv",        label: t("nav.bv"),       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
     { href: "#/janmashtami", label: t("nav.janmashtami"), when: () => can("janmashtami_view_page") && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/leaderboard", label: t("nav.leaderboard"), when: () => (can("leaderboard_coord_daily") || can("leaderboard_coord_overall") || can("leaderboard_leaders_daily") || can("leaderboard_leaders_overall")) && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
+    { href: "#/members",     label: t("nav.members"),     when: () => can("members_tab") && ["hk_leader","njy_leader","njy_coordinator"].includes(ME.role) },
     { href: "#/profile",     label: t("nav.profile"), when: () => ME.role === "njy_coordinator" },
     { href: "#/settings",  label: t("nav.settings"), when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
     { href: "#/admin",     label: t("nav.admin"),    when: () => can("feature_admin") },
@@ -614,6 +615,7 @@ function renderRoute() {
     "profile":      () => renderProfile(arg),
     "points-rules": () => renderPointsRules(view),
     "member":   () => renderMemberDetails(arg),
+    "members":  () => renderMembers(view),
     "group-report": () => renderGroupReport(arg),
   };
   const fn = routes[path] || renderCoordRoll;
@@ -3066,6 +3068,101 @@ function newGroupForm() {
 }
 
 // -------------------------------------------------- member details ---
+// ---------------------------------------------------- Members tab ---
+// Top-level searchable list of Members. Coordinators default to their
+// own Sangha (from /api/roll); leaders and HK Leader start empty and
+// use the search box (/api/people/search) to find any member. Each row
+// links to renderMemberDetails for the full editor.
+async function renderMembers(view) {
+  const myToken = routeToken;
+  view.innerHTML = "";
+  view.append(el("h2", { class: "section" }, t("hd.members")));
+  view.append(helpBanner(t("help.members")));
+  if (!can("members_tab")) {
+    view.append(el("p", { class: "hint" }, t("msg.no_access_admin")));
+    return;
+  }
+
+  const searchInput = el("input", {
+    type: "search", id: "members-search",
+    placeholder: t("field.search"),
+    autocomplete: "off", autocapitalize: "none", autocorrect: "off",
+    style: "width:100%;padding:.55rem;border:1px solid var(--line);border-radius:6px;margin-bottom:.6rem",
+  });
+  view.append(searchInput);
+  const listWrap = el("div", { id: "members-list" });
+  view.append(listWrap);
+
+  const renderRows = (people, source) => {
+    if (myToken !== routeToken) return;
+    listWrap.innerHTML = "";
+    if (!people.length) {
+      listWrap.append(el("p", { class: "hint" }, t("hd.members_none")));
+      return;
+    }
+    const ul = el("ul", { class: "list" });
+    for (const p of people) {
+      const meta = [];
+      if (p.phone) meta.push(esc(p.phone));
+      if (p.pincode) meta.push(esc(p.pincode));
+      if (p.status) meta.push(esc(p.status));
+      ul.append(el("li", {},
+        el("div", { style: "flex:1;min-width:0" },
+          el("strong", {}, p.name || p.legal_name || "-"),
+          el("div", { class: "hint" }, meta.join(" · ") || (source === "roll" ? t("team.coordinator_fallback") : "")),
+        ),
+        el("a", { class: "btn", href: `#/member/${encodeURIComponent(p.id)}` }, t("btn.edit")),
+      ));
+    }
+    listWrap.append(ul);
+  };
+
+  // Default view: coord sees their own roll; leader/HK sees a prompt
+  // until they type something.
+  const loadDefault = async () => {
+    if (ME.role === "njy_coordinator") {
+      listWrap.innerHTML = "";
+      listWrap.append(el("p", { class: "hint" }, t("msg.loading")));
+      try {
+        const { roll } = await api("/api/roll");
+        if (myToken !== routeToken) return;
+        renderRows(roll.map(r => ({
+          id: r.id, name: r.name, phone: r.phone,
+          pincode: r.pincode, status: r.status,
+        })), "roll");
+      } catch (err) {
+        if (myToken !== routeToken) return;
+        listWrap.innerHTML = "";
+        listWrap.append(el("p", { class: "error" }, err.message));
+      }
+    } else {
+      listWrap.innerHTML = "";
+      listWrap.append(el("p", { class: "hint" }, t("help.search_mark")));
+    }
+  };
+  loadDefault();
+
+  // Debounced server search (2+ chars). Empty string reverts to default.
+  let debounce = null;
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim();
+    clearTimeout(debounce);
+    if (!q) { loadDefault(); return; }
+    if (q.length < 2) return;
+    debounce = setTimeout(async () => {
+      try {
+        const { people } = await api(`/api/people/search?q=${encodeURIComponent(q)}`);
+        if (myToken !== routeToken) return;
+        renderRows(people, "search");
+      } catch (err) {
+        if (myToken !== routeToken) return;
+        listWrap.innerHTML = "";
+        listWrap.append(el("p", { class: "error" }, err.message));
+      }
+    }, 250);
+  });
+}
+
 async function renderMemberDetails(personId) {
   const myToken = routeToken;  // BUG 1+2
   const view = $("view");

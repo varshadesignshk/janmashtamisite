@@ -14,6 +14,7 @@ const DICT = {
     "nav.bv": "BV",
     "nav.janmashtami": "Janmashtami",
     "nav.leaderboard": "Leaderboard",
+    "nav.members": "Members",
     "nav.profile": "My Profile",
     "nav.settings": "Settings",
     "nav.admin": "Admin",
@@ -329,6 +330,9 @@ const DICT = {
     "confirm.delete_group_body": "Members are unlinked; the group is soft-deleted (history kept). Continue?",
 
     // Member details
+    "hd.members": "Members",
+    "help.members": "Edit Member details. Search by name or phone digits, then tap a row to open the full editor.",
+    "hd.members_none": "No Members found.",
     "hd.member_details": "Member Details",
     "msg.open_via_row": "Open via a person row (feature comes online with BV phase).",
     "hd.personal": "Personal",
@@ -921,6 +925,7 @@ const DICT = {
     "nav.bv": "பக்திவ்ருக்ஷா",
     "nav.janmashtami": "ஜென்மாஷ்டமி",
     "nav.leaderboard": "தலைவர் பட்டியல்",
+    "nav.members": "உறுப்பினர்கள்",
     "nav.profile": "என் பக்கம்",
     "nav.settings": "அமைப்புகள்",
     "nav.admin": "நிர்வாகம்",
@@ -1236,6 +1241,9 @@ const DICT = {
     "confirm.delete_group_body": "உறுப்பினர்கள் இணைப்பு நீக்கப்படுவார்கள்; குழு soft-delete செய்யப்படும் (வரலாறு வைக்கப்படும்). தொடரவா?",
 
     // Member details
+    "hd.members": "உறுப்பினர்கள்",
+    "help.members": "உறுப்பினர் விவரங்களை மாற்றவும். பெயர் அல்லது மொபைல் இலக்கங்களால் தேடவும், பின்பு முழு எடிட்டரைத் திறக்க வரிசையை தட்டவும்.",
+    "hd.members_none": "உறுப்பினர்கள் இல்லை.",
     "hd.member_details": "உறுப்பினர் விவரங்கள்",
     "msg.open_via_row": "நபர் வரிசை மூலம் திற (BV கட்டத்தில் இயங்கும்).",
     "hd.personal": "தனிப்பட்ட",
