@@ -3744,7 +3744,6 @@ function renderPointsRules(view) {
       el("ul", { class: "list" },
         pointRow(t("rules.leader_row1"), "+5"),
         pointRow(t("rules.leader_row2"), "+5"),
-        pointRow(t("rules.leader_row3"), "+3"),
         pointRow(t("rules.leader_row4"), "+10"),
         pointRow(t("rules.leader_row5"), "+5"),
       ),

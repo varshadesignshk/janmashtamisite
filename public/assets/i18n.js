@@ -456,7 +456,6 @@ const DICT = {
     "rules.leader_touch_desc": "Your own actions this day:",
     "rules.leader_row1": "Fired Broadcast to Your Coords (Once/Day)",
     "rules.leader_row2": "Updated Your Coord-Group WhatsApp (Once/Day)",
-    "rules.leader_row3": "Contacted a Coord via Mesh WA - Sent ✓ Tap (Cap 3/Day)",
     "rules.leader_row4": "Attended an Event in Person (per Event)",
     "rules.leader_row5": "Onboarded a New Coord (per Coord, One-Time)",
 
@@ -1373,7 +1372,6 @@ const DICT = {
     "rules.leader_touch_desc": "இந்த நாளில் உங்கள் சொந்த செயல்கள்:",
     "rules.leader_row1": "உங்கள் ஒருங்கிணைப்பாளர்களுக்கு பிராட்காஸ்ட் அனுப்பப்பட்டது (நாள் ஒருமுறை)",
     "rules.leader_row2": "உங்கள் ஒருங்கிணைப்பாளர்-குழு WhatsApp புதுப்பிக்கப்பட்டது (நாள் ஒருமுறை)",
-    "rules.leader_row3": "mesh WA மூலம் ஒருங்கிணைப்பாளரை தொடர்பு கொண்டீர்கள் - Sent ✓ தட்டு (நாளுக்கு 3 வரம்பு)",
     "rules.leader_row4": "நேரில் ஒரு நிகழ்வில் கலந்து கொண்டீர்கள் (ஒரு நிகழ்வுக்கு)",
     "rules.leader_row5": "புதிய ஒருங்கிணைப்பாளரை onboard செய்தீர்கள் (ஒரு ஒருங்கிணைப்பாளருக்கு, ஒரு முறை)",
 
