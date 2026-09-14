@@ -158,6 +158,19 @@ window.addEventListener("error", (e) => {
 
 const STATE_LABEL = ["uncontacted", "contacted", "responded"];
 const LIFECYCLE = ["chanter","daily","njy1","njy2","njy3","manjari","bv_member","dropped"];
+// Prettify lifecycle enum values for dropdown display (Plan 4: statuses
+// should read Daily, not daily). Special cases keep NJY / BV as acronyms.
+const LIFECYCLE_LABEL = {
+  chanter: "Member",
+  daily: "Daily",
+  njy1: "NJY 1",
+  njy2: "NJY 2",
+  njy3: "NJY 3",
+  manjari: "Manjari",
+  bv_member: "BV Member",
+  dropped: "Dropped",
+};
+function lifecycleLabel(s) { return LIFECYCLE_LABEL[s] || s; }
 
 // Compute the 5-color bead on the client after a mark/chant tap. The
 // server does the authoritative first render (including the 3-day-miss
@@ -1715,7 +1728,7 @@ function rollList(roll, editable) {
     // chanter commitment" (was previously a Manage-panel dropdown, now
     // inline). When status is not "daily", the chant toggle is disabled.
     const lifecycle = el("select", { class: "lifecycle", "data-status": r.status || "chanter" },
-      ...LIFECYCLE.map(s => el("option", { value: s, selected: r.status === s ? true : undefined }, s)),
+      ...LIFECYCLE.map(s => el("option", { value: s, selected: r.status === s ? true : undefined }, lifecycleLabel(s))),
     );
 
     const chant = el("button", { class: "chant-tag" + (r.chanted_today ? " on" : "") },
@@ -2164,7 +2177,7 @@ function rollListManageable(roll, currentOwnerUserId) {
     name.innerHTML = esc(r.name) + `<span class="phone">${esc(r.phone || "")}</span>`;
 
     const lifecycle = el("select", { class: "lifecycle", "data-status": r.status || "chanter" },
-      ...LIFECYCLE.map(s => el("option", { value: s, selected: r.status === s ? true : undefined }, s)),
+      ...LIFECYCLE.map(s => el("option", { value: s, selected: r.status === s ? true : undefined }, lifecycleLabel(s))),
     );
 
     const chant = el("button", { class: "chant-tag" + (r.chanted_today ? " on" : "") },
@@ -2277,7 +2290,7 @@ async function buildManagePanel(person, currentOwnerUserId, onDone) {
   // Status change
   const statusSel = el("select", {},
     ...["chanter","qualified","daily","njy1","njy2","njy3","manjari","bv_member","dropped"]
-      .map(s => el("option", { value: s, selected: person.status === s ? true : undefined }, s)),
+      .map(s => el("option", { value: s, selected: person.status === s ? true : undefined }, lifecycleLabel(s) || (s === "qualified" ? "Qualified" : s))),
   );
   const statusBtn = el("button", { class: "mini-btn" }, t("btn.set_status_short"));
   statusBtn.addEventListener("click", async () => {
