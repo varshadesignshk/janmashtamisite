@@ -586,7 +586,7 @@ function renderRoute() {
     let home = null;
     if (ME.role === "hk_leader") home = "#/leader";
     else if (ME.role === "njy_leader") home = "#/leader";
-    else if (ME.role === "njy_coordinator") home = "#/leaderboard";
+    else if (ME.role === "njy_coordinator") home = "#/leaderboard/overall/coords";
     // Coord default is Leaderboard (post-Janmashtami). Janmashtami campaign
     // is over, so we no longer auto-land coords on #/janmashtami. My Roll
     // remains available in the nav for explicit navigation.
@@ -3521,13 +3521,13 @@ function renderPointsRules(view) {
   daily.append(
     el("h3", { class: "section", style: "margin-top:0" }, t("rules.daily_hd")),
     el("ul", { class: "list" },
-      pointRow(t("rules.daily_row1"), "+10"),
-      pointRow(t("rules.daily_row2"), "+5"),
-      pointRow(t("rules.daily_row3"), "+50"),
-      pointRow(t("rules.daily_row4"), "+100"),
-      pointRow(t("rules.daily_row5"), "+20"),
+      pointRow(t("rules.daily_row1"), "+5"),
+      pointRow(t("rules.daily_row2"), "+10"),
+      pointRow(t("rules.daily_row3"), "+20"),
+      pointRow(t("rules.daily_row4"), "+50"),
+      pointRow(t("rules.daily_row5"), "+50"),
       pointRow(t("rules.daily_row6"), "+50"),
-      pointRow(t("rules.daily_row7"), "+50"),
+      pointRow(t("rules.daily_row7"), "+100"),
     ),
   );
   view.append(daily);
@@ -3543,35 +3543,38 @@ function renderPointsRules(view) {
     el("h3", { class: "section" }, t("rules.milestones_hd")),
     el("ul", { class: "list" },
       pointRow(t("rules.milestones_row1"), "+200"),
-      pointRow(t("rules.milestones_row2"), "+200"),
+      pointRow(t("rules.milestones_row2"), "+300"),
       pointRow(t("rules.milestones_row3"), "+400"),
+      pointRow(t("rules.milestones_row4"), "+500"),
     ),
   );
   view.append(overall);
 
-  // NEW — Leader leaderboard: 3-bucket prorated model. Only relevant
-  // to NJY Leaders (and HK reading over their shoulder), but shown to
-  // everyone on the rules page so coords understand what's driving
-  // their leader's ranking.
-  const leader = el("div", { class: "card" });
-  leader.append(
-    el("h3", { class: "section", style: "margin-top:0" }, t("rules.leader_hd")),
-    el("p", { class: "hint" }, t("rules.leader_intro")),
-    el("h3", { class: "section" }, t("rules.leader_perf_hd")),
-    el("p", { class: "hint" }, t("rules.leader_perf_desc")),
-    el("h3", { class: "section" }, t("rules.leader_cov_hd")),
-    el("p", { class: "hint" }, t("rules.leader_cov_desc")),
-    el("h3", { class: "section" }, t("rules.leader_touch_hd")),
-    el("p", { class: "hint" }, t("rules.leader_touch_desc")),
-    el("ul", { class: "list" },
-      pointRow(t("rules.leader_row1"), "+5"),
-      pointRow(t("rules.leader_row2"), "+5"),
-      pointRow(t("rules.leader_row3"), "+3"),
-      pointRow(t("rules.leader_row4"), "+10"),
-      pointRow(t("rules.leader_row5"), "+5"),
-    ),
-  );
-  view.append(leader);
+  // NJY Leader leaderboard: 3-bucket prorated model. Per Plan 4, the
+  // leader-side calculation is hidden from Coordinators; only NJY
+  // Leaders and HK Leader see it here.
+  const canSeeLeaderCalc = ME.role === "hk_leader" || ME.role === "njy_leader";
+  if (canSeeLeaderCalc) {
+    const leader = el("div", { class: "card" });
+    leader.append(
+      el("h3", { class: "section", style: "margin-top:0" }, t("rules.leader_hd")),
+      el("p", { class: "hint" }, t("rules.leader_intro")),
+      el("h3", { class: "section" }, t("rules.leader_perf_hd")),
+      el("p", { class: "hint" }, t("rules.leader_perf_desc")),
+      el("h3", { class: "section" }, t("rules.leader_cov_hd")),
+      el("p", { class: "hint" }, t("rules.leader_cov_desc")),
+      el("h3", { class: "section" }, t("rules.leader_touch_hd")),
+      el("p", { class: "hint" }, t("rules.leader_touch_desc")),
+      el("ul", { class: "list" },
+        pointRow(t("rules.leader_row1"), "+5"),
+        pointRow(t("rules.leader_row2"), "+5"),
+        pointRow(t("rules.leader_row3"), "+3"),
+        pointRow(t("rules.leader_row4"), "+10"),
+        pointRow(t("rules.leader_row5"), "+5"),
+      ),
+    );
+    view.append(leader);
+  }
 
   view.append(el("p", { style: "margin-top:1rem" },
     el("a", { class: "btn", href: "#/leaderboard/overall" }, t("lb.back_to_lb")),
