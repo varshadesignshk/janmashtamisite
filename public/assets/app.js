@@ -675,28 +675,36 @@ async function renderCoordRoll(view) {
       if (ME.hk_phone) line.append(wame(ME.hk_phone, t("pill.contact_hk")));
       view.append(line);
     }
+    // Prominent Broadcast CTA — coords only, above the scoreboard tiles
+    // so it's the first action visible on My Sangha. Big teal card with
+    // a sub-line; the inline WhatsApp template editor sits directly
+    // below so users see-the-message → tap-Broadcast in one motion.
+    if (roll.length > 0 && ME.role === "njy_coordinator" && can("myroll_broadcast_button")) {
+      const cta = el("a", { class: "broadcast-cta", href: "#/broadcast" },
+        el("span", { class: "broadcast-cta-label" }, t("bc.myroll_broadcast_btn")),
+        el("span", { class: "broadcast-cta-sub" }, t("bc.myroll_broadcast_sub")),
+      );
+      view.append(cta);
+    }
+    // Inline WhatsApp template editor — sits directly below Broadcast
+    // so the coord can review-and-edit the message before sending.
+    if (roll.length > 0 && ME.role === "njy_coordinator" && can("settings_wa_templates")) {
+      view.append(renderWaTemplateCard());
+    }
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
-    // Broadcast + WA group buttons — coords only, each gate-controlled.
+    // Secondary actions row — WA group setup + CSV download. Broadcast
+    // moved to the prominent card above.
     if (roll.length > 0 && ME.role === "njy_coordinator") {
-      const broadcastRow = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0" });
-      if (can("myroll_broadcast_button")) {
-        broadcastRow.append(el("a", { class: "primary", href: "#/broadcast",
-          style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
-          t("bc.myroll_broadcast_btn")));
-      }
+      const secondaryRow = el("div", { style: "display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0" });
       if (can("myroll_wa_group_button")) {
-        broadcastRow.append(el("a", { class: "btn", href: "#/wa-group",
+        secondaryRow.append(el("a", { class: "btn", href: "#/wa-group",
           style: "text-decoration:none;padding:.55rem 1rem;border-radius:8px;font-size:.9rem" },
           ME.wa_group_link ? t("bc.myroll_wa_group_btn_have") : t("bc.myroll_wa_group_btn_setup")));
       }
       // Download CSV — client-side (data already fetched into `roll`),
       // no server round-trip. Filename embeds the coord's own name.
-      broadcastRow.append(csvDownloadButton(roll, ME.display_name || "me", "my-sangha"));
-      if (broadcastRow.children.length) view.append(broadcastRow);
-      // Inline WhatsApp template editor — one message per coord, edited
-      // right here next to Broadcast so the message is visible before
-      // sending. Gate is the same as the old Settings editor.
-      if (can("settings_wa_templates")) view.append(renderWaTemplateCard());
+      secondaryRow.append(csvDownloadButton(roll, ME.display_name || "me", "my-sangha"));
+      if (secondaryRow.children.length) view.append(secondaryRow);
     }
     // Care-moment surfacing — coords only, shown right below the tally.
     // Also gated on myroll_care_moments_panel so HK can hide it per role.
@@ -819,7 +827,7 @@ function renderWaGroupPickerCard() {
 // posts { wa_template } to /api/me/wa-templates and updates ME so the
 // wa.me links on the page pick it up on next reload.
 function renderWaTemplateCard() {
-  const card = el("div", { class: "wa-template-card card" });
+  const card = el("div", { class: "wa-template-card" });
   card.append(
     el("h3", { class: "section", style: "margin-top:0" }, t("hd.wa_template_yours")),
     el("p", { class: "hint" }, t("help.wa_template_inline")),

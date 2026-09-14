@@ -999,3 +999,59 @@ a[download]:hover {
   background: var(--surface-sunk);
 }
 .login-lang:hover { color: var(--peacock-deep); border-color: var(--peacock-deep); }
+
+/* -------------------------------------------------- My Sangha CTA */
+/* Big prominent Broadcast primary action at the top of My Sangha. Full
+ * width, brand teal, generous padding — the coord should see and tap
+ * this without hunting. Sub-line spells out what happens next. */
+.broadcast-cta {
+  display: block;
+  width: 100%;
+  margin: .75rem 0;
+  padding: 1.1rem 1.25rem;
+  background: var(--peacock-deep);
+  color: #fff;
+  text-decoration: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--peacock-ink);
+  transition: background .1s ease, transform .05s ease;
+}
+.broadcast-cta:hover { background: var(--peacock-ink); color: #fff; }
+.broadcast-cta:active { transform: translateY(1px); }
+.broadcast-cta-label {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.broadcast-cta-sub {
+  display: block;
+  font-size: .82rem;
+  opacity: .88;
+  margin-top: .25rem;
+  line-height: 1.35;
+}
+@media (max-width: 480px) {
+  .broadcast-cta { padding: .95rem 1rem; margin: .6rem 0; }
+  .broadcast-cta-label { font-size: 1rem; }
+  .broadcast-cta-sub { font-size: .78rem; }
+}
+
+/* Inline WhatsApp template editor card — sits directly below the
+ * Broadcast CTA. Slightly tighter than the default .card so the pair
+ * reads as one grouped unit. */
+.wa-template-card {
+  margin: .5rem 0 1rem;
+  padding: 1rem 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.wa-template-card h3 { margin: 0 0 .3rem; font-size: .95rem; }
+.wa-template-card textarea {
+  font-family: var(--font-ui);
+  font-size: .9rem;
+  line-height: 1.45;
+}
