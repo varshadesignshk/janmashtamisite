@@ -566,12 +566,12 @@ function renderNav() {
     // tiles + all coordinators. Other roles (if ever granted hk_dashboard
     // by feature-gate) still see it.
     { href: "#/hk",        label: t("nav.hk"),       when: () => can("hk_dashboard") && ME.role !== "hk_leader" },
+    { href: "#/leaderboard", label: t("nav.leaderboard"), when: () => (can("leaderboard_coord_daily") || can("leaderboard_coord_overall") || can("leaderboard_leaders_daily") || can("leaderboard_leaders_overall")) && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/duties",    label: t("nav.duties"),   when: () => true },
     { href: "#/events",    label: t("nav.events"),   when: () => can("event_attendance") || can("events_view_list") },
     { href: "#/sadhana",   label: t("nav.sadhana"),  when: () => can("sadhana_chart") && SADHANA_ROLES.includes(ME.role) },
     { href: "#/bv",        label: t("nav.bv"),       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
     { href: "#/janmashtami", label: t("nav.janmashtami"), when: () => can("janmashtami_view_page") && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
-    { href: "#/leaderboard", label: t("nav.leaderboard"), when: () => (can("leaderboard_coord_daily") || can("leaderboard_coord_overall") || can("leaderboard_leaders_daily") || can("leaderboard_leaders_overall")) && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/members",     label: t("nav.members"),     when: () => can("members_tab") && ["hk_leader","njy_leader","njy_coordinator"].includes(ME.role) },
     { href: "#/profile",     label: t("nav.profile"), when: () => ME.role === "njy_coordinator" },
     { href: "#/settings",  label: t("nav.settings"), when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
