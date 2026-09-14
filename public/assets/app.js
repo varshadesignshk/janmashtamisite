@@ -693,6 +693,10 @@ async function renderCoordRoll(view) {
       // no server round-trip. Filename embeds the coord's own name.
       broadcastRow.append(csvDownloadButton(roll, ME.display_name || "me", "my-sangha"));
       if (broadcastRow.children.length) view.append(broadcastRow);
+      // Inline WhatsApp template editor — one message per coord, edited
+      // right here next to Broadcast so the message is visible before
+      // sending. Gate is the same as the old Settings editor.
+      if (can("settings_wa_templates")) view.append(renderWaTemplateCard());
     }
     // Care-moment surfacing — coords only, shown right below the tally.
     // Also gated on myroll_care_moments_panel so HK can hide it per role.
@@ -805,6 +809,45 @@ function renderWaGroupPickerCard() {
     const url = `https://api.whatsapp.com/send/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank", "noopener");
     msg.textContent = t("msg.opened_pick_group");
+  });
+  return card;
+}
+
+// Inline "Your WhatsApp Message" editor rendered on My Sangha, right
+// below the Broadcast CTA. One template per coord — applies to every
+// member on the roll regardless of lifecycle status (change 2). Save
+// posts { wa_template } to /api/me/wa-templates and updates ME so the
+// wa.me links on the page pick it up on next reload.
+function renderWaTemplateCard() {
+  const card = el("div", { class: "wa-template-card card" });
+  card.append(
+    el("h3", { class: "section", style: "margin-top:0" }, t("hd.wa_template_yours")),
+    el("p", { class: "hint" }, t("help.wa_template_inline")),
+  );
+  // Emoji-corruption guard. U+FFFD (REPLACEMENT CHARACTER, "�") shows
+  // up when a legacy save mangled 4-byte UTF-8. Silently drop the
+  // corrupted template and warn the coord so they can re-save.
+  const isCorrupt = (s) => typeof s === "string" && s.indexOf("�") >= 0;
+  if (isCorrupt(ME.wa_template_daily)) { ME.wa_template_daily = ""; }
+  const ta = el("textarea", { id: "wa-template-inline", rows: 5,
+    placeholder: t("bc.default_template"),
+    style: "width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px;font-family:inherit" });
+  ta.value = ME.wa_template_daily || "";
+  card.append(ta);
+  const msg = el("span", { class: "hint", style: "margin-left:.5rem" });
+  const saveBtn = el("button", { class: "primary", type: "button" }, t("btn.save"));
+  card.append(el("p", { style: "margin-top:.7rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap" }, saveBtn, msg));
+  saveBtn.addEventListener("click", async () => {
+    if (isCorrupt(ta.value)) { msg.textContent = t("st.corrupt_encoding"); return; }
+    try {
+      await api("/api/me/wa-templates", { method: "POST", body: JSON.stringify({
+        wa_template: ta.value,
+      }) });
+      ME.wa_template_daily = ta.value;
+      msg.textContent = t("msg.template_saved");
+    } catch (err) {
+      msg.textContent = err.message || t("st.save_failed");
+    }
   });
   return card;
 }
@@ -3947,88 +3990,16 @@ async function renderSettings(view) {
   }
   langCard.append(langBtns);
   if (can("header_language_toggle")) view.append(langCard);
-  // WA templates section (gated: settings_wa_templates)
-  if (can("settings_wa_templates")) view.append(el("p", { class: "hint" }, t("help.wa_templates")));
 
-  const card = el("form", { class: "card", method: "post", action: "javascript:void(0)" });
-  const daily = el("textarea", { id: "wa-daily", rows: "5",
-    placeholder: t("bc.default_template") });
-  const nondaily = el("textarea", { id: "wa-nondaily", rows: "5",
-    placeholder: t("bc.default_template") });
-  // Emoji-corruption guard. U+FFFD (REPLACEMENT CHARACTER, "�") shows
-  // up when a legacy save mangled 4-byte UTF-8 before the charset
-  // response-header fix landed. Silently drop the corrupted template
-  // and warn the coord so they can re-save; otherwise the mangled "?"
-  // characters get sent to every chanter every day.
-  const isCorrupt = (s) => typeof s === "string" && s.indexOf("�") >= 0;
-  let wasCorrupt = false;
-  if (isCorrupt(ME.wa_template_daily))    { ME.wa_template_daily = "";    wasCorrupt = true; }
-  if (isCorrupt(ME.wa_template_nondaily)) { ME.wa_template_nondaily = ""; wasCorrupt = true; }
-  daily.value = ME.wa_template_daily || "";
-  nondaily.value = ME.wa_template_nondaily || "";
-  card.append(
-    el("h3", { class: "section" }, t("hd.wa_daily")),
-    daily,
-    el("h3", { class: "section" }, t("hd.wa_nondaily")),
-    nondaily,
-    el("p", { style: "margin-top:1rem" },
-      el("button", { type: "submit", class: "primary" }, t("btn.save")),
-      " ",
-      // "Test emoji" opens api.whatsapp.com/send/ with a canary text so
-      // the coord can verify on THEIR device whether 4-byte emojis
-      // survive the round trip through WhatsApp Web / mobile. On some
-      // devices they do; on others they don't — the button lets the
-      // coord decide for themselves rather than us guessing.
-      el("button", { type: "button", class: "btn", id: "wa-test-emoji" },
-        t("btn.test_emoji") || t("st.test_emoji_label")),
-      " ", el("span", { class: "hint", id: "wa-msg" }),
-    ),
-    el("p", { class: "hint", style: "margin-top:.4rem" }, t("st.emoji_hint")),
-  );
-  card.onsubmit = async (e) => {
-    e.preventDefault();
-    // Refuse to persist a value that already contains U+FFFD — that
-    // means the input never round-tripped the browser's encoding
-    // correctly to begin with, and saving would re-poison the row.
-    if (isCorrupt(daily.value) || isCorrupt(nondaily.value)) {
-      $("wa-msg").textContent = t("st.corrupt_encoding");
-      return;
-    }
-    try {
-      await api("/api/me/wa-templates", { method: "POST", body: JSON.stringify({
-        wa_template_daily: daily.value, wa_template_nondaily: nondaily.value,
-      }) });
-      ME.wa_template_daily = daily.value;
-      ME.wa_template_nondaily = nondaily.value;
-      $("wa-msg").textContent = t("msg.saved");
-    } catch (err) {
-      $("wa-msg").textContent = err.message || t("st.save_failed");
-    }
-  };
+  // WhatsApp template editor moved to the My Sangha page (change 2/3 —
+  // one message per coord, edited inline right next to the Broadcast
+  // CTA). Leave a small notice so anyone still hunting for it here
+  // knows where it went.
   if (can("settings_wa_templates")) {
-    // Corruption warning banner, only when we actually detected it in
-    // the fetched-back templates. Above the card so it's the first
-    // thing the coord sees on Settings.
-    if (wasCorrupt) {
-      view.append(el("div", { class: "card",
-        style: "border-color:var(--mark-attention);background:var(--tint-attention);margin-bottom:.5rem" },
-        el("strong", {}, t("st.corrupt_banner")),
-        el("p", { class: "hint", style: "margin:.3rem 0 0" }, t("st.corrupt_hint")),
-      ));
-    }
-    view.append(card);
-    // Wire the test-emoji button after the card is attached.
-    setTimeout(() => {
-      const btn = $("wa-test-emoji");
-      if (!btn) return;
-      btn.addEventListener("click", () => {
-        // api.whatsapp.com/send/ (not wa.me) preserves 4-byte UTF-8 —
-        // wa.me's 302 mangles emoji to U+FFFD. See lib/notify.js.
-        const url = "https://api.whatsapp.com/send/?text="
-          + encodeURIComponent("Emoji test: 🌸 🙏 🕉 🌺 - do you see the flowers/hands?");
-        window.open(url, "_blank", "noopener");
-      });
-    }, 0);
+    view.append(el("div", { class: "card" },
+      el("h3", { class: "section", style: "margin-top:0" }, t("hd.wa_template_moved")),
+      el("p", { class: "hint", style: "margin:.3rem 0 0" }, t("st.wa_template_moved_notice")),
+    ));
   }
 }
 
