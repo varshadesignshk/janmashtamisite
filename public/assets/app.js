@@ -3865,7 +3865,13 @@ function openCredShareModal({ user, plaintext_password, kind }) {
   // 2) Notify HK to assign members — coord-only, and only when the HK
   // caller isn't the operator themselves (HK creating a coord already
   // knows to assign). For a new leader there's nothing to assign.
-  const showHkNudge = !isLeader && ME.role !== "hk_leader" && hkPhoneDigits;
+  //
+  // If ME.hk_phone is set, deep-link straight to that chat. Otherwise
+  // fall back to WhatsApp's contact picker (`send/?text=...` with no
+  // `phone=`) so the leader can pick the Super Admin from their own
+  // contacts — the previous "hide the button" behaviour meant leaders
+  // on rows without hk_phone had no visible nudge affordance at all.
+  const showHkNudge = !isLeader && ME.role !== "hk_leader";
   if (showHkNudge) {
     const hkMsg = [
       `Hare Krsna Prabhu,`,
@@ -3875,11 +3881,20 @@ function openCredShareModal({ user, plaintext_password, kind }) {
       ``,
       `Hare Krsna.`,
     ].join("\n");
+    const waHref = hkPhoneDigits
+      ? `https://api.whatsapp.com/send/?phone=${hkPhoneDigits}&text=${encodeURIComponent(hkMsg)}`
+      : `https://api.whatsapp.com/send/?text=${encodeURIComponent(hkMsg)}`;
     box.append(el("a", {
-      href: `https://api.whatsapp.com/send/?phone=${hkPhoneDigits}&text=${encodeURIComponent(hkMsg)}`,
+      href: waHref,
       target: "_blank", rel: "noopener",
       style: btnStyle,
     }, "📤 " + t("cred_share.notify_hk")));
+    if (!hkPhoneDigits) {
+      box.append(el("p", {
+        class: "hint",
+        style: "margin:.15rem 0 .6rem;font-size:.8rem;text-align:center",
+      }, t("cred_share.notify_hk_picker_hint")));
+    }
   }
 
   box.append(el("p", { class: "hint", style: "margin-top:.7rem;font-size:.82rem" },
