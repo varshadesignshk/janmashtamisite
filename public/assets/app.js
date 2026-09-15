@@ -233,6 +233,19 @@ function inferGender(name) {
   return "?";
 }
 
+// Preferred entrypoint for coord/leader gender: trust the DB value if
+// present (populated by migration 0016 + the name-heuristic seed
+// 06-coord-genders.sql), else fall back to display-name inference.
+// Accepts either a user object ({gender, display_name}) or a raw name.
+function userGender(u) {
+  if (u && typeof u === "object") {
+    const raw = String(u.gender || "").toUpperCase();
+    if (raw === "M" || raw === "F") return raw;
+    return inferGender(u.display_name || u.name || "");
+  }
+  return inferGender(u);
+}
+
 let ME = null, GATES = {};
 
 // -------------------------------------- route token (BUG 1+2) ------
@@ -3275,14 +3288,16 @@ async function renderMembers(view) {
   const bulkCount = el("span", { style: "font-weight:600" }, "");
   const bulkSelect = el("select", { style: "flex:1;min-width:10rem;padding:.4rem" });
   // Precompute gender + a lookup by coord id (used by highlight + auto-fill).
+  // Uses userGender(): DB `gender` column wins, name-inference is the
+  // fallback for legacy rows and any name-only calls elsewhere.
   const coordById = new Map();
   for (const c of eligible_coords) {
-    const g = inferGender(c.display_name);
+    const g = userGender(c);
     coordById.set(c.id, { ...c, gender: g });
   }
   bulkSelect.append(el("option", { value: "" }, t("members.bulk_pick_coord")));
   for (const c of eligible_coords) {
-    const g = inferGender(c.display_name);
+    const g = userGender(c);
     const label = `${c.display_name} (${g})`;
     bulkSelect.append(el("option", { value: c.id }, label));
   }
