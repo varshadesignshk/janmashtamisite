@@ -53,8 +53,8 @@ const ERROR_MESSAGES = {
   duplicate_phone: "A member with that phone number already exists.",
   duplicate_coupon: "A member with that coupon number already exists.",
   duplicate_sl_no: "That serial number is already used.",
-  coupon_or_range_required: "Enter a coupon number, or ask Super Admin to assign your coord an sl_range.",
-  range_exhausted_or_missing: "Your assigned sl_no range is exhausted. Ask Super Admin to widen it.",
+  coupon_or_range_required: "Enter a coupon number, or ask Director to assign your coord an sl_range.",
+  range_exhausted_or_missing: "Your assigned sl_no range is exhausted. Ask Director to widen it.",
   name_and_mobile_required: "Both name and mobile are required.",
   // Bulk
   rows_required: "The request had no rows to import.",
@@ -3242,7 +3242,7 @@ async function renderMembers(view) {
   // first click) so the Members tab renders immediately for the common
   // case where the operator is just browsing.
   //   • Leader (njy_leader):   sees "+ Add Coordinator" only
-  //   • Super Admin (hk_leader): sees BOTH "+ Add Coordinator" and
+  //   • Director (hk_leader): sees BOTH "+ Add Coordinator" and
   //                              "+ Add Leader" side-by-side
   const addSlot = el("div", { id: "add-coord-slot",
     style: "display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem" });
@@ -3868,7 +3868,7 @@ function openCredShareModal({ user, plaintext_password, kind }) {
   //
   // If ME.hk_phone is set, deep-link straight to that chat. Otherwise
   // fall back to WhatsApp's contact picker (`send/?text=...` with no
-  // `phone=`) so the leader can pick the Super Admin from their own
+  // `phone=`) so the leader can pick the Director from their own
   // contacts — the previous "hide the button" behaviour meant leaders
   // on rows without hk_phone had no visible nudge affordance at all.
   const showHkNudge = !isLeader && ME.role !== "hk_leader";
@@ -3927,7 +3927,7 @@ async function renderMemberDetails(personId) {
     const assignedName = el("strong", { id: "m-coord-name", style: "color:var(--ink-2)" },
       assigned_coord ? assigned_coord.display_name : t("members.unassigned_label"));
     banner.append(assignedLabel, assignedName);
-    // Reassign is a leader / Super Admin action — coords cannot move
+    // Reassign is a leader / Director action — coords cannot move
     // members off/onto other rolls. Only render the button for those roles.
     const canReassign = ME.role === "hk_leader" || ME.role === "njy_leader";
     let reassignBtn = null;
