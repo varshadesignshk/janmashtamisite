@@ -3177,7 +3177,10 @@ async function renderMembers(view) {
   loading.remove();
 
   const { people, eligible_coords } = payload;
-  const canBulkAssign = ["hk_leader", "njy_leader"].includes(ME.role) && eligible_coords.length > 0;
+  // Bulk-assign is HK Leader only. Leaders now see Unassigned Pool as
+  // view-only (they must ask HK Leader to assign). Coord no longer sees
+  // Unassigned Pool at all.
+  const canBulkAssign = ME.role === "hk_leader" && eligible_coords.length > 0;
 
   // Optional "+ Add Coordinator" button — leader + HK. Rendered above
   // the search bar so it's the first thing they see on the tab. The
@@ -3434,15 +3437,33 @@ async function renderMembers(view) {
     return { card, repaint };
   };
 
-  // Coord sees My + Others + Unassigned. Leader same. HK sees Others +
-  // Unassigned only (never "mine").
+  // Role-scoped tables:
+  //   njy_coordinator → only "My Members" (no Others, no Unassigned).
+  //   njy_leader      → "My Team's Members" + Unassigned Pool (view-only,
+  //                     with an info notice above pointing at HK Leader).
+  //   hk_leader       → Other Coords' Members + Unassigned Pool (bulk-assign).
   const built = [];
-  if (ME.role !== "hk_leader") {
+  if (ME.role === "njy_coordinator") {
     built.push(buildSection("mine", "members.section_mine", /*coord*/ false, /*chk*/ false));
+    for (const b of built) sectionsWrap.append(b.card);
+  } else if (ME.role === "njy_leader") {
+    const mine = buildSection("mine", "members.section_mine_team", /*coord*/ true, /*chk*/ false);
+    const unassigned = buildSection("unassigned", "members.section_unassigned", /*coord*/ false, /*chk*/ false);
+    built.push(mine, unassigned);
+    sectionsWrap.append(mine.card);
+    // Info notice sits above the view-only Unassigned Pool for leaders.
+    sectionsWrap.append(el("p", {
+      class: "hint",
+      style: "margin:.6rem .2rem .3rem;padding:.55rem .7rem;background:var(--surface-sunk);"
+        + "border-left:3px solid var(--peacock-deep);border-radius:4px;font-size:.88rem",
+    }, t("members.unassigned_leader_notice")));
+    sectionsWrap.append(unassigned.card);
+  } else {
+    // hk_leader
+    built.push(buildSection("others", "members.section_others", /*coord*/ true, /*chk*/ false));
+    built.push(buildSection("unassigned", "members.section_unassigned", /*coord*/ false, /*chk*/ canBulkAssign));
+    for (const b of built) sectionsWrap.append(b.card);
   }
-  built.push(buildSection("others", "members.section_others", /*coord*/ true, /*chk*/ false));
-  built.push(buildSection("unassigned", "members.section_unassigned", /*coord*/ false, /*chk*/ canBulkAssign));
-  for (const b of built) sectionsWrap.append(b.card);
 
   const renderAll = () => {
     for (const b of built) b.repaint();
