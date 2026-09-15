@@ -4428,6 +4428,13 @@ async function renderProfile(userId) {
       el("a", { class: "btn", href: "#/leaderboard/overall" }, t("lb.back_to_lb")),
     ));
 
+    // Edit-profile card — only when viewing YOUR OWN profile and your
+    // role is coord/leader/hk. Password stays in Settings; role /
+    // manager / gender are HK-only concerns and not exposed here.
+    if (!userId && ["njy_coordinator", "njy_leader", "hk_leader"].includes(ME.role)) {
+      view.append(buildEditProfileCard());
+    }
+
     // Show the coord's own NJY Leader so they know who to escalate to.
     // Only meaningful when viewing your OWN profile (userId undefined).
     if (!userId && ME.manager_display_name) {
@@ -4467,6 +4474,142 @@ async function renderProfile(userId) {
     loader.remove();
     view.append(el("p", { class: "error" }, err.message));
   }
+}
+
+// ---------------- Self-profile edit ---------------------------------
+// Rendered at the top of #/profile for coord + leader + hk (own view).
+// Editable: display_name, username (live availability), phone, pincode
+// (pincode hidden for HK to keep the field-set aligned with what's
+// actually stored on that role). Password lives in Settings. Backend
+// enforces uniqueness on username-change and returns username_changed
+// so we can toast a reminder to sign back in with the new name.
+function buildEditProfileCard() {
+  const card = el("div", { class: "card", style: "margin:.4rem 0 .8rem" });
+  card.append(el("h3", { class: "section", style: "margin-top:0" },
+    t("profile.edit_hd")));
+
+  const displayI = el("input", { autocomplete: "off", value: ME.display_name || "" });
+  const usernameI = el("input", {
+    autocomplete: "off", autocapitalize: "none", value: ME.username || "",
+  });
+  const usernameFlag = el("span", { class: "hint", style: "margin-left:.4rem" }, "");
+  const phoneI = el("input", {
+    inputmode: "tel", placeholder: "+91…", value: ME.phone || "",
+  });
+  const showPincode = ["njy_coordinator", "njy_leader"].includes(ME.role);
+  const pincodeI = el("input", {
+    inputmode: "numeric", maxlength: "6", autocomplete: "postal-code",
+    placeholder: "560001", value: ME.pincode || "",
+  });
+  const msg = el("span", { class: "hint", style: "margin-left:.5rem" }, "");
+  const saveBtn = el("button", { class: "primary", type: "submit" }, t("btn.save"));
+
+  const form = el("form", { method: "post", action: "javascript:void(0)" });
+  form.append(
+    el("div", {}, el("label", {}, t("field.display_name")), displayI),
+    el("div", {}, el("label", {}, t("field.username")),
+      el("div", { style: "display:flex;align-items:center" }, usernameI, usernameFlag)),
+    el("div", {}, el("label", {}, t("field.phone")), phoneI),
+  );
+  if (showPincode) {
+    form.append(el("div", {}, el("label", {}, t("field.pincode")), pincodeI,
+      el("p", { class: "hint",
+        style: "margin:.15rem 0 .3rem;font-size:.78rem;color:var(--ink-2)",
+      }, t("field.pincode_hint"))));
+  }
+  form.append(el("p", { style: "margin-top:.6rem" }, saveBtn, msg));
+  card.append(form);
+
+  // Live username-availability probe, only when the value has changed
+  // from ME.username (unchanged never queries — reduces noise + spares
+  // the endpoint). Shares the leader-scoped coord-username-check
+  // endpoint, gated in the backend to leader/HK; for a coord the
+  // request 403s and we silently skip the check (server still enforces
+  // collision on POST, so this UX aid degrades safely).
+  let checkTimer = null;
+  usernameI.addEventListener("input", () => {
+    const v = usernameI.value.trim();
+    usernameFlag.textContent = "";
+    usernameFlag.style.color = "";
+    clearTimeout(checkTimer);
+    if (v.length < 3 || v === (ME.username || "")) return;
+    checkTimer = setTimeout(async () => {
+      try {
+        const r = await api(`/api/leader/coord-username-check?u=${encodeURIComponent(v)}`);
+        if (r.available) {
+          usernameFlag.textContent = "✓ " + t("members.uname_ok");
+          usernameFlag.style.color = "var(--mark-followed)";
+        } else {
+          usernameFlag.textContent = "✗ " + t("members.uname_taken");
+          usernameFlag.style.color = "var(--mark-attention)";
+        }
+      } catch { /* silent — role may not have access to the probe */ }
+    }, 250);
+  });
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    msg.textContent = "";
+    const dn = displayI.value.trim();
+    const un = usernameI.value.trim();
+    const ph = phoneI.value.trim();
+    const pc = pincodeI.value.trim();
+    if (!dn) { msg.textContent = t("profile.edit_display_required"); return; }
+    if (!un) { msg.textContent = t("profile.edit_username_required"); return; }
+    if (pc && showPincode && !/^\d{6}$/.test(pc)) {
+      msg.textContent = t("field.pincode_invalid"); return;
+    }
+    const body = { display_name: dn, username: un, phone: ph };
+    if (showPincode) body.pincode = pc || null;
+    saveBtn.disabled = true;
+    try {
+      const r = await api("/api/me", {
+        method: "POST", body: JSON.stringify(body),
+      });
+      // Update local ME so the rest of the app reflects the change
+      // without a full reload.
+      if (r.user) {
+        ME.display_name = r.user.display_name;
+        ME.username = r.user.username;
+        ME.phone = r.user.phone;
+        if ("pincode" in r.user) ME.pincode = r.user.pincode;
+      }
+      showProfileSavedToast(!!r.username_changed);
+      msg.textContent = t("profile.edit_saved");
+    } catch (err) {
+      msg.textContent = err.message;
+    } finally {
+      saveBtn.disabled = false;
+    }
+  };
+  return card;
+}
+
+function showProfileSavedToast(usernameChanged) {
+  if (_njyToastTimer) { clearTimeout(_njyToastTimer); _njyToastTimer = null; }
+  if (_njyToastEl && _njyToastEl.isConnected) _njyToastEl.remove();
+  const text = usernameChanged
+    ? t("profile.edit_toast_username")
+    : t("profile.edit_toast");
+  const box = el("div", {
+    role: "status",
+    style: [
+      "position:fixed", "left:50%", "bottom:24px",
+      "transform:translateX(-50%)",
+      "background:#1f2937", "color:#fff",
+      "padding:.7rem 1rem", "border-radius:8px",
+      "box-shadow:0 4px 14px rgba(0,0,0,.25)",
+      "z-index:9999", "font-size:.9rem",
+      "max-width:min(92vw,420px)", "text-align:center",
+    ].join(";"),
+  }, text);
+  document.body.append(box);
+  _njyToastEl = box;
+  _njyToastTimer = setTimeout(() => {
+    _njyToastTimer = null;
+    if (_njyToastEl === box) _njyToastEl = null;
+    box.remove();
+  }, 6000);
 }
 
 function pointsBreakdownCard(title, breakdown) {

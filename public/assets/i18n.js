@@ -277,6 +277,12 @@ const DICT = {
     // Profile
     "hd.profile": "Profile",
     "hd.your_leader_prefix": "Your NJY Leader:",
+    "profile.edit_hd": "Edit Profile",
+    "profile.edit_display_required": "Display name is required.",
+    "profile.edit_username_required": "Username is required.",
+    "profile.edit_saved": "Saved.",
+    "profile.edit_toast": "Profile updated.",
+    "profile.edit_toast_username": "Profile updated. If you changed your username, use the new one next time you sign in.",
 
     // Janmashtami rapid entry
     "hd.janmashtami_rapid": "Add New Member",
@@ -1251,6 +1257,12 @@ const DICT = {
     // Profile
     "hd.profile": "என் பக்கம்",
     "hd.your_leader_prefix": "உங்கள் NJY தலைவர்:",
+    "profile.edit_hd": "என் விவரங்களைத் திருத்து",
+    "profile.edit_display_required": "காட்சிப் பெயர் தேவை.",
+    "profile.edit_username_required": "பயனர் பெயர் தேவை.",
+    "profile.edit_saved": "சேமிக்கப்பட்டது.",
+    "profile.edit_toast": "விவரங்கள் புதுப்பிக்கப்பட்டன.",
+    "profile.edit_toast_username": "விவரங்கள் புதுப்பிக்கப்பட்டன. பயனர் பெயரை மாற்றியிருந்தால், அடுத்த முறை உள்நுழையும்போது புதிய பெயரைப் பயன்படுத்தவும்.",
 
     // Janmashtami rapid entry
     "hd.janmashtami_rapid": "புதிய உறுப்பினரைச் சேர்",
