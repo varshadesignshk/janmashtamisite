@@ -53,8 +53,8 @@ const ERROR_MESSAGES = {
   duplicate_phone: "A member with that phone number already exists.",
   duplicate_coupon: "A member with that coupon number already exists.",
   duplicate_sl_no: "That serial number is already used.",
-  coupon_or_range_required: "Enter a coupon number, or ask HK Leader to assign your coord an sl_range.",
-  range_exhausted_or_missing: "Your assigned sl_no range is exhausted. Ask HK Leader to widen it.",
+  coupon_or_range_required: "Enter a coupon number, or ask Super Admin to assign your coord an sl_range.",
+  range_exhausted_or_missing: "Your assigned sl_no range is exhausted. Ask Super Admin to widen it.",
   name_and_mobile_required: "Both name and mobile are required.",
   // Bulk
   rows_required: "The request had no rows to import.",
