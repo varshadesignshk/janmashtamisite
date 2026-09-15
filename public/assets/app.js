@@ -3663,6 +3663,14 @@ function buildAddPersonCard(slot, kind) {
   const displayI = el("input", { autocomplete: "off" });
   const passwordI = el("input", { type: "text", autocomplete: "new-password" });
   const phoneI = el("input", { inputmode: "tel", placeholder: "+91…" });
+  const pincodeI = el("input", {
+    inputmode: "numeric", maxlength: "6", autocomplete: "postal-code",
+    placeholder: "560001",
+  });
+  const pincodeHint = el("p", {
+    class: "hint",
+    style: "margin:.15rem 0 .3rem;font-size:.78rem;color:var(--ink-2)",
+  }, t("field.pincode_hint"));
   const leaderSelect = el("select", {});
   const msg = el("span", { class: "hint", style: "margin-left:.5rem" }, "");
   const saveBtn = el("button", { class: "primary", type: "submit" }, t("btn.save"));
@@ -3676,6 +3684,7 @@ function buildAddPersonCard(slot, kind) {
     usernameWrap,
     el("div", {}, el("label", {}, t("field.password")), passwordI),
     el("div", {}, el("label", {}, t("field.phone")), phoneI),
+    el("div", {}, el("label", {}, t("field.pincode")), pincodeI, pincodeHint),
   );
 
   // Coord form + HK Leader caller: pick a leader to attach the coord
@@ -3695,6 +3704,13 @@ function buildAddPersonCard(slot, kind) {
       } catch { /* fall back to empty select */ }
     })();
     form.append(el("div", {}, el("label", {}, t("members.leader_label")), leaderSelect));
+    // HK hint: leader-touch onboarding points go to the assigned leader,
+    // never HK. If HK creates a coord without picking a leader,
+    // manager_user_id is NULL and no leader gets credited (by design).
+    form.append(el("p", {
+      class: "hint",
+      style: "margin:.2rem 0 .3rem;font-size:.8rem;color:var(--ink-2)",
+    }, t("members.hk_onboarding_points_hint")));
   }
   form.append(el("p", { style: "margin-top:.6rem" }, saveBtn, " ", cancelBtn, msg));
   card.append(form);
@@ -3738,11 +3754,16 @@ function buildAddPersonCard(slot, kind) {
   form.onsubmit = async (e) => {
     e.preventDefault();
     msg.textContent = "";
+    const pincodeRaw = pincodeI.value.trim();
+    if (pincodeRaw && !/^\d{6}$/.test(pincodeRaw)) {
+      msg.textContent = t("field.pincode_invalid"); return;
+    }
     const body = {
       username: usernameI.value.trim(),
       password: passwordI.value,
       display_name: displayI.value.trim(),
       phone: phoneI.value.trim(),
+      pincode: pincodeRaw || null,
     };
     if (!isLeader && ME.role === "hk_leader") body.leader_username = leaderSelect.value;
     if (!body.username || !body.password || !body.display_name) {
@@ -3769,6 +3790,7 @@ function buildAddPersonCard(slot, kind) {
       });
       // Reset for another add.
       usernameI.value = ""; displayI.value = ""; passwordI.value = ""; phoneI.value = "";
+      pincodeI.value = "";
       usernameFlag.textContent = "";
     } catch (err) {
       msg.textContent = err.message;

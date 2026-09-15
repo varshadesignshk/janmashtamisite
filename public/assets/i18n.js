@@ -64,6 +64,8 @@ const DICT = {
     "field.phone": "Phone",
     "field.search": "Search",
     "field.notes": "Notes",
+    "field.pincode_hint": "6-digit area pincode (helps with member matching)",
+    "field.pincode_invalid": "Pincode must be 6 digits (or blank).",
 
     // Labels / headings
     "hd.quick_add": "Quick Add",
@@ -368,6 +370,7 @@ const DICT = {
     "members.add_leader_title": "Add a new Leader",
     "members.pick_leader": "Pick a leader…",
     "members.leader_label": "Leader",
+    "members.hk_onboarding_points_hint": "Note: onboarding points go to the assigned leader.",
     "members.uname_ok": "Username available",
     "members.uname_taken": "Username already used",
     "members.add_coord_missing": "Fill in username, password, and display name.",
@@ -1035,6 +1038,8 @@ const DICT = {
     "field.phone": "மொபைல்",
     "field.search": "தேடு",
     "field.notes": "குறிப்புகள்",
+    "field.pincode_hint": "6 இலக்க பகுதி பின்கோடு (உறுப்பினர் பொருத்தத்திற்கு உதவும்)",
+    "field.pincode_invalid": "பின்கோடு 6 இலக்கங்களாக இருக்க வேண்டும் (அல்லது காலியாக).",
 
     // Labels / headings
     "hd.quick_add": "விரைவு சேர்",
@@ -1339,6 +1344,7 @@ const DICT = {
     "members.add_leader_title": "புதிய தலைவரைச் சேர்",
     "members.pick_leader": "தலைவரைத் தேர்ந்தெடு…",
     "members.leader_label": "தலைவர்",
+    "members.hk_onboarding_points_hint": "குறிப்பு: onboarding புள்ளிகள் ஒதுக்கப்பட்ட தலைவருக்கே செல்லும்.",
     "members.uname_ok": "பயனர்பெயர் கிடைக்கிறது",
     "members.uname_taken": "பயனர்பெயர் ஏற்கனவே பயன்பாட்டில்",
     "members.add_coord_missing": "பயனர்பெயர், கடவுச்சொல் மற்றும் காட்சிப் பெயரை நிரப்பவும்.",
