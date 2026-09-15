@@ -1160,7 +1160,14 @@ function renderBroadcastQueue(view) {
   progressCard.append(
     el("div", { class: "spread", style: "margin-bottom:.4rem" },
       el("strong", { style: "color:var(--peacock-deep);font-size:.9rem" },
-        done ? `${t("bc.finished_prefix")}${total}${t("bc.finished_suffix_chanters")}` : `${state.index + 1}${t("bc.of_infix")}${total}`),
+        // BUG: the previous label was `${state.index + 1} of ${total}`
+        // — a position indicator, not a send count. On the final
+        // chanter it read "3 of 3" while the coord had only actually
+        // sent 2 (they hadn't tapped Sent on the third yet). Users
+        // read that as "3 sent" and reported an off-by-one. Show the
+        // true sent count instead; the current-chanter card still
+        // carries `#${state.index + 1}` for position context.
+        done ? `${t("bc.finished_prefix")}${total}${t("bc.finished_suffix_chanters")}` : `${t("bc.sent_progress_prefix")}${sentCount}${t("bc.of_infix")}${total}`),
       el("span", { class: "hint", style: "font-size:.8rem" }, `${pct}%`),
     ),
     el("div", { class: "pbar", "data-mid": "0",
