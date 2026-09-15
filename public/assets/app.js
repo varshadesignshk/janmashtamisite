@@ -1147,7 +1147,8 @@ function renderBroadcastQueue(view) {
 
   // Current chanter card
   const cur = state.queue[state.index];
-  const filledMsg = state.messageTemplate.replace(/\{name\}/g, (cur.name || "").split(" ")[0] || cur.name || "");
+  // Case-insensitive placeholder — {name}, {Name}, {NAME} all resolve.
+  const filledMsg = state.messageTemplate.replace(/\{name\}/gi, (cur.name || "").split(" ")[0] || cur.name || "");
   // wa.me wants phone digits only — leaving "+" in (encoded as %2B) breaks
   // recipient matching on some WhatsApp clients and falls back to the
   // compose picker, which re-parses the ?text= param under a non-UTF-8
