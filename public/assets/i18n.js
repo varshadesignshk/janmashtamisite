@@ -218,7 +218,7 @@ const DICT = {
 
     // Care moments / My Roll extras
     "msg.no_chanters_assigned": "No Members assigned yet. Ask your NJY Leader to assign your list, or (if you are the Super Admin) use bulk import from Admin.",
-    "msg.no_coord_roll": "You don't have a coordinator roll. Try the Team or HK tabs.",
+    "msg.no_coord_roll": "You don't have a coordinator roll. Try the Team or Super Admin tabs.",
     "msg.could_not_load": "Could not load: ",
     "msg.could_not_update": "Could not update",
     "msg.could_not_update_status": "Could not update status",
