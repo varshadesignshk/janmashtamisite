@@ -3616,6 +3616,12 @@ function buildAddCoordCard(slot) {
         method: "POST", body: JSON.stringify(body),
       });
       msg.textContent = `${t("members.add_coord_ok_prefix")}${r.user.display_name || r.user.username}${t("members.add_coord_ok_suffix")}`;
+      // Open the credential-share modal — WhatsApp handoff for the new
+      // coord's login + a nudge to HK to slot chanters under them.
+      openCredShareModal({
+        user: r.user,
+        plaintext_password: r.plaintext_password || body.password,
+      });
       // Reset for another add.
       usernameI.value = ""; displayI.value = ""; passwordI.value = ""; phoneI.value = "";
       usernameFlag.textContent = "";
@@ -3627,6 +3633,108 @@ function buildAddCoordCard(slot) {
   };
 
   return card;
+}
+
+// ------------------ Credential-share modal --------------------------
+// Opens right after a successful add-coord POST. Shows the new coord's
+// username, plaintext password (echoed once from the server response —
+// never fetched again), and the app URL. Two WhatsApp deep-link buttons
+// let the operator hand the credentials to the coord and nudge HK to
+// assign chanters. Backdrop-click and × both close.
+function openCredShareModal({ user, plaintext_password }) {
+  const origin = window.location.origin || "https://njy-thiruppalai.pages.dev";
+  const username = user.username || "";
+  const displayName = user.display_name || username;
+  const coordPhoneDigits = String(user.phone || "").replace(/\D/g, "");
+  const hkPhoneDigits = String(ME && ME.hk_phone || "").replace(/\D/g, "");
+  const fullHonName = honorificAdjust(displayName);
+
+  const backdrop = el("div", {
+    id: "cred-share-backdrop",
+    style: "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto",
+  });
+  const box = el("div", {
+    style: "background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);max-width:520px;width:100%;padding:1rem 1.2rem;box-shadow:var(--shadow)",
+  });
+  const closeBtn = el("button", { class: "ghost", type: "button", id: "cs-close" }, "✕");
+  box.append(el("div", { class: "spread" },
+    el("h3", { class: "section", style: "margin:0" }, t("cred_share.title")),
+    closeBtn,
+  ));
+  box.append(el("p", { style: "margin:.3rem 0 .8rem" },
+    t("cred_share.created_prefix"),
+    el("strong", {}, displayName),
+  ));
+
+  // Boxed credentials display.
+  const credRow = (label, value) => el("div", {
+    style: "display:flex;gap:.5rem;padding:.35rem 0;border-bottom:1px dashed var(--line);font-size:.92rem",
+  },
+    el("span", { style: "flex:0 0 5.5rem;color:var(--ink-2);font-weight:600" }, label),
+    el("span", { style: "flex:1;word-break:break-all;font-family:ui-monospace,monospace" }, value),
+  );
+  const credsBox = el("div", {
+    style: "background:var(--surface-sunk);border:1px solid var(--line);border-radius:6px;padding:.5rem .8rem;margin-bottom:.9rem",
+  },
+    credRow(t("cred_share.username"), username),
+    credRow(t("cred_share.password"), plaintext_password || ""),
+    credRow(t("cred_share.url"), origin),
+  );
+  box.append(credsBox);
+
+  // WhatsApp buttons.
+  const btnStyle = "display:block;width:100%;text-align:center;padding:.75rem;margin-bottom:.55rem;"
+    + "background:#25d366;color:#fff;font-weight:600;border-radius:8px;text-decoration:none;font-size:.95rem";
+  const btnDisabledStyle = btnStyle + ";background:var(--surface-sunk);color:var(--ink-2);cursor:not-allowed";
+
+  // 1) Send login to coordinator.
+  const coordMsg = [
+    `Hare Krsna ${fullHonName},`,
+    ``,
+    `You have been added as a coordinator on the NJY app.`,
+    ``,
+    `URL: ${origin}`,
+    `Username: ${username}`,
+    `Password: ${plaintext_password || ""}`,
+    ``,
+    `Please log in and change your password after first sign-in.`,
+    ``,
+    `Hare Krsna.`,
+  ].join("\n");
+  if (coordPhoneDigits) {
+    box.append(el("a", {
+      href: `https://api.whatsapp.com/send/?phone=${coordPhoneDigits}&text=${encodeURIComponent(coordMsg)}`,
+      target: "_blank", rel: "noopener",
+      style: btnStyle,
+    }, "📤 " + t("cred_share.send_login")));
+  } else {
+    box.append(el("div", { style: btnDisabledStyle }, "📤 " + t("cred_share.send_login") + " (" + t("cred_share.no_phone") + ")"));
+  }
+
+  // 2) Notify HK to assign members. Only shown when HK phone is known.
+  if (hkPhoneDigits) {
+    const hkMsg = [
+      `Hare Krsna Prabhu,`,
+      ``,
+      `I have added a new coordinator: ${displayName}.`,
+      `Please assign chanters from the Unassigned Pool to their roll.`,
+      ``,
+      `Hare Krsna.`,
+    ].join("\n");
+    box.append(el("a", {
+      href: `https://api.whatsapp.com/send/?phone=${hkPhoneDigits}&text=${encodeURIComponent(hkMsg)}`,
+      target: "_blank", rel: "noopener",
+      style: btnStyle,
+    }, "📤 " + t("cred_share.notify_hk")));
+  }
+
+  box.append(el("p", { class: "hint", style: "margin-top:.7rem;font-size:.82rem" },
+    t("cred_share.password_reminder")));
+
+  closeBtn.addEventListener("click", () => backdrop.remove());
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+  backdrop.append(box);
+  document.body.append(backdrop);
 }
 
 async function renderMemberDetails(personId) {
