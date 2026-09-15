@@ -720,21 +720,19 @@ async function renderCoordRoll(view) {
       if (ME.hk_phone) line.append(wame(ME.hk_phone, t("pill.contact_hk")));
       view.append(line);
     }
-    // Prominent Broadcast CTA — coords only, above the scoreboard tiles
-    // so it's the first action visible on My Sangha. Big teal card with
-    // a sub-line; the inline WhatsApp template editor sits directly
-    // below so users see-the-message → tap-Broadcast in one motion.
+    // Inline WhatsApp template editor — coords see and edit the message
+    // FIRST so they know what will be sent before tapping Broadcast.
+    if (roll.length > 0 && ME.role === "njy_coordinator" && can("settings_wa_templates")) {
+      view.append(renderWaTemplateCard());
+    }
+    // Prominent Broadcast CTA — sits BELOW the template so the flow is
+    // review-the-message → tap-Broadcast in one downward motion.
     if (roll.length > 0 && ME.role === "njy_coordinator" && can("myroll_broadcast_button")) {
       const cta = el("a", { class: "broadcast-cta", href: "#/broadcast" },
         el("span", { class: "broadcast-cta-label" }, t("bc.myroll_broadcast_btn")),
         el("span", { class: "broadcast-cta-sub" }, t("bc.myroll_broadcast_sub")),
       );
       view.append(cta);
-    }
-    // Inline WhatsApp template editor — sits directly below Broadcast
-    // so the coord can review-and-edit the message before sending.
-    if (roll.length > 0 && ME.role === "njy_coordinator" && can("settings_wa_templates")) {
-      view.append(renderWaTemplateCard());
     }
     view.append(tallyStrip(tally, ["assigned","chanted_today","followed_up","needs_visit"]));
     // Secondary actions row — WA group setup + CSV download. Broadcast
