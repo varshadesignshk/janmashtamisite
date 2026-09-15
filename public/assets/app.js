@@ -194,6 +194,31 @@ function recomputeBead(r) {
 }
 const humanRole = (r) => t("role." + r) !== "role." + r ? t("role." + r) : r;
 
+// Adjust a devotee's legal name into the form used in WhatsApp greetings:
+//   1. Strip a leading honorific prefix (HG / HH / Bhakta / Bhaktin /
+//      Srila / Sri) so "HG Adideva Giridhari Dasa" collapses to
+//      "Adideva Giridhari Dasa".
+//   2. Suffix swap (whole-word, case-insensitive):
+//        "Devi Dasi"    → "Mataji"   (checked BEFORE "Dasi" alone)
+//        "Dasi"         → "Mataji"
+//        "Dasa" / "Das" → "Prabhu"
+// A pre-initiate ("Anand") returns unchanged. Server-side twin lives in
+// lib/handlers.js honorificAdjust() — keep the two in sync.
+function honorificAdjust(name) {
+  if (!name) return "";
+  let out = String(name).trim();
+  const PREFIX_RE = /^(?:HG|HH|Srila|Sri|Bhakta|Bhaktin)\b[.\s]+/i;
+  while (PREFIX_RE.test(out)) out = out.replace(PREFIX_RE, "");
+  if (/\bDevi\s+Dasi\b/i.test(out)) {
+    out = out.replace(/\bDevi\s+Dasi\b/i, "Mataji");
+  } else if (/\bDasi\b/i.test(out)) {
+    out = out.replace(/\bDasi\b/i, "Mataji");
+  } else if (/\b(?:Dasa|Das)\b/i.test(out)) {
+    out = out.replace(/\b(?:Dasa|Das)\b/i, "Prabhu");
+  }
+  return out.replace(/\s+/g, " ").trim();
+}
+
 let ME = null, GATES = {};
 
 // -------------------------------------- route token (BUG 1+2) ------
@@ -1148,7 +1173,10 @@ function renderBroadcastQueue(view) {
   // Current chanter card
   const cur = state.queue[state.index];
   // Case-insensitive placeholder — {name}, {Name}, {NAME} all resolve.
-  const filledMsg = state.messageTemplate.replace(/\{name\}/gi, (cur.name || "").split(" ")[0] || cur.name || "");
+  // Substitute the FULL name (not just first name) after passing it
+  // through honorificAdjust, so "HG Krishna Dasa" reads "Krishna Prabhu"
+  // and "Radha Devi Dasi" reads "Radha Mataji".
+  const filledMsg = state.messageTemplate.replace(/\{name\}/gi, honorificAdjust(cur.name || ""));
   // wa.me wants phone digits only — leaving "+" in (encoded as %2B) breaks
   // recipient matching on some WhatsApp clients and falls back to the
   // compose picker, which re-parses the ?text= param under a non-UTF-8
