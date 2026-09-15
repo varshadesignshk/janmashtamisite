@@ -1142,6 +1142,19 @@ function renderBroadcastQueue(view) {
   const skipCount = state.queue.filter(x => x.skipped).length;
   const done = state.index >= total;
 
+  // Fire the broadcast-marker touch-point ONCE per queue session, on
+  // first mount. Server enforces once-per-day uniqueness via
+  // leader_touch_actions, so a second fire the same day is a silent
+  // no-op — the client-side flag just avoids the extra round-trip on
+  // every re-render (each Sent/Skip tap re-enters this function).
+  // Leader + HK only; coord broadcasts don't earn a leader-touch.
+  if (!state.markerFired && total > 0
+      && (ME.role === "njy_leader" || ME.role === "hk_leader")) {
+    state.markerFired = true;
+    api("/api/leader/broadcast-marker", { method: "POST" })
+      .catch(() => { /* silent — non-blocking */ });
+  }
+
   view.append(el("div", { class: "spread" },
     el("h2", { class: "section" }, done ? t("hd.broadcast_complete") : t("hd.broadcast_running")),
     el("button", { class: "btn", id: "bc-cancel", type: "button" }, done ? t("btn.close") : t("btn.pause_exit")),
