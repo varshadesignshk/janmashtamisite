@@ -631,7 +631,7 @@ function renderNav() {
     { href: "#/bv",        label: t("nav.bv"),       when: () => can("bv_structure_editor") && BV_ROLES.includes(ME.role) },
     { href: "#/janmashtami", label: t("nav.janmashtami"), when: () => can("janmashtami_view_page") && ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/members",     label: t("nav.members"),     when: () => can("members_tab") && ["hk_leader","njy_leader","njy_coordinator"].includes(ME.role) },
-    { href: "#/profile",     label: t("nav.profile"), when: () => ME.role === "njy_coordinator" },
+    { href: "#/profile",     label: t("nav.profile"), when: () => ["njy_coordinator","njy_leader","hk_leader"].includes(ME.role) },
     { href: "#/settings",  label: t("nav.settings"), when: () => ["njy_coordinator","njy_leader","hk_leader","servant_leader","manjari_servant_leader"].includes(ME.role) },
     { href: "#/admin",     label: t("nav.admin"),    when: () => can("feature_admin") },
   ];
