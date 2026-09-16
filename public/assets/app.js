@@ -933,6 +933,23 @@ function wame(phone, label) {
   }, "💬 ", label || "WhatsApp");
 }
 
+// Tel: dial-out button. `<a href="tel:+91<digits>">` prompts the phone
+// to dial. Returns a hidden placeholder if the phone is missing so
+// callers don't need to null-check. Prefixes +91 to bare 10-digit
+// Indian numbers so the dialler doesn't ambiguously interpret them.
+function callBtn(phone) {
+  const digits = String(phone || "").replace(/[^\d]/g, "");
+  if (!digits) return el("span", { hidden: true });
+  const tel = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+  return el("a", {
+    class: "btn",
+    href: `tel:${tel}`,
+    title: `${t("btn.call")} ${tel}`,
+    style: "text-decoration:none;padding:.15rem .55rem;border-radius:6px;font-size:.78rem;font-weight:500;background:#22c55e;color:#fff;border:none",
+    onclick: (e) => e.stopPropagation(),
+  }, t("btn.call"));
+}
+
 // vCard (v3.0) download button. Generates a .vcf file on the fly with
 // the honorific-adjusted display name + a +91-prefixed mobile number,
 // so tapping it on a phone opens the contact-app "Add contact" flow.
@@ -1976,7 +1993,8 @@ function rollList(roll, editable) {
     });
 
     const saveVcf = saveContactBtn(r.name, r.phone, r.sl_no, r.pincode);
-    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, saveVcf, historyBtn);
+    const call = callBtn(r.phone);
+    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, call, saveVcf, historyBtn);
     ul.appendChild(li);
   });
   return ul;
@@ -2060,8 +2078,9 @@ function leaderRowCard(l) {
   const activePct = l.coord_count ? Math.round(100 * l.active_coords_today / l.coord_count) : 0;
   const chantedPct = l.assigned ? Math.round(100 * l.chanted_today / l.assigned) : 0;
   // CHANGE 5 — HK → leader full-mesh: WhatsApp pill next to Open.
-  const rightBtns = el("div", { style: "display:flex;gap:.35rem;align-items:center" });
+  const rightBtns = el("div", { style: "display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;justify-content:flex-end" });
   if (l.phone) rightBtns.append(wame(l.phone, t("pill.wa")));
+  if (l.phone) rightBtns.append(callBtn(l.phone));
   rightBtns.append(el("a", { class: "btn", href: `#/leader/${l.user_id}` }, t("btn.open")));
   return el("div", { style: "width:100%;display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center" },
     el("div", {},
@@ -2283,6 +2302,7 @@ function coordCard(c) {
   // CHANGE 5 — leader → coord + HK → coord full-mesh: WhatsApp pill next to Open.
   const coordBtns = el("div", { style: "display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;justify-content:flex-end" });
   if (c.phone) coordBtns.append(wame(c.phone, t("pill.wa")));
+  if (c.phone) coordBtns.append(callBtn(c.phone));
   coordBtns.append(el("a", { class: "btn", href: `#/user/${c.user_id}` }, t("btn.open")));
   // Edit + Delete — leader can act on their own coords; HK unrestricted.
   // Backend re-checks ownership, so it's safe to render the buttons for
@@ -2620,7 +2640,8 @@ function rollListManageable(roll, currentOwnerUserId) {
     });
 
     const saveVcf = saveContactBtn(r.name, r.phone, r.sl_no, r.pincode);
-    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, saveVcf, historyBtn);
+    const call = callBtn(r.phone);
+    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, call, saveVcf, historyBtn);
     ul.append(li);
 
     if (canManage) {
@@ -4066,6 +4087,7 @@ async function renderMembersCoordsTab(container, setCount) {
             title: `WhatsApp: ${c.phone}`,
           }, "💬"));
         }
+        actions.append(callBtn(c.phone));
       }
       actions.append(el("a", { class: "btn ghost", href: `#/user/${c.user_id}` }, t("btn.open")));
       if (canManage) {
@@ -4176,6 +4198,7 @@ async function renderMembersLeadersTab(container, setCount) {
             title: `WhatsApp: ${l.phone}`,
           }, "💬"));
         }
+        actions.append(callBtn(l.phone));
       }
       actions.append(el("a", { class: "btn ghost", href: `#/leader/${l.user_id}` }, t("btn.open")));
       const tr = el("tr", {});
