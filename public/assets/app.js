@@ -933,6 +933,78 @@ function wame(phone, label) {
   }, "💬 ", label || "WhatsApp");
 }
 
+// SMS fallback pill (rendered when wa_status === 0). Opens the native
+// SMS composer with an optional pre-filled body. Uses the same +91
+// prefix rule as callBtn so the composer resolves the country code.
+function smsBtn(phone, body) {
+  const digits = String(phone || "").replace(/[^\d]/g, "");
+  if (!digits) return el("span", { hidden: true });
+  const tel = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+  const href = body
+    ? `sms:${tel}?body=${encodeURIComponent(body)}`
+    : `sms:${tel}`;
+  return el("a", {
+    class: "btn",
+    href,
+    title: `${t("btn.sms")} ${tel}`,
+    style: "text-decoration:none;padding:.15rem .55rem;border-radius:6px;font-size:.78rem;font-weight:500;background:#f97316;color:#fff;border:none",
+    onclick: (e) => e.stopPropagation(),
+  }, t("btn.sms"));
+}
+
+// "Invite to WhatsApp" pill — an SMS with a WA download link. Rendered
+// alongside smsBtn so a coord can nudge a non-WA member to install.
+function inviteWaBtn(phone) {
+  const digits = String(phone || "").replace(/[^\d]/g, "");
+  if (!digits) return el("span", { hidden: true });
+  const tel = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+  const body = "Hare Krsna! Please install WhatsApp: https://whatsapp.com/dl";
+  return el("a", {
+    class: "btn",
+    href: `sms:${tel}?body=${encodeURIComponent(body)}`,
+    title: t("btn.invite_to_wa"),
+    style: "text-decoration:none;padding:.15rem .55rem;border-radius:6px;font-size:.78rem;font-weight:500;background:#eab308;color:#111;border:none",
+    onclick: (e) => e.stopPropagation(),
+  }, t("btn.invite_to_wa"));
+}
+
+// Tiny "Not on WhatsApp?" toggle. Renders as a small text link next to
+// the row's WA button. Clicking flips wa_status between null (unknown)
+// and 0 (confirmed not on WA), swapping the row's button set in place.
+//   row: the roll row (mutated on success so the caller's cached copy
+//        stays in sync with the DOM after the toggle round-trips).
+//   onFlipped: callback the caller uses to re-render the button strip
+//              (rollList wires this to swap wa ↔ sms/invite pills).
+function markNonWaBtn(row, onFlipped) {
+  const btn = el("button", {
+    type: "button",
+    class: "mini-btn",
+    title: t("btn.mark_non_wa"),
+    style: "background:transparent;border:none;color:var(--muted);font-size:.72rem;text-decoration:underline;cursor:pointer;padding:.15rem .25rem",
+  }, row.wa_status === 0 ? t("btn.on_wa_toggle") : t("btn.mark_non_wa"));
+  btn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    btn.disabled = true;
+    // Toggle: 0 ↔ null. If it's currently 1 (confirmed WA), treat as null
+    // for the toggle — a coord flipping "Not on WhatsApp?" resets an old
+    // confirmation.
+    const next = row.wa_status === 0 ? null : 0;
+    try {
+      await api(`/api/member/${encodeURIComponent(row.id)}/wa-status`, {
+        method: "POST",
+        body: JSON.stringify({ wa_status: next }),
+      });
+      row.wa_status = next;
+      if (typeof onFlipped === "function") onFlipped();
+    } catch (err) {
+      alert(err.message || t("msg.could_not_update_status"));
+      btn.disabled = false;
+    }
+  });
+  return btn;
+}
+
 // Tel: dial-out button. `<a href="tel:+91<digits>">` prompts the phone
 // to dial. Returns a hidden placeholder if the phone is missing so
 // callers don't need to null-check. Prefixes +91 to bare 10-digit
@@ -1056,10 +1128,14 @@ async function renderBroadcast(view) {
 async function loadBroadcastRecipients() {
   if (ME.role === "njy_coordinator") {
     const { roll } = await api("/api/roll");
+    // Exclude members already known to be off WhatsApp (wa_status === 0)
+    // — tapping Send on a broadcast row for them just wastes the coord's
+    // time. Unknown (null) and confirmed-WA (1) both stay in.
+    const eligible = (roll || []).filter(r => r.wa_status !== 0);
     return {
       kind: "members",
       label: t("wg.invitees_chanters"),
-      recipients: (roll || []).map(r => ({
+      recipients: eligible.map(r => ({
         id: r.id, name: r.name, phone: r.phone,
         chanted_today: !!r.chanted_today, bead_color: r.bead_color,
       })),
@@ -1976,12 +2052,26 @@ function rollList(roll, editable) {
       }
     });
 
-    const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
-    // Auto-mark contacted + undo toast on wa.me open. Only fires for
-    // rows that are currently fresh (contact_state === 0). No-op for
-    // rows already marked contacted/responded/needs_visit. Editable-
-    // only — read-only views don't get to change status.
-    if (editable) attachWaAutoMarkContacted(wa, r, rowBead);
+    // Contact-pill container — WA (or SMS + Invite-to-WA when the member
+    // is confirmed not on WhatsApp), Call, Save contact, and a small
+    // "Not on WhatsApp?" toggle. rebuildContact() rewrites this in place
+    // so flipping wa_status shows the right pills without a full re-render.
+    const contactWrap = el("span", { class: "contact-pills", style: "display:inline-flex;gap:.35rem;flex-wrap:wrap;align-items:center" });
+    const rebuildContact = () => {
+      contactWrap.innerHTML = "";
+      if (r.wa_status === 0) {
+        contactWrap.append(smsBtn(r.phone, null));
+        contactWrap.append(inviteWaBtn(r.phone));
+      } else {
+        const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
+        if (editable) attachWaAutoMarkContacted(wa, r, rowBead);
+        contactWrap.append(wa);
+      }
+      contactWrap.append(callBtn(r.phone));
+      contactWrap.append(saveContactBtn(r.name, r.phone, r.sl_no, r.pincode));
+      if (editable) contactWrap.append(markNonWaBtn(r, rebuildContact));
+    };
+    rebuildContact();
 
     // "History" button — expands a 14-day chant strip below the row
     const historyBtn = el("button", { class: "history-btn", title: t("title.chant_history") }, "📅");
@@ -1992,9 +2082,7 @@ function rollList(roll, editable) {
       li.append(strip);
     });
 
-    const saveVcf = saveContactBtn(r.name, r.phone, r.sl_no, r.pincode);
-    const call = callBtn(r.phone);
-    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, call, saveVcf, historyBtn);
+    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, contactWrap, historyBtn);
     ul.appendChild(li);
   });
   return ul;
@@ -2623,13 +2711,28 @@ function rollListManageable(roll, currentOwnerUserId) {
       }
     });
 
-    const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
-    // Same auto-mark-contacted + undo toast as the coord's own roll —
-    // leader/HK drilling into a coord's roll is still contacting the
-    // same member, so the same status update applies. Server-side auth
-    // check in /api/roll/mark-contacted lets leader/hk act on any
-    // member in their scope (see handlers.js).
-    attachWaAutoMarkContacted(wa, r, rowBead);
+    // Contact-pill container — WA (or SMS + Invite-to-WA when confirmed
+    // not on WhatsApp), Call, Save contact, plus a small "Not on
+    // WhatsApp?" toggle. See rollList() for the shared shape. Leader/HK
+    // drilling in are still contacting the same member, so mark-contacted
+    // auto-fires on WA open (server-side auth check in
+    // /api/roll/mark-contacted lets leader/hk act on any member in scope).
+    const contactWrap = el("span", { class: "contact-pills", style: "display:inline-flex;gap:.35rem;flex-wrap:wrap;align-items:center" });
+    const rebuildContact = () => {
+      contactWrap.innerHTML = "";
+      if (r.wa_status === 0) {
+        contactWrap.append(smsBtn(r.phone, null));
+        contactWrap.append(inviteWaBtn(r.phone));
+      } else {
+        const wa = el("a", { class: "wa", href: r.wa_url, target: "_blank", rel: "noopener" }, t("btn.whatsapp"));
+        attachWaAutoMarkContacted(wa, r, rowBead);
+        contactWrap.append(wa);
+      }
+      contactWrap.append(callBtn(r.phone));
+      contactWrap.append(saveContactBtn(r.name, r.phone, r.sl_no, r.pincode));
+      contactWrap.append(markNonWaBtn(r, rebuildContact));
+    };
+    rebuildContact();
 
     const historyBtn = el("button", { class: "history-btn", title: t("title.chant_history") }, "📅");
     historyBtn.addEventListener("click", async () => {
@@ -2639,9 +2742,7 @@ function rollListManageable(roll, currentOwnerUserId) {
       li.append(strip);
     });
 
-    const saveVcf = saveContactBtn(r.name, r.phone, r.sl_no, r.pincode);
-    const call = callBtn(r.phone);
-    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, call, saveVcf, historyBtn);
+    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, contactWrap, historyBtn);
     ul.append(li);
 
     if (canManage) {
