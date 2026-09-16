@@ -2096,62 +2096,84 @@ async function renderLeaderDrill(leaderId) {
   const loader = loadingLine(t("team.loading_generic"));
   view.append(loader);
   try {
-    const target = await api(`/api/user/${encodeURIComponent(leaderId)}`).catch(() => null);
-    if (myToken !== routeToken) return;
-    // Fall back to enumerating leaders if the single-user endpoint isn't there.
-    const [{ leaders }, { users }] = await Promise.all([
+    // Fetch all three sources in parallel:
+    //   /api/hk/leaders — for the leader's display name (single source
+    //   with per-leader aggregates for the parent list). We DO NOT rely
+    //   on it for the KPI strip any more, because when the director
+    //   drilled in from a stale HK list the aggregated fields
+    //   (chanted_today, active_coords_today, assigned) rendered blank
+    //   or zero even when the coord rows below showed activity. The
+    //   root cause: two independent aggregation paths (one for the
+    //   HK leaders list, one for the coord rows) can diverge. We now
+    //   compute the KPI strip from the SAME coord rows shown below so
+    //   the totals always match.
+    //   /api/leader/coordinators — full coord list w/ per-coord stats.
+    //     For HK: returns ALL coords. For a leader: only their own.
+    //     Either way we filter by manager_user_id === leaderId.
+    //   /api/admin/users — HK-only fallback for the assign-coords picker
+    //     (unassigned coords + coords under other leaders). Skipped
+    //     for non-HK callers who can't see /api/admin/users anyway.
+    const [{ leaders }, { coordinators }, usersResult] = await Promise.all([
       api("/api/hk/leaders").catch(() => ({ leaders: [] })),
-      api("/api/admin/users").catch(() => ({ users: [] })),
+      api("/api/leader/coordinators").catch(() => ({ coordinators: [] })),
+      ME.role === "hk_leader"
+        ? api("/api/admin/users").catch(() => ({ users: [] }))
+        : Promise.resolve({ users: [] }),
     ]);
     if (myToken !== routeToken) return;
-    const leader = leaders.find(l => l.user_id === leaderId) || {};
+    const users = usersResult.users || [];
+    const leaderInfo = leaders.find(l => l.user_id === leaderId) || {};
     const leaderUser = users.find(u => u.id === leaderId);
-    const name = leader.name || leaderUser?.display_name || leaderUser?.username || t("team.leader_fallback");
+    const name = leaderInfo.name || leaderUser?.display_name || leaderUser?.username || t("team.leader_fallback");
     loader.remove();
     view.append(el("div", { class: "spread" },
       el("h2", { class: "section" }, `${name} · ${humanRole("njy_leader")}`),
       el("a", { class: "btn", href: backHref }, t("btn.back")),
     ));
-    // KPI strip for this leader
+
+    // Filter coordinators down to just this leader's — the field IS
+    // returned by /api/leader/coordinators (see handlers.js:774) so
+    // we don't need /api/admin/users at all for this filter.
+    const myCoordRows = coordinators.filter(c => c.manager_user_id === leaderId);
+
+    // KPI strip — computed from the same rows shown below. This is the
+    // fix for the "coord row counts blank on director drill-in" bug:
+    // when HK drills into a leader whose /api/hk/leaders aggregation
+    // returned zero (stale row / missing entry / mismatched user id),
+    // the KPI would render "0" for all fields while the coord cards
+    // underneath clearly showed real activity. Computing from the
+    // coord rows themselves keeps the KPI in lock-step with what the
+    // director actually sees.
+    const coordCount = myCoordRows.length;
+    const activeCoordsToday = myCoordRows.filter(c => (c.chanted_today || 0) > 0).length;
+    const totalPeople = myCoordRows.reduce((s, c) => s + (c.assigned || 0), 0);
+    const chantedToday = myCoordRows.reduce((s, c) => s + (c.chanted_today || 0), 0);
     const grid = el("div", { class: "tally" });
     grid.append(
-      el("div", { class: "cell" }, el("div", { class: "n" }, String(leader.coord_count || 0)), el("div", { class: "k" }, t("hd.coords_in_team"))),
-      el("div", { class: "cell" }, el("div", { class: "n" }, String(leader.active_coords_today || 0)), el("div", { class: "k" }, t("hd.coords_active_today"))),
-      el("div", { class: "cell" }, el("div", { class: "n" }, String(leader.assigned || 0)), el("div", { class: "k" }, t("hd.people"))),
-      el("div", { class: "cell" }, el("div", { class: "n" }, String(leader.chanted_today || 0)), el("div", { class: "k" }, t("hd.chanted_today"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(coordCount)), el("div", { class: "k" }, t("hd.coords_in_team"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(activeCoordsToday)), el("div", { class: "k" }, t("hd.coords_active_today"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(totalPeople)), el("div", { class: "k" }, t("hd.people"))),
+      el("div", { class: "cell" }, el("div", { class: "n" }, String(chantedToday)), el("div", { class: "k" }, t("hd.chanted_today"))),
     );
     view.append(grid);
 
-    // Assign button
+    // Assign button (HK only). The modal needs the full users list to
+    // show unassigned + other-leader coords, so we already fetched it
+    // above for HK callers.
     if (ME.role === "hk_leader") {
       const assignBtn = el("button", { class: "primary" }, t("btn.assign_coords"));
       assignBtn.addEventListener("click", () => openAssignCoordsModal(leaderId, name, users));
       view.append(el("p", { style: "margin:.6rem 0" }, assignBtn));
     }
 
-    // This leader's coords — fetch the per-leader coord list. The
-    // /api/leader/coordinators endpoint filters by the CURRENT user, so
-    // we filter client-side from all coordinators against manager_user_id.
-    const myCoords = users.filter(u => u.role === "njy_coordinator" && u.active && u.manager_user_id === leaderId);
     view.append(el("h3", { class: "section" }, t("hd.currently_assigned")));
-    if (!myCoords.length) {
+    if (!coordCount) {
       view.append(el("p", { class: "hint" }, t("msg.no_coords_leader_assigned")));
       return;
     }
-    // Enrich each with the same shape coordCard expects. Cheapest path:
-    // reuse /api/leader/coordinators (HK sees all) and filter.
-    try {
-      const { coordinators } = await api("/api/leader/coordinators");
-      if (myToken !== routeToken) return;
-      const wanted = new Set(myCoords.map(c => c.id));
-      const rows = coordinators.filter(c => wanted.has(c.user_id));
-      const ul = el("ul", { class: "list" });
-      for (const c of rows) ul.append(el("li", {}, coordCard(c)));
-      view.append(ul);
-    } catch (err) {
-      if (myToken !== routeToken) return;
-      view.append(el("p", { class: "error" }, err.message));
-    }
+    const ul = el("ul", { class: "list" });
+    for (const c of myCoordRows) ul.append(el("li", {}, coordCard(c)));
+    view.append(ul);
   } catch (err) {
     if (myToken !== routeToken) return;
     loader.remove();
