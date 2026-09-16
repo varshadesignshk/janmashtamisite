@@ -933,6 +933,66 @@ function wame(phone, label) {
   }, "💬 ", label || "WhatsApp");
 }
 
+// vCard (v3.0) download button. Generates a .vcf file on the fly with
+// the honorific-adjusted display name + a +91-prefixed mobile number,
+// so tapping it on a phone opens the contact-app "Add contact" flow.
+// Client-side only: Blob + URL.createObjectURL() + <a download>. Works
+// on iOS Safari + Android Chrome; no backend, no permissions.
+//   sl_no / pincode are optional — they land in the NOTE field for
+//   quick recognition when the contact is later looked up.
+function saveContactBtn(rawName, phone, sl_no, pincode) {
+  const digits = String(phone || "").replace(/[^\d]/g, "");
+  if (!digits) return el("span", { hidden: true });
+  const fn = honorificAdjust(rawName || "").trim() || String(rawName || "").trim() || "NJY Member";
+  const btn = el("button", {
+    type: "button",
+    class: "btn",
+    title: t("btn.save_contact"),
+    style: "text-decoration:none;padding:.15rem .55rem;border-radius:6px;font-size:.78rem;font-weight:500;background:#0ea5e9;color:#fff;border:none;cursor:pointer",
+  }, t("btn.save_contact"));
+  btn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    // Prefix with +91 if not already E.164-ish. Digits-only + 10 chars →
+    // add "+91"; anything else use as-is with a leading + (11-13 digit
+    // countries or already-e164 numbers). Never strip a "+".
+    const tel = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+    const parts = [];
+    parts.push("BEGIN:VCARD");
+    parts.push("VERSION:3.0");
+    parts.push(`FN:${vcardEscape(fn)}`);
+    parts.push(`N:${vcardEscape(fn)};;;;`);
+    parts.push(`TEL;TYPE=CELL:${tel}`);
+    const noteBits = ["NJY Member"];
+    if (sl_no != null && sl_no !== "") noteBits.push(`SL ${sl_no}`);
+    if (pincode) noteBits.push(String(pincode));
+    parts.push(`NOTE:${vcardEscape(noteBits.join(" · "))}`);
+    parts.push("END:VCARD");
+    parts.push("");
+    const vcf = parts.join("\r\n");
+    const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slugify(fn)}.vcf`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  });
+  return btn;
+}
+
+// vCard 3.0 escape: backslash, comma, semicolon and newline. FN + N +
+// NOTE are the only free-text fields we write, so this covers all.
+function vcardEscape(s) {
+  return String(s || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
 // Renders the two nav buttons (Broadcast + WA Group) shown on the
 // coord's My Roll, the leader's Team page, and the HK Leader's leaders
 // list. Recipient list is derived from the role — see
@@ -1915,7 +1975,8 @@ function rollList(roll, editable) {
       li.append(strip);
     });
 
-    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, historyBtn);
+    const saveVcf = saveContactBtn(r.name, r.phone, r.sl_no, r.pincode);
+    li.append(el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, saveVcf, historyBtn);
     ul.appendChild(li);
   });
   return ul;
@@ -2536,7 +2597,8 @@ function rollListManageable(roll, currentOwnerUserId) {
       li.append(strip);
     });
 
-    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, historyBtn);
+    const saveVcf = saveContactBtn(r.name, r.phone, r.sl_no, r.pincode);
+    const li = el("li", {}, el("div", { class: "bead-wrap" }, rowBead), name, lifecycle, chant, wa, saveVcf, historyBtn);
     ul.append(li);
 
     if (canManage) {
