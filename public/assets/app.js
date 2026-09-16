@@ -3535,6 +3535,61 @@ async function renderMembers(view) {
     addSlot.append(buildAddPersonButton(addSlot, "leader"));
   }
 
+  // Sub-tab pill row: People / Coordinators / Leaders. Coord only sees
+  // People; leader sees People + Coordinators (their team); HK sees all
+  // three. Counts fill in as each tab loads its data (or 0 if unloaded).
+  const tabRow = el("div", {
+    class: "members-tabs",
+    role: "tablist",
+    style: "display:flex;gap:.4rem;flex-wrap:wrap;margin:.4rem 0 .7rem",
+  });
+  const peopleContent = el("div", { id: "members-tab-people" });
+  const coordsContent = el("div", { id: "members-tab-coords", hidden: true });
+  const leadersContent = el("div", { id: "members-tab-leaders", hidden: true });
+  const tabsAvail = ["people"];
+  if (["hk_leader", "njy_leader"].includes(ME.role)) tabsAvail.push("coords");
+  if (ME.role === "hk_leader") tabsAvail.push("leaders");
+  const labelKey = { people: "members.tab.people", coords: "members.tab.coords", leaders: "members.tab.leaders" };
+  const pillRefs = {};   // { people: pillEl, coords: ..., leaders: ... }
+  const contentByKey = { people: peopleContent, coords: coordsContent, leaders: leadersContent };
+  const setPill = (kind, count) => {
+    const pill = pillRefs[kind];
+    if (!pill) return;
+    pill.textContent = `${t(labelKey[kind])} (${count == null ? "…" : count})`;
+  };
+  const loadedTabs = new Set();
+  const activateTab = (kind) => {
+    for (const k of tabsAvail) {
+      const on = k === kind;
+      contentByKey[k].hidden = !on;
+      if (pillRefs[k]) pillRefs[k].classList.toggle("active", on);
+    }
+    if (kind === "coords" && !loadedTabs.has("coords")) {
+      loadedTabs.add("coords");
+      renderMembersCoordsTab(coordsContent, (n) => setPill("coords", n));
+    }
+    if (kind === "leaders" && !loadedTabs.has("leaders")) {
+      loadedTabs.add("leaders");
+      renderMembersLeadersTab(leadersContent, (n) => setPill("leaders", n));
+    }
+  };
+  for (const kind of tabsAvail) {
+    const pill = el("button", {
+      type: "button",
+      role: "tab",
+      class: "members-tab-pill" + (kind === "people" ? " active" : ""),
+      style: "padding:.4rem .85rem;border-radius:999px;border:1px solid var(--line);"
+        + "background:var(--surface);color:var(--ink);font-size:.85rem;cursor:pointer;font-weight:500",
+    }, `${t(labelKey[kind])} (…)`);
+    pill.addEventListener("click", () => activateTab(kind));
+    pillRefs[kind] = pill;
+    tabRow.append(pill);
+  }
+  view.append(tabRow);
+  view.append(peopleContent);
+  view.append(coordsContent);
+  view.append(leadersContent);
+
   // Search bar (client-side filter across all 3 sections).
   const searchInput = el("input", {
     type: "search", id: "members-search",
@@ -3542,7 +3597,7 @@ async function renderMembers(view) {
     autocomplete: "off", autocapitalize: "none", autocorrect: "off",
     style: "width:100%;padding:.55rem;border:1px solid var(--line);border-radius:6px;margin:.4rem 0 .7rem",
   });
-  view.append(searchInput);
+  peopleContent.append(searchInput);
 
   // Bucketize
   const byId = new Map(people.map(p => [p.id, p]));
@@ -3558,7 +3613,7 @@ async function renderMembers(view) {
   const selected = new Set();  // person ids checked in the unassigned bulk-assign UI
 
   const sectionsWrap = el("div", { id: "members-sections" });
-  view.append(sectionsWrap);
+  peopleContent.append(sectionsWrap);
 
   // Bulk-assign floating bar (leader + HK only, only for unassigned).
   const bulkBar = el("div", {
@@ -3590,7 +3645,7 @@ async function renderMembers(view) {
   const bulkMsg = el("span", { class: "hint" }, "");
   const autoFillMsg = el("span", { class: "hint", id: "members-autofill-msg" }, "");
   bulkBar.append(bulkCount, bulkSelect, autoFillBtn, bulkBtn, autoFillMsg, bulkMsg);
-  if (canBulkAssign) view.append(bulkBar);
+  if (canBulkAssign) peopleContent.append(bulkBar);
 
   const refreshBulkBar = () => {
     if (!canBulkAssign) return;
@@ -3901,6 +3956,246 @@ async function renderMembers(view) {
     clearTimeout(debounce);
     debounce = setTimeout(renderAll, 120);
   });
+
+  // People count = total across all sections rendered on this tab.
+  setPill("people", people.length);
+  // Warm the other tabs' counts too so pills don't sit at "…" forever.
+  if (tabsAvail.includes("coords")) setPill("coords", null);
+  if (tabsAvail.includes("leaders")) setPill("leaders", null);
+}
+
+// Coordinators sub-tab — a full table of every coord the caller can
+// see (HK: all; leader: only their team). Reuses /api/leader/coordinators
+// so we get per-coord stats (assigned = whole roll size) for free.
+async function renderMembersCoordsTab(container, setCount) {
+  container.innerHTML = "";
+  const loading = el("p", { class: "hint" }, t("msg.loading"));
+  container.append(loading);
+  let coordinators = [], users = [];
+  try {
+    const [coordsRes, usersRes] = await Promise.all([
+      api("/api/leader/coordinators").catch(() => ({ coordinators: [] })),
+      ME.role === "hk_leader"
+        ? api("/api/admin/users").catch(() => ({ users: [] }))
+        : Promise.resolve({ users: [] }),
+    ]);
+    coordinators = coordsRes.coordinators || [];
+    users = usersRes.users || [];
+  } catch (err) {
+    loading.remove();
+    container.append(el("p", { class: "error" }, err.message));
+    return;
+  }
+  loading.remove();
+  // Map leader user_id → display name so the Assigned Leader column
+  // renders a human name rather than an opaque id. For HK the users
+  // list carries every leader; for a njy_leader caller, all rows are
+  // under themselves so we can hand-fill with their own display name.
+  const leaderNameById = new Map();
+  for (const u of users) {
+    if (u.role === "njy_leader") leaderNameById.set(u.id, u.display_name || u.username);
+  }
+  if (ME.role === "njy_leader") leaderNameById.set(ME.id, ME.display_name || ME.username);
+
+  setCount(coordinators.length);
+  if (!coordinators.length) {
+    container.append(el("p", { class: "hint" }, t("msg.no_coords_leader")));
+    return;
+  }
+
+  // Search box
+  const searchInput = el("input", {
+    type: "search",
+    placeholder: t("members.search_ph"),
+    autocomplete: "off", autocapitalize: "none",
+    style: "width:100%;padding:.55rem;border:1px solid var(--line);border-radius:6px;margin:.2rem 0 .7rem",
+  });
+  container.append(searchInput);
+
+  const card = el("div", { class: "card", style: "margin-bottom:.8rem;padding:0;overflow:hidden" });
+  const wrap = el("div", { class: "members-table-wrap" });
+  const table = el("table", { class: "members-table" });
+  const thead = el("thead");
+  thead.append(el("tr", {},
+    el("th", { class: "name-cell" }, t("members.col.name")),
+    el("th", {}, t("members.col.username")),
+    el("th", { class: "phone-cell" }, t("members.col.phone")),
+    el("th", { class: "pin-cell" }, t("members.col.pincode")),
+    el("th", {}, t("members.col.assigned_leader")),
+    el("th", {}, t("members.col.team_size")),
+    el("th", { class: "actions-cell" }, ""),
+  ));
+  table.append(thead);
+  const tbody = el("tbody");
+  table.append(tbody);
+  wrap.append(table);
+  card.append(wrap);
+  container.append(card);
+
+  const filterRows = (q) => {
+    if (!q) return coordinators;
+    const lower = q.toLowerCase();
+    const digits = q.replace(/\D/g, "");
+    return coordinators.filter(c =>
+      (c.name || "").toLowerCase().includes(lower)
+      || (c.username || "").toLowerCase().includes(lower)
+      || (digits && (c.phone || "").replace(/\D/g, "").includes(digits)),
+    );
+  };
+  const repaint = () => {
+    const q = searchInput.value.trim();
+    const rows = filterRows(q);
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      tbody.append(el("tr", { class: "empty-row" },
+        el("td", { colspan: 7 }, t("members.empty_section"))));
+      return;
+    }
+    for (const c of rows) {
+      const canManage = ME.role === "hk_leader"
+        || (ME.role === "njy_leader" && (!c.manager_user_id || c.manager_user_id === ME.id));
+      const tr = el("tr", {});
+      const actions = el("div", { style: "display:flex;gap:.25rem;flex-wrap:wrap;justify-content:flex-end" });
+      if (c.phone) {
+        const waDigits = String(c.phone).replace(/[^\d]/g, "");
+        if (waDigits) {
+          actions.append(el("a", {
+            class: "wa-btn",
+            href: `https://api.whatsapp.com/send/?phone=${waDigits}`,
+            target: "_blank", rel: "noopener",
+            title: `WhatsApp: ${c.phone}`,
+          }, "💬"));
+        }
+      }
+      actions.append(el("a", { class: "btn ghost", href: `#/user/${c.user_id}` }, t("btn.open")));
+      if (canManage) {
+        const editBtn = el("button", { class: "mini-btn", type: "button" }, t("team.edit_coord_btn"));
+        editBtn.addEventListener("click", () => openEditCoordModal(c));
+        actions.append(editBtn);
+        const delBtn = el("button", { class: "danger", type: "button" }, t("team.delete_coord_btn"));
+        delBtn.addEventListener("click", () => openDeleteCoordConfirm(c));
+        actions.append(delBtn);
+      }
+      tr.append(
+        el("td", { class: "name-cell" }, c.name || "—"),
+        el("td", {}, c.username || "—"),
+        el("td", { class: "phone-cell" }, c.phone || "—"),
+        el("td", { class: "pin-cell" }, c.pincode || "—"),
+        el("td", {}, (c.manager_user_id && leaderNameById.get(c.manager_user_id)) || "—"),
+        el("td", {}, String(c.assigned || 0)),
+        el("td", { class: "actions-cell" }, actions),
+      );
+      tbody.append(tr);
+    }
+  };
+  let debounce = null;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(repaint, 120);
+  });
+  repaint();
+}
+
+// Leaders sub-tab — HK-only listing of every NJY Leader with their
+// coord + people totals. Uses /api/hk/leaders (already aggregated).
+async function renderMembersLeadersTab(container, setCount) {
+  container.innerHTML = "";
+  const loading = el("p", { class: "hint" }, t("msg.loading"));
+  container.append(loading);
+  let leaders = [];
+  try {
+    const res = await api("/api/hk/leaders");
+    leaders = res.leaders || [];
+  } catch (err) {
+    loading.remove();
+    container.append(el("p", { class: "error" }, err.message));
+    return;
+  }
+  loading.remove();
+  setCount(leaders.length);
+  if (!leaders.length) {
+    container.append(el("p", { class: "hint" }, t("msg.no_coords_hk")));
+    return;
+  }
+
+  const searchInput = el("input", {
+    type: "search",
+    placeholder: t("members.search_ph"),
+    autocomplete: "off", autocapitalize: "none",
+    style: "width:100%;padding:.55rem;border:1px solid var(--line);border-radius:6px;margin:.2rem 0 .7rem",
+  });
+  container.append(searchInput);
+
+  const card = el("div", { class: "card", style: "margin-bottom:.8rem;padding:0;overflow:hidden" });
+  const wrap = el("div", { class: "members-table-wrap" });
+  const table = el("table", { class: "members-table" });
+  const thead = el("thead");
+  thead.append(el("tr", {},
+    el("th", { class: "name-cell" }, t("members.col.name")),
+    el("th", {}, t("members.col.username")),
+    el("th", { class: "phone-cell" }, t("members.col.phone")),
+    el("th", {}, t("members.col.coord_count")),
+    el("th", {}, t("members.col.total_people")),
+    el("th", { class: "actions-cell" }, ""),
+  ));
+  table.append(thead);
+  const tbody = el("tbody");
+  table.append(tbody);
+  wrap.append(table);
+  card.append(wrap);
+  container.append(card);
+
+  const filterRows = (q) => {
+    if (!q) return leaders;
+    const lower = q.toLowerCase();
+    const digits = q.replace(/\D/g, "");
+    return leaders.filter(l =>
+      (l.name || "").toLowerCase().includes(lower)
+      || (l.username || "").toLowerCase().includes(lower)
+      || (digits && (l.phone || "").replace(/\D/g, "").includes(digits)),
+    );
+  };
+  const repaint = () => {
+    const q = searchInput.value.trim();
+    const rows = filterRows(q);
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      tbody.append(el("tr", { class: "empty-row" },
+        el("td", { colspan: 6 }, t("members.empty_section"))));
+      return;
+    }
+    for (const l of rows) {
+      const actions = el("div", { style: "display:flex;gap:.25rem;flex-wrap:wrap;justify-content:flex-end" });
+      if (l.phone) {
+        const waDigits = String(l.phone).replace(/[^\d]/g, "");
+        if (waDigits) {
+          actions.append(el("a", {
+            class: "wa-btn",
+            href: `https://api.whatsapp.com/send/?phone=${waDigits}`,
+            target: "_blank", rel: "noopener",
+            title: `WhatsApp: ${l.phone}`,
+          }, "💬"));
+        }
+      }
+      actions.append(el("a", { class: "btn ghost", href: `#/leader/${l.user_id}` }, t("btn.open")));
+      const tr = el("tr", {});
+      tr.append(
+        el("td", { class: "name-cell" }, l.name || "—"),
+        el("td", {}, l.username || "—"),
+        el("td", { class: "phone-cell" }, l.phone || "—"),
+        el("td", {}, String(l.coord_count || 0)),
+        el("td", {}, String(l.assigned || 0)),
+        el("td", { class: "actions-cell" }, actions),
+      );
+      tbody.append(tr);
+    }
+  };
+  let debounce = null;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(repaint, 120);
+  });
+  repaint();
 }
 
 // ------------------ Add Coordinator / Add Leader inline form -------
